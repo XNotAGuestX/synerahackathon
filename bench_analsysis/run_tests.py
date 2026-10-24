@@ -28,19 +28,6 @@ from final_agent.building_map import BuildingMap
 from final_agent.tools import make_tools
 
 
-MISSING = {
-    "largest_room": "room_area_summary: exact floor/type filter, largest polygon and area",
-    "floor_area_total": "room_area_summary: sum every eligible matching polygon",
-    "straight_line_3d": "straight_line_distance_3d: polygon centroids at elevation_m",
-    "room_stacked": "stacked_room: next available floor and maximum overlap",
-    "shared_walls_count": "shared_wall_neighbors: tolerant boundary length and per-kind eligibility",
-    "wide_delivery_count": "reachable_rooms: step-free + minimum width + eligible target-room count",
-    "step_free_reachable_count": "reachable_rooms: isolated closure + step-free target-room count",
-    "errand": "plan_errand: nearest reachable pickup first, then largest destination",
-    "what_if_door": "simulate_door_exit_improvement: midpoint door and isolated before/after exit distances",
-}
-
-
 def floor_level(building: BuildingMap, floor_id: str) -> int:
     return building.floors[floor_id]["level"]
 
@@ -173,10 +160,13 @@ def load_question(case: dict) -> dict:
 
 
 def offline_case(case: dict, question: dict, output: Path) -> tuple[str, str]:
-    """Exercise real tool wrappers; no substitute geometry or missing-tool solver."""
+    """Exercise real tool wrappers; no substitute geometry or missing-tool solver.
+
+    Scored kinds use their dedicated tool (COMPONENT_CALLS); an unregistered tool is a GAP.
+    """
     kind = question["kind"]
-    if kind in MISSING:
-        return "GAP", MISSING[kind]
+    if kind in COMPONENT_CALLS:
+        return component_case(ROOT / "data" / "dev" / case["building_id"], question, output)
     building_path = ROOT / "data" / "dev" / case["building_id"] / "building.json"
     original = building_path.read_bytes()
     building = BuildingMap.load(building_path)
@@ -198,12 +188,12 @@ def offline_case(case: dict, question: dict, output: Path) -> tuple[str, str]:
 
         if kind == "count":
             result = call("search_building", {
-                "query": expected["asset_type"], "floor_level": expected["floor_level"],
+                "query": "", "asset_type": expected["asset_type"], "floor_level": expected["floor_level"],
             })
-            return "GAP", (
-                f"No exact inventory count tool; substring search reports {result['matches']} matches, "
-                f"displays {len(result['results'])}, labelled asset count is {expected['count']}"
+            assert result["matches"] == expected["count"], (
+                f"Exact asset_type count {result['matches']} differs from labelled {expected['count']}"
             )
+            return "PASS", f"Exact asset_type filter counts {result['matches']} assets (page shows {len(result['results'])})"
 
         if case.get("probe") == "ambiguity":
             references = {"start": expected["from_space_id"], "destination": expected["to_space_id"]}
