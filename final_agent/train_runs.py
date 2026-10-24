@@ -99,6 +99,7 @@ def ask_agent(
 def build(selected: list[Question], library: Path, model: str, full: bool) -> None:
     runs = {run.question_id: run for run in load_runs(library)}
     pending = pending_questions(selected, list(runs.values()))
+    print(f"model: {model}")
     print(f"{len(pending)} pending of {len(selected)} selected")
     if not pending:
         return
