@@ -10,7 +10,8 @@ from pathlib import Path
 import anthropic
 
 from .building_map import BuildingMap
-from .tools import make_tools
+from .run_library import RunIndex
+from .tools import make_recall_tool, make_tools
 
 MODEL = "claude-sonnet-5-5"
 MAX_TOKENS = 16000
@@ -198,6 +199,16 @@ Initial building overview:
 {overview}
 """
 
+# Appended to the system prompt only when the agent has a run index (benchmark answers).
+EXAMPLES_PROMPT = """
+# Worked examples
+- For a question that asks for a final 'Answer:' line, first call recall_examples once
+  with its kind and a building-agnostic semantic translation.
+- Examples are accepted runs from other questions. Reuse their tool sequence, argument
+  style and answer format; never reuse their names, IDs or numbers.
+- Every fact in your answer still comes from this building's tools.
+"""
+
 
 class MissingCredentialsError(RuntimeError):
     """The Anthropic client has no usable credentials."""
@@ -207,20 +218,18 @@ class BuildingAgent:
     """Keeps the conversation history and runs Claude's tool loop for each user turn."""
 
     def __init__(
-        self, building_map: BuildingMap, output_directory: Path, client: anthropic.Anthropic | None = None
+        self, building_map: BuildingMap, output_directory: Path, client: anthropic.Anthropic | None = None,
+        examples: RunIndex | None = None, model: str = MODEL,
     ) -> None:
         self.map = building_map
         self.client = client or anthropic.Anthropic()
+        self.model = model
         self.tools = make_tools(building_map, output_directory)
-        self.system = [
-            {
-                "type": "text",
-                "text": SYSTEM_PROMPT.format(
-                    overview=json.dumps(building_map.overview(), ensure_ascii=False)
-                ),
-                "cache_control": {"type": "ephemeral"},
-            }
-        ]
+        system_text = SYSTEM_PROMPT.format(overview=json.dumps(building_map.overview(), ensure_ascii=False))
+        if examples is not None:
+            self.tools.append(make_recall_tool(examples))
+            system_text += EXAMPLES_PROMPT
+        self.system = [{"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}]
         self.messages: list[dict] = []
         self.usage = {
             "input_tokens": 0,
@@ -242,7 +251,7 @@ class BuildingAgent:
 
     def run_tool_loop(self) -> str:
         runner = self.client.beta.messages.tool_runner(
-            model=MODEL,
+            model=self.model,
             max_tokens=MAX_TOKENS,
             max_iterations=MAX_TOOL_ITERATIONS,
             system=self.system,
@@ -266,6 +275,16 @@ class BuildingAgent:
         if final.stop_reason == "refusal":
             return "Sorry, I can't help with that request."
         return "\n".join(block.text for block in final.content if block.type == "text").strip()
+
+    def tool_calls(self) -> list[dict]:
+        """Name and input of every tool call in the conversation, in order; tool results are not included."""
+        return [
+            {"name": block.name, "input": block.input}
+            for message in self.messages
+            if message["role"] == "assistant"
+            for block in message["content"]
+            if block.type == "tool_use"
+        ]
 
     def track_usage(self, message: object) -> None:
         usage = message.usage

@@ -121,9 +121,10 @@ class FinalAgentIntegrationTests(unittest.TestCase):
             self.make_map().save(building)
             original = building.read_bytes()
             answer = load_agent("final_agent.benchmark:answer")
+            # The committed run library would load the embedding model; isolation needs no examples.
             with patch("final_agent.agent.anthropic.Anthropic", return_value=object()), patch.object(
                 BuildingAgent, "ask", ask
-            ):
+            ), patch("final_agent.benchmark.run_index", return_value=None):
                 self.assertEqual(answer(building.parent, "first"), "Answer: first")
                 self.assertEqual(answer(building.parent, "second"), "Answer: second")
             self.assertIsNot(agents[0].map, agents[1].map)

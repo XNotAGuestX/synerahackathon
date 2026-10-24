@@ -197,7 +197,10 @@ class MissingCredentialsTests(unittest.TestCase):
 
     @unittest.skipIf(credentials_resolve(), "Anthropic credentials are configured on this machine")
     def test_benchmark_answer_stops_the_run_without_credentials(self):
-        with patch.dict(os.environ, without_credentials(), clear=True):
+        # The committed run library would load the embedding model before the missing credentials surface.
+        with patch.dict(os.environ, without_credentials(), clear=True), patch(
+            "final_agent.benchmark.run_index", return_value=None
+        ):
             with self.assertRaises(SystemExit) as caught:
                 answer(BUILDING, "Where is the printer?")
         self.assertEqual(str(caught.exception), MISSING_CREDENTIALS_MESSAGE)

@@ -10,9 +10,11 @@ from anthropic.lib.tools import BetaFunctionTool, ToolError
 from pydantic import ValidationError
 
 from .building_map import MAX_SEARCH_RESULTS, NEW_DOOR_WIDTH_M, BuildingMap, MapError, RouteResult
+from .run_library import SKILL_BY_KIND, RunIndex, ScoredKind, example_json
 from .viewer import draw_location, draw_route, landmark_targets, route_floor_ids, route_handoffs
 
 JSON_INDENT = 1
+NO_EXAMPLES_NOTE = "No accepted example for this kind yet; solve it with the building tools."
 
 
 class ArgumentCheckedTool(BetaFunctionTool):
@@ -667,3 +669,27 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
             raise ToolError(str(error)) from error
 
     return tools
+
+
+def make_recall_tool(index: RunIndex) -> ArgumentCheckedTool:
+    """The recall_examples tool bound to one run index; only the benchmark answer path registers it."""
+
+    def recall_examples(kind: ScoredKind, semantic_translation: str) -> str:
+        """Declare what this benchmark question asks and get worked examples of similar accepted questions; call once before other tools for questions that ask for a final 'Answer:' line.
+
+        Args:
+            kind: The scored question kind this question belongs to.
+            semantic_translation: One building-agnostic sentence: the operation, its constraints and the required answer
+                format, with placeholders <space>, <asset>, <room_type>, <floor> instead of names and
+                numbers. Example: "nearest <asset> pickup from <space>, then largest <room_type> on
+                another floor, stairs allowed; answer total walking metres".
+        """
+        if not semantic_translation.strip():
+            raise ToolError("semantic_translation is empty: describe the question in one building-agnostic sentence.")
+        examples = [example_json(run) for run in index.similar(kind, semantic_translation.strip())]
+        result = {"kind": kind, "skill": SKILL_BY_KIND[kind], "examples": examples}
+        if not examples:
+            result["note"] = NO_EXAMPLES_NOTE
+        return as_json(result)
+
+    return ArgumentCheckedTool(recall_examples)
