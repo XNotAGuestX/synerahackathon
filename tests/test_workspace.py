@@ -25,6 +25,54 @@ def model(building_id):
 
 
 class WorkspaceTests(unittest.TestCase):
+    def test_reports_keep_chat_identity_and_survive_rendering_edits_and_resume(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "a.json"
+            data = model("a")
+            data["spaces"].append({**data["spaces"][0], "id": "s", "name": "102",
+                                   "polygon": [[4, 0], [8, 0], [8, 4], [4, 4]]})
+            JsonBuildingStore.save(source, data)
+            database = root / "shared.sqlite3"
+            workspace = Workspace(root / "first", notes_database=database)
+            workspace.register(str(source), facility_number="3")
+
+            def call(session, name, **args):
+                tools = {tool.name: tool for tool in make_workspace_tools(session)}
+                return json.loads(tools[name].call(args))
+
+            note = call(workspace, "add_room_note", space="r", text="Printer broken.")["note"]
+            repeated = call(workspace, "confirm_room_note", space="r", note_id=note["note_id"])["note"]
+            self.assertEqual((repeated["confirmation_count"], repeated["status"]), (1, "pending"))
+            second = Workspace(root / "second", notes_database=database)
+            second.register(str(source), facility_number="3")
+            self.assertEqual(call(second, "get_room_notes", spaces=["r"])["room_notes"], [])
+            confirmed = call(second, "confirm_room_note", space="r", note_id=note["note_id"])["note"]
+            self.assertEqual((confirmed["confirmation_count"], confirmed["status"]), (2, "active"))
+            hazard = call(workspace, "add_room_note", space="r", text="Wet floor.", category="safety")["note"]
+
+            def note_ids(result):
+                return {note["note_id"] for group in result["room_notes"] for note in group["notes"]}
+
+            expected = {note["note_id"], hazard["note_id"]}
+            self.assertEqual(note_ids(call(workspace, "show_location", element="r")), expected)
+            call(workspace, "add_door", first_space="r", second_space="s")
+            self.assertEqual(note_ids(call(workspace, "get_room_notes", spaces=["r"])), expected)
+            self.assertEqual(note_ids(call(workspace, "find_route", start="r", destination="s")), expected)
+            self.assertEqual(note_ids(call(workspace, "show_route")), expected)
+            restored = Workspace(workspace.directory)
+            self.assertEqual(restored.notes_database, database.resolve())
+            self.assertEqual(restored.report_session_id, workspace.report_session_id)
+            self.assertEqual(restored.facility_numbers, {"a": "3"})
+            same_chat = call(restored, "confirm_room_note", space="r", note_id=note["note_id"])["note"]
+            self.assertEqual(same_chat["confirmation_count"], 2)
+            self.assertEqual(note_ids(call(restored, "get_room_notes", spaces=["r"])), expected)
+
+            other = root / "b.json"
+            JsonBuildingStore.save(other, model("b"))
+            restored.register(str(other))
+            self.assertEqual(call(restored, "get_room_notes", spaces=["r"], building_id="b")["room_notes"], [])
+
     def test_scope_campus_closure_and_reviewed_edit_reload_undo(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

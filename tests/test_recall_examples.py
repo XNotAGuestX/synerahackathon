@@ -81,6 +81,20 @@ class AgentWiringTests(unittest.TestCase):
 
 
 class BenchmarkAdapterTests(unittest.TestCase):
+    def test_explicit_kind_reaches_both_adapters_and_old_calls_still_work(self):
+        with patch("final_agent.benchmark.run_index", return_value=None), patch(
+            "final_agent.benchmark.BuildingAgent"
+        ) as agent_class:
+            agent_class.return_value.ask.return_value = "Answer: 7"
+            for answer in (benchmark.answer, benchmark.answer_without_examples):
+                with self.subTest(answer=answer.__name__):
+                    answer(BUILDING, "How many rooms?", kind="wide_delivery_count")
+                    prompt = agent_class.return_value.ask.call_args.args[0]
+                    self.assertIn("Benchmark question kind: wide_delivery_count", prompt)
+                    self.assertTrue(prompt.endswith("How many rooms?"))
+                    answer(BUILDING, "Original question")
+                    agent_class.return_value.ask.assert_called_with("Original question")
+
     def test_answer_passes_the_index_and_baseline_passes_none(self):
         index = object()
         with patch("final_agent.benchmark.run_index", return_value=index) as run_index, patch(

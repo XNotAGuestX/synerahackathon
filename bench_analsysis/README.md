@@ -61,7 +61,7 @@ Default **offline** mode performs no model/API calls. It executes real `final_ag
 
 `PASS` means that particular component assertion passed. `GAP` means the exposed capability is missing or insufficient; it **does not** count as a passing request. The current missing-tool map is an audit snapshot, not automatic discovery of future implementations. Default exit is nonzero for `FAIL`; `--strict` also exits nonzero for `GAP`. The hard duplicate-name case checks safe rejection, not successful completion of its labelled route.
 
-The scored fixtures can also execute through a real answer callable. This path sends **only the original question text and building directory** to the production adapter, then scores its reply with the official scorer. It selects **41 scored cases** across the tiers; warm-up labels use a different contract and are excluded. This mode may consume API credits with the default adapter and was **not run** for this audit:
+The scored fixtures can also execute through a real answer callable. This path sends **the question text, supplied public kind and building directory** to the production adapter, then scores its reply with the official scorer. The kind is included in the question message; labelled inputs and expected answers are not sent. It selects **41 scored cases** across the tiers; warm-up labels use a different contract and are excluded. This mode may consume API credits with the default adapter and was **not run** for this audit:
 
 ```bash
 uv run --env-file .env python bench_analsysis/run_tests.py --mode agent --tier easy --agent final_agent.benchmark:answer --results bench_analsysis/live-easy.json

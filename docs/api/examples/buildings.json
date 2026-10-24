@@ -1,0 +1,373 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "id": "osm-way22744230",
+      "name": "N3",
+      "source": "osm_indoor",
+      "split": "dev",
+      "license": "ODbL-1.0",
+      "level_count": 8,
+      "levels": [
+        -1,
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "space_count": 325,
+      "asset_count": 890,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "osm-way27326387",
+      "name": "TUM 4107 Institutsgebäude 3",
+      "source": "osm_indoor",
+      "split": "dev",
+      "license": "ODbL-1.0",
+      "level_count": 3,
+      "levels": [
+        -2,
+        0,
+        1
+      ],
+      "space_count": 61,
+      "asset_count": 184,
+      "has_stairs": true,
+      "has_lift": false,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "osm-way27917482",
+      "name": "TUM School of Computation, Information and Technology (CIT), Departments Informatik und Mathematik",
+      "source": "osm_indoor",
+      "split": "dev",
+      "license": "ODbL-1.0",
+      "level_count": 5,
+      "levels": [
+        -1,
+        0,
+        1,
+        2,
+        3
+      ],
+      "space_count": 1623,
+      "asset_count": 5250,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "osm-way360544293",
+      "name": "Terminal 2",
+      "source": "osm_indoor",
+      "split": "dev",
+      "license": "ODbL-1.0",
+      "level_count": 3,
+      "levels": [
+        0,
+        1,
+        2
+      ],
+      "space_count": 46,
+      "asset_count": 217,
+      "has_stairs": false,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "proc-campus-dev-000",
+      "name": "Hörsaalzentrum 024",
+      "source": "procedural",
+      "split": "dev",
+      "license": "CC0-1.0",
+      "level_count": 5,
+      "levels": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "space_count": 152,
+      "asset_count": 944,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "proc-campus-dev-001",
+      "name": "Laborgebäude 025",
+      "source": "procedural",
+      "split": "dev",
+      "license": "CC0-1.0",
+      "level_count": 4,
+      "levels": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "space_count": 97,
+      "asset_count": 582,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "proc-campus-dev-002",
+      "name": "Lehrgebäude 026",
+      "source": "procedural",
+      "split": "dev",
+      "license": "CC0-1.0",
+      "level_count": 4,
+      "levels": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "space_count": 89,
+      "asset_count": 580,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "proc-campus-dev-006",
+      "name": "Lehrgebäude 030",
+      "source": "procedural",
+      "split": "dev",
+      "license": "CC0-1.0",
+      "level_count": 4,
+      "levels": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "space_count": 85,
+      "asset_count": 626,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "proc-campus-dev-009",
+      "name": "Forschungsbau 033",
+      "source": "procedural",
+      "split": "dev",
+      "license": "CC0-1.0",
+      "level_count": 6,
+      "levels": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "space_count": 207,
+      "asset_count": 1330,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "proc-campus-dev-013",
+      "name": "Laborgebäude 037",
+      "source": "procedural",
+      "split": "dev",
+      "license": "CC0-1.0",
+      "level_count": 3,
+      "levels": [
+        0,
+        1,
+        2
+      ],
+      "space_count": 63,
+      "asset_count": 423,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "proc-factory-dev-003",
+      "name": "Fertigung Ost 27",
+      "source": "procedural",
+      "split": "dev",
+      "license": "CC0-1.0",
+      "level_count": 2,
+      "levels": [
+        0,
+        1
+      ],
+      "space_count": 79,
+      "asset_count": 505,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "proc-factory-dev-004",
+      "name": "Halle Isar 28",
+      "source": "procedural",
+      "split": "dev",
+      "license": "CC0-1.0",
+      "level_count": 2,
+      "levels": [
+        0,
+        1
+      ],
+      "space_count": 50,
+      "asset_count": 280,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "proc-factory-dev-005",
+      "name": "Produktion West 29",
+      "source": "procedural",
+      "split": "dev",
+      "license": "CC0-1.0",
+      "level_count": 3,
+      "levels": [
+        0,
+        1,
+        2
+      ],
+      "space_count": 132,
+      "asset_count": 844,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "proc-factory-dev-007",
+      "name": "Fertigung Ost 31",
+      "source": "procedural",
+      "split": "dev",
+      "license": "CC0-1.0",
+      "level_count": 2,
+      "levels": [
+        0,
+        1
+      ],
+      "space_count": 45,
+      "asset_count": 259,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "proc-factory-dev-008",
+      "name": "Werk Süd 32",
+      "source": "procedural",
+      "split": "dev",
+      "license": "CC0-1.0",
+      "level_count": 2,
+      "levels": [
+        0,
+        1
+      ],
+      "space_count": 82,
+      "asset_count": 480,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "proc-factory-dev-010",
+      "name": "Werk Nord 34",
+      "source": "procedural",
+      "split": "dev",
+      "license": "CC0-1.0",
+      "level_count": 2,
+      "levels": [
+        0,
+        1
+      ],
+      "space_count": 52,
+      "asset_count": 269,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "proc-factory-dev-011",
+      "name": "Werk Süd 35",
+      "source": "procedural",
+      "split": "dev",
+      "license": "CC0-1.0",
+      "level_count": 3,
+      "levels": [
+        0,
+        1,
+        2
+      ],
+      "space_count": 140,
+      "asset_count": 914,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "proc-factory-dev-012",
+      "name": "Fertigung Ost 36",
+      "source": "procedural",
+      "split": "dev",
+      "license": "CC0-1.0",
+      "level_count": 3,
+      "levels": [
+        0,
+        1,
+        2
+      ],
+      "space_count": 129,
+      "asset_count": 805,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "resplan-14509",
+      "name": "Residence 14509",
+      "source": "resplan",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 1,
+      "levels": [
+        0
+      ],
+      "space_count": 6,
+      "asset_count": 22,
+      "has_stairs": false,
+      "has_lift": false,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "resplan-1465",
+      "name": "Residence 1465",
+      "source": "resplan",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 1,
+      "levels": [
+        0
+      ],
+      "space_count": 10,
+      "asset_count": 35,
+      "has_stairs": false,
+      "has_lift": false,
+      "has_step_free_entrance": true
+    }
+  ],
+  "next_cursor": "WyI3YTZiMGExOGViN2UxNGVhYWU0NjUyYmQ1YTQ3Yjg3MjYzZTM3NjIwMDdhMjJkZmMzNDlkZjA0OWU0MzRiZmQwIiwyMF1zKKSRTjvods4HzPl5n-i0",
+  "has_more": true
+}

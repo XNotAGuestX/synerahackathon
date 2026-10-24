@@ -4,7 +4,8 @@
 
 By default it runs the project agent (final_agent.benchmark:answer). Pass --agent module:function to evaluate
 another one; the function gets (building_directory: Path, question_text: str) and returns the reply text.
-With --model it is also called with model=<API model ID>."""
+The question text includes the supplied benchmark kind. With --model it is also
+called with model=<API model ID>."""
 
 import argparse
 import csv
@@ -22,6 +23,7 @@ import anthropic
 
 from benchmark.score import score_reply
 from final_agent.agent import DEFAULT_MODEL, MODEL, MODELS
+from final_agent.benchmark import question_with_kind
 
 QUESTIONS_FILENAME = "questions.jsonl"
 SUBMISSION_COLUMNS = ("question_id", "answer")
@@ -61,7 +63,7 @@ def sample_per_kind(questions: list[tuple[Path, dict]], per_kind: int | None) ->
     rng = random.Random(SAMPLE_SEED)
     by_kind: dict[str, list[tuple[Path, dict]]] = {}
     for item in questions:
-        by_kind.setdefault(item[1]["kind"], []).append(item)
+        by_kind.setdefault(item[1].get("kind") or "unknown", []).append(item)
     sampled = []
     for kind in sorted(by_kind):
         members = by_kind[kind]
@@ -123,10 +125,11 @@ def run(
     RESULTS_DIRECTORY.mkdir(parents=True, exist_ok=True)
     results_path = RESULTS_DIRECTORY / f"{results_name}.jsonl"
     with results_path.open("w", encoding="utf-8") as log:
-        questions = [item for item in load_questions(directory) if not kinds or item[1]["kind"] in kinds]
+        questions = [item for item in load_questions(directory) if not kinds or item[1].get("kind") in kinds]
         for building_directory, question in sample_per_kind(questions, per_kind):
+            kind = question.get("kind") or None
             try:
-                reply = agent(building_directory, question["question"])
+                reply = agent(building_directory, question_with_kind(question["question"], kind))
             except anthropic.APIError as error:
                 print(f"[benchmark] {question['id']}: API error {error}")
                 reply = ""
@@ -134,12 +137,12 @@ def run(
             # The public test set has no answers: then replies are only saved, for the judge to grade.
             correct = score_reply(question["answer"], reply) if "answer" in question else None
             if correct is not None:
-                results[(question["kind"], correct)] += 1
+                results[(kind or "unknown", correct)] += 1
             log.write(
                 json.dumps(
                     {
                         "id": question["id"],
-                        "kind": question["kind"],
+                        "kind": kind,
                         "correct": correct,
                         "question": question["question"],
                         "answer": question.get("answer"),
@@ -151,7 +154,7 @@ def run(
             )
             outcome = {True: "OK ", False: "BAD", None: "saved"}[correct]
             progress = f"  {spent(usage, model or MODEL)}" if usage is not None else ""
-            print(f"[benchmark] {question['id']:34s} {question['kind']:20s} {outcome}{progress}")
+            print(f"[benchmark] {question['id']:34s} {kind or 'unknown':20s} {outcome}{progress}")
     if results:
         report(results)
     if submission_csv is not None:

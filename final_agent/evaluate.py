@@ -11,6 +11,7 @@ import json
 import re
 from collections import Counter
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import anthropic
 
@@ -97,14 +98,19 @@ def evaluate(directory: Path, limit: int | None, oracle: bool, model: str = MODE
         if oracle:
             reply = oracle_answer(question, building_map)
         else:
-            agent = BuildingAgent(building_map, OUTPUT_DIRECTORY, client, model=model)
-            try:
-                reply = agent.ask(question["question"])
-            except MissingCredentialsError as error:
-                raise SystemExit(str(error)) from error
-            except anthropic.APIError as error:
-                print(f"[eval] {question['id']}: API error {error}")
-                reply = ""
+            # Warm-up questions must not read interactive reports or earlier questions' writes.
+            with TemporaryDirectory(prefix="final-agent-eval-notes-") as temporary:
+                agent = BuildingAgent(
+                    building_map, OUTPUT_DIRECTORY, client, model=model,
+                    notes_database=Path(temporary) / "room_notes.sqlite3",
+                )
+                try:
+                    reply = agent.ask(question["question"])
+                except MissingCredentialsError as error:
+                    raise SystemExit(str(error)) from error
+                except anthropic.APIError as error:
+                    print(f"[eval] {question['id']}: API error {error}")
+                    reply = ""
             usage.update(agent.usage)
         correct = score(question, building_map, reply)
         results[(question["kind"], correct)] += 1

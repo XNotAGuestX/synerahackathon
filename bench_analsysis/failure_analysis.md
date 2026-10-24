@@ -8,6 +8,14 @@ question kind; five requests do not uniquely identify the room**. No determinist
 calculation failure was found in these eight cases. This library supplies retrieved
 worked examples; it is not model-weight training.
 
+**Follow-up implemented, 25 October 2026:** The dataset's public `kind` is now
+supplied in training builds, actual benchmark runs (including the baseline) and
+analysis-agent requests. Direct answer calls can supply `kind=` too. The model is
+instructed to use that kind for recall rather than infer it. Eighteen focused
+offline checks pass in an isolated checkout. Saved run records and their acceptance
+flags have not been changed; the diagnosis below describes those original runs.
+Labelled `inputs` and expected answers remain outside model requests.
+
 ## What was actually checked
 
 - The library contains 519 records: all 517 train questions and two dev questions.
@@ -59,7 +67,9 @@ Current clarification behavior agrees with the application's ambiguity rule.
 
 ## Smallest useful follow-up changes
 
-1. **Explain the kind distinction at recall time.** Extend the description of
+1. **Supplied kind implemented; live retry pending.** The runner now supplies the
+   public kind explicitly, resolving the original omission. The following was the
+   initial prompt-only recommendation: extend the description of
    `recall_examples` in [`tools.py`](../final_agent/tools.py#L752), or the
    [`EXAMPLES_PROMPT`](../final_agent/agent.py#L214): an explicit minimum door/load
    width means `wide_delivery_count`, even though the route is also step-free.
@@ -124,5 +134,6 @@ MPLCONFIGDIR=/tmp/benchmark-diagnosis-mpl PYTHONDONTWRITEBYTECODE=1 .venv/bin/py
 ```
 
 Existing `bench_analsysis/results.json` and its historical README counts were not
-overwritten. This diagnosis changes documentation only; prompts, training
-records, model settings, supplied questions and scoring remain as inspected.
+overwritten. The initial diagnosis changed documentation only. The dated follow-up
+above changes how public kind metadata reaches model requests; saved training
+records, model settings, supplied dataset questions and scoring remain unchanged.

@@ -9,6 +9,9 @@ package was verified to contain all of its files, map functions and tools.
 # Conversation (requires Claude API credentials)
 uv run python -m final_agent data/dev/proc-factory-dev-003
 
+# Frontend HTTP API (only /messages needs model credentials)
+uv run python -m final_agent.api
+
 # Free deterministic warm-up evaluation
 uv run python -m final_agent.evaluate data/dev --oracle
 
@@ -59,6 +62,24 @@ A run is **accepted** only if `benchmark.score.score_reply` marks the reply corr
 **and** the agent's first `recall_examples` call declared the question's real kind with a
 non-blank semantic translation.
 
+Training builds, normal benchmark runs (including `answer_without_examples`) and
+the analysis runner's agent mode now include the supplied public `kind` in the
+model's question message. The agent uses that kind for `recall_examples` rather
+than inferring it. Labelled `inputs` and expected `answer` stay outside the model
+request. Saved questions retain their original wording. Direct Python callers can
+use `answer(building_directory, question_text, kind="wide_delivery_count")`; calls
+without a kind retain their previous behavior. Missing, null or empty kinds send
+the original question text without a kind header, including in sampling and result
+logging. Training uses the agent's recalled kind when no kind was supplied; if
+neither supplies a valid kind, it logs a skip instead of indexing an unclassified
+example. The two-argument callable contract
+remains supported: benchmark runners include kind in the question text.
+
+Verified 25 October 2026: 21 focused offline checks pass, including scripted model
+requests from the actual training and benchmark entry points, baseline runs and
+public test-shaped records without labels and omitted/null/empty kinds. No paid
+model rerun is claimed.
+
 `final_agent.benchmark:answer` gives the agent a `recall_examples(kind,
 semantic_translation)` tool that it calls first. That call declares the kind and returns
 up to three accepted runs of that kind, nearest by translation similarity: FastEmbed
@@ -99,4 +120,5 @@ server-side fallback, so only Opus and Sonnet requests send `fallbacks`.
 
 - [Complete challenge and implementation reference](../README.md)
 - [Remaining implementation work](../BACKLOG.md)
+- [HTTP API configuration, contract and frontend fixtures](../docs/api/README.md)
 - [Grading and submission](../README.md#1-the-challenge)

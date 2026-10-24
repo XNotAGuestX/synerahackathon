@@ -32,11 +32,16 @@ def safe_id(value: str) -> str:
 class Workspace:
     """One explicit local session, retaining current maps and reviewed draft state."""
 
-    def __init__(self, directory: Path, client=None, model: str | None = None):
+    def __init__(
+        self, directory: Path, client=None, model: str | None = None, *, notes_database: Path | None = None,
+    ):
         self.directory = Path(directory).resolve()
         self.directory.mkdir(parents=True, exist_ok=True)
         self.campus = Campus(self.directory / "campus.json")
         self.client, self.model = client, model
+        self.notes_database = Path(notes_database if notes_database is not None else self.directory / "room_notes.sqlite3").resolve()
+        self.report_session_id = uuid.uuid4().hex
+        self.facility_numbers: dict[str, str] = {}
         self.draft: PlanDraft | None = None
         self.draft_id: str | None = None
         self.current_location: dict | None = None
@@ -47,6 +52,10 @@ class Workspace:
         state = self.directory / "session.json"
         if state.exists():
             data = JsonBuildingStore.load(state)
+            self.report_session_id = data.get("report_session_id", self.report_session_id)
+            if notes_database is None and data.get("notes_database"):
+                self.notes_database = Path(data["notes_database"])
+            self.facility_numbers = data.get("facility_numbers", {})
             self.current_location = data.get("current_location")
             self.preferences = data.get("preferences", {})
             self.pending_plan = data.get("pending_plan")
@@ -69,6 +78,7 @@ class Workspace:
                                        base_data=draft["base_data"], previous=draft.get("previous"),
                                        existing_building=draft.get("existing_building", False),
                                        acknowledged_warnings=draft.get("acknowledged_warnings", False))
+        self.save_session()
 
     def save_session(self) -> None:
         draft = None
@@ -79,6 +89,8 @@ class Workspace:
                      "previous": self.draft.previous, "existing_building": self.draft.existing_building,
                      "acknowledged_warnings": self.draft.acknowledged_warnings}
         JsonBuildingStore.save(self.directory / "session.json", {
+            "notes_database": str(self.notes_database), "report_session_id": self.report_session_id,
+            "facility_numbers": self.facility_numbers,
             "current_location": self.current_location, "preferences": self.preferences, "draft": draft,
             "pending_plan": self.pending_plan,
             "local_state": {bid: {"selection": item["map"].selection, "active_request": item["map"].active_request}
@@ -91,9 +103,11 @@ class Workspace:
             raise MapError("Select a registered building first; use list_buildings/select_building.")
         return self.campus.buildings[building_id]
 
-    def register(self, path: str) -> dict:
+    def register(self, path: str, *, facility_number: str | None = None) -> dict:
         source = BuildingMap.load(Path(path))
         bid = safe_id(source.data["building"]["id"])
+        if facility_number is not None and not str(facility_number).strip():
+            raise ValueError("Give a non-empty facility number.")
         if bid in self.campus.buildings:
             raise MapError(f"Building {bid!r} is already loaded; select it or start a reviewed edit.")
         target = self.directory / "buildings" / bid / "original.json"
@@ -101,6 +115,9 @@ class Workspace:
         self.campus.register_building(bid, target, source.data["building"]["name"])
         if self.campus.selected_building_id is None:
             self.campus.select_building(bid)
+        if facility_number is not None:
+            self.facility_numbers[bid] = str(facility_number).strip()
+        self.save_session()
         return {"buildings": self.campus.list_buildings(), "resume": str(self.directory)}
 
     def preview(self) -> dict:
@@ -315,7 +332,10 @@ class ScopedTool(ArgumentCheckedTool):
                 output /= "route-" + hashlib.sha256(identity.encode()).hexdigest()[:12]
             elif self.name == "show_location":
                 output /= "location-" + uuid.uuid4().hex[:12]
-            current = next(t for t in make_tools(building, output) if t.name == self.name)
+            current = next(t for t in make_tools(
+                building, output, notes_database=self.workspace.notes_database,
+                facility_number=self.workspace.facility_numbers.get(bid), session_id=self.workspace.report_session_id,
+            ) if t.name == self.name)
             retained_request = None
             if self.name == "find_route":
                 # Preserve a valid requested journey even when the current closures make it unreachable.
@@ -561,7 +581,9 @@ def make_workspace_tools(workspace: Workspace, emergency: bool = False) -> list:
     template_map = workspace.campus.selected_map or BuildingMap({
         "building": {"id": "new", "name": "New building", "source": "pending"},
         "floors": [], "spaces": [], "openings": [], "assets": [], "vertical_connectors": []})
-    tools.extend(ScopedTool(t, workspace) for t in make_tools(template_map, workspace.directory))
+    tools.extend(ScopedTool(t, workspace) for t in make_tools(
+        template_map, workspace.directory, notes_database=workspace.notes_database, session_id=workspace.report_session_id,
+    ))
     if emergency:
         tools.extend(ScopedEmergencyTool(t, workspace) for t in make_emergency_tools(template_map, workspace.directory))
     return tools
@@ -575,11 +597,15 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--resume", type=Path, help="Exact existing workspace directory to resume.")
     parser.add_argument("--output", type=Path, default=Path("agent_output/workspaces"))
     parser.add_argument("--commands", type=Path, help="Run a JSON array of {tool,input} commands instead of chatting.")
+    parser.add_argument("--notes-db", type=Path, help="shared local SQLite reports database; resumed chats retain their saved path")
+    parser.add_argument("--facility-number", help="report facility key for the selected building or new plan")
     add_model_argument(parser)
     args = parser.parse_args(argv)
     import anthropic
     workspace = Workspace(args.resume or args.output / uuid.uuid4().hex[:12],
-                          client=anthropic.Anthropic(), model=MODELS[args.model])
+                          client=anthropic.Anthropic(), model=MODELS[args.model],
+                          notes_database=args.notes_db if args.notes_db is not None else
+                          (None if args.resume else args.output.parent / "room_notes.sqlite3"))
     for source in args.building:
         workspace.register(source)
     print(f"Workspace/resume: {workspace.directory}")
@@ -588,6 +614,15 @@ def main(argv: list[str] | None = None) -> None:
         started = time.monotonic()
         result = workspace.import_image(str(args.plan))
         print(as_json({**result, "extraction_elapsed_s": round(time.monotonic() - started, 2)}))
+    if args.facility_number is not None:
+        if not args.facility_number.strip():
+            parser.error("Give a non-empty facility number.")
+        building_id = (workspace.draft.data["building"]["id"] if workspace.draft is not None
+                       else workspace.campus.selected_building_id)
+        if building_id is None:
+            parser.error("--facility-number needs a loaded building or plan.")
+        workspace.facility_numbers[building_id] = args.facility_number.strip()
+        workspace.save_session()
     if args.commands:
         tools = {tool.name: tool for tool in make_workspace_tools(workspace, emergency=True)}
         for command in json.loads(args.commands.read_text(encoding="utf-8")):

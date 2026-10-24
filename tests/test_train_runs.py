@@ -1,10 +1,15 @@
 import io
+import json
+import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
-from final_agent.train_runs import confirm_full, make_run, pending_questions, require_labels
-from test_run_library import sample_run
+from final_agent.agent import MODEL
+from final_agent.train_runs import build, confirm_full, make_run, pending_questions, require_labels
+from test_hull import BUILDING, ScriptedClient, call, reply, say
+from test_run_library import FakeEmbedder, sample_run
 
 QUESTION = {
     "id": "b1-H01",
@@ -23,6 +28,16 @@ def recall(kind: str, translation: str = TRANSLATION) -> dict:
 
 
 class MakeRunTests(unittest.TestCase):
+    def test_missing_kind_uses_the_agents_declaration(self):
+        question = {key: value for key, value in QUESTION.items() if key != "kind"}
+        run = make_run(question, [recall("floor_area_total"), AREA_CALL], "Answer: 10.2")
+        self.assertEqual(run.kind, "floor_area_total")
+        self.assertTrue(run.accepted)
+
+    def test_missing_kind_and_declaration_does_not_throw(self):
+        question = {key: value for key, value in QUESTION.items() if key != "kind"}
+        self.assertIsNone(make_run(question, [AREA_CALL], "Answer: 10.2"))
+
     def test_correct_reply_with_matching_declaration_is_accepted(self):
         run = make_run(QUESTION, [recall("floor_area_total"), AREA_CALL], "Answer: 10.2")
         self.assertTrue(run.accepted)
@@ -57,6 +72,48 @@ class MakeRunTests(unittest.TestCase):
 
 
 class BuildSelectionTests(unittest.TestCase):
+    def test_training_without_kind_infers_it_from_recall(self):
+        question = {key: value for key, value in QUESTION.items() if key != "kind"}
+        client = ScriptedClient([[
+            reply(call("recall_examples", kind="floor_area_total", semantic_translation=TRANSLATION)),
+            reply(say("Answer: 10.2")),
+        ]])
+        with tempfile.TemporaryDirectory() as temporary, redirect_stdout(io.StringIO()), patch(
+            "final_agent.agent.anthropic.Anthropic", return_value=client
+        ), patch("final_agent.train_runs.default_embedder", return_value=FakeEmbedder()), patch.object(
+            client.beta.messages, "tool_runner", wraps=client.beta.messages.tool_runner
+        ) as runner:
+            library = Path(temporary) / "runs.jsonl"
+            build([(BUILDING, question)], library, MODEL, full=False)
+            self.assertEqual(runner.call_args.kwargs["messages"][0]["content"], question["question"])
+            saved = json.loads(library.read_text())
+            self.assertEqual(saved["kind"], "floor_area_total")
+            self.assertTrue(saved["accepted"])
+
+    def test_training_build_supplies_kind_without_exposing_labelled_inputs_or_answer(self):
+        question = {**QUESTION, "inputs": {"start": "PRIVATE_SOURCE_ID"}}
+        client = ScriptedClient([[
+            reply(call("recall_examples", kind=question["kind"], semantic_translation=TRANSLATION)),
+            reply(say("Answer: 10.2")),
+        ]])
+        with tempfile.TemporaryDirectory() as temporary, redirect_stdout(io.StringIO()), patch(
+            "final_agent.agent.anthropic.Anthropic", return_value=client
+        ), patch("final_agent.train_runs.default_embedder", return_value=FakeEmbedder()), patch.object(
+            client.beta.messages, "tool_runner", wraps=client.beta.messages.tool_runner
+        ) as runner:
+            library = Path(temporary) / "runs.jsonl"
+            build([(BUILDING, question)], library, MODEL, full=False)
+            request = runner.call_args.kwargs
+            prompt = request["messages"][0]["content"]
+            self.assertIn("Benchmark question kind: floor_area_total", prompt)
+            self.assertTrue(prompt.endswith(question["question"]))
+            self.assertNotIn("PRIVATE_SOURCE_ID", str(request))
+            self.assertNotIn(str(question["answer"]), prompt)
+            saved = json.loads(library.read_text())
+            self.assertEqual(saved["question"], question["question"])
+            self.assertEqual(saved["declared_kind"], question["kind"])
+            self.assertTrue(saved["accepted"])
+
     def test_require_labels_exits_on_unlabelled_question(self):
         unlabelled = {key: value for key, value in QUESTION.items() if key != "answer"}
         require_labels([(Path("b1"), QUESTION)])

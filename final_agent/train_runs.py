@@ -20,10 +20,10 @@ from benchmark.evaluate import cost_dollars, load_questions, sample_per_kind, sp
 from benchmark.score import score_reply
 
 from .agent import MODELS, BuildingAgent, MissingCredentialsError, add_model_argument
-from .benchmark import RUN_LIBRARY_PATH
+from .benchmark import RUN_LIBRARY_PATH, question_with_kind
 from .building_map import BuildingMap
 from .embedding import default_embedder
-from .run_library import SKILL_BY_KIND, Run, RunIndex, index_path, load_runs, save_runs
+from .run_library import SKILL_BY_KIND, Run, RunIndex, ScoredKind, index_path, load_runs, save_runs
 
 DATA_DIRECTORY = Path(__file__).resolve().parent.parent / "data"
 TRAIN_DIRECTORY = DATA_DIRECTORY / "train"
@@ -34,25 +34,28 @@ SMALL_PER_KIND = 1
 Question = tuple[Path, dict]
 
 
-def make_run(question: dict, tool_calls: list[dict], reply: str) -> Run:
-    """Record one answer; it is accepted only if correct and the first declared kind matches."""
+def make_run(question: dict, tool_calls: list[dict], reply: str) -> Run | None:
+    """Use the supplied kind, or the first recall's kind if omitted; unclassified runs cannot be indexed."""
     declarations = [call["input"] for call in tool_calls if call["name"] == RECALL_TOOL]
     declaration = declarations[0] if declarations else {}
     declared_kind = declaration.get("kind")
+    kind = question.get("kind") or declared_kind
+    if kind not in SKILL_BY_KIND:
+        return None
     # A blank translation (e.g. from a rejected recall call) would be an unretrievable example.
     translation = str(declaration.get("semantic_translation", "")).strip()
     return Run(
         question_id=question["id"],
         building_id=question["building_id"],
-        skill=SKILL_BY_KIND[question["kind"]],
-        kind=question["kind"],
+        skill=SKILL_BY_KIND[kind],
+        kind=kind,
         declared_kind=declared_kind,
         semantic_translation=translation,
         question=question["question"],
         # Examples replay the building work; the recall call itself is not part of it.
         tool_calls=[call for call in tool_calls if call["name"] != RECALL_TOOL],
         reply=reply,
-        accepted=bool(translation) and declared_kind == question["kind"] and score_reply(question["answer"], reply),
+        accepted=bool(translation) and declared_kind == kind and score_reply(question["answer"], reply),
     )
 
 
@@ -82,7 +85,8 @@ def confirm_full(count: int, model: str, read: Callable[[str], str] = input) -> 
 
 
 def ask_agent(
-    building_directory: Path, question_text: str, index: RunIndex, model: str, usage: Counter[str]
+    building_directory: Path, question_text: str, index: RunIndex, model: str, usage: Counter[str],
+    *, kind: ScoredKind | None = None,
 ) -> tuple[list[dict], str]:
     """Answer with a fresh map and conversation so edits never leak between questions."""
     with TemporaryDirectory(prefix="final-agent-train-") as temporary:
@@ -90,7 +94,7 @@ def ask_agent(
             BuildingMap.load(building_directory), Path(temporary), examples=index, model=model
         )
         try:
-            reply = agent.ask(question_text)
+            reply = agent.ask(question_with_kind(question_text, kind))
         finally:
             usage.update(agent.usage)
         return agent.tool_calls(), reply
@@ -110,14 +114,20 @@ def build(selected: list[Question], library: Path, model: str, full: bool) -> No
     usage: Counter[str] = Counter()
     results: Counter[tuple[str, bool]] = Counter()
     for building_directory, question in pending:
+        kind = question.get("kind") or None
         try:
-            tool_calls, reply = ask_agent(building_directory, question["question"], index, model, usage)
+            tool_calls, reply = ask_agent(
+                building_directory, question["question"], index, model, usage, kind=kind
+            )
         except anthropic.APIError as error:
-            print(f"{question['id']:34s} {question['kind']:26s} skipped  {spent(usage, model)}  API error: {error}")
+            print(f"{question['id']:34s} {kind or 'unknown':26s} skipped  {spent(usage, model)}  API error: {error}")
             continue
         except MissingCredentialsError as error:
             raise SystemExit(str(error)) from error
         run = make_run(question, tool_calls, reply)
+        if run is None:
+            print(f"{question['id']:34s} skipped: no valid kind was supplied or declared for the run library")
+            continue
         runs[run.question_id] = run
         # Saved after every question so an interrupted build keeps its finished runs.
         save_runs(library, list(runs.values()))

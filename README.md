@@ -19,6 +19,8 @@
 
 **Training-run diagnosis — 25 October 2026:** The current retrieved-example library contains 519 saved runs (517 train, two dev): 511 accepted and eight rejected. Re-scoring the saved replies yields 514 correct; three rejections have correct answers but the wrong declared kind, and five ask for clarification because room references are ambiguous. Two ambiguous questions have identical text and conflicting labels. All eight pass offline tools with resolved fixture inputs; the representative runner passes 71/71 plus six format checks. [Per-case causes, required information and reproduction](bench_analsysis/failure_analysis.md). This is saved-run analysis and offline verification; no new model evaluation was run.
 
+**Supplied benchmark kind — 25 October 2026:** Training builds, actual benchmark runs (with or without retrieved examples) and analysis-agent runs include the dataset's public `kind` when supplied. Missing, null or empty kinds send the original question text without throwing; sampling and result logging handle them too. Labelled `inputs` and expected answers stay with the evaluator. Direct answer calls also accept `kind=`. Twenty-one focused offline checks pass in an isolated checkout, including actual entry-point/model-message checks; no paid rerun or change to saved training acceptance flags is claimed.
+
 **Latest implementation audit — 24 October 2026:** [CODEBASE_AUDIT.md](CODEBASE_AUDIT.md) compares every required level, all nine scored kinds and delivery requirements with current code. After the tool-contract/pagination integration, **202 tests run: 199 pass, 3 skip**; resolved-input scored dev components pass **138/138** and the warm-up oracle passes **369/369**. These are offline checks, not live conversational accuracy. Search/inspection, highlights, width constraints, route identities, transactional edits and tours are substantially implemented; several older section 9 rows and backlog descriptions understate them. The largest remaining gaps are the connected conversation/map workflow, multi-building walkways and plan-to-building creation; the audit ranks these and records reproduced correctness defects.
 
 **Implementation handoffs — 25 October 2026:** [Level 3: multiple floors, buildings and walkways](LEVEL_3_HANDOFF.md) and [Level 4: create and correct buildings from plans](LEVEL_4_HANDOFF.md) specify the remaining work, shared contracts, acceptance flows and verification. They reuse the existing deterministic core and keep frontend ownership explicit; they do not mark either level complete.
@@ -386,6 +388,11 @@ uv run --env-file .env python -m benchmark.evaluate data/dev --agent my_agent:an
 
 `--agent module:function` takes a function `answer(building_directory: Path, question_text: str) -> str` that returns your agent's full reply.
 
+The benchmark runner includes the supplied public `kind` in `question_text` before
+calling the agent. Training and analysis-agent runs use the same message format;
+labelled `inputs` and expected answers are not included. Direct project-adapter
+calls also accept `kind=` as a keyword argument.
+
 The kit's starter agent scored **under 5% on the benchmark questions**. That was deliberate: its tools didn't expose room areas, door widths or reachability. `final_agent` grew from it, and the starter package was removed from this repository on 24 October 2026.
 
 ---
@@ -466,15 +473,27 @@ This section retains the earlier 24 October 2026 audit, not an organizer specifi
 ```text
 Terminal conversation
   → final_agent.agent.BuildingAgent (Claude + conversation history)
-  → seven typed tools in final_agent/tools.py
+  → typed tools in final_agent/tools.py
   → BuildingMap (JSON data + Shapely geometry + NetworkX MultiGraph)
-  → route result / edited JSON / Matplotlib PNGs
+  → route result / edited JSON / Matplotlib PNGs / local SQLite room reports
 
 benchmark.evaluate → agent(building_directory, question_text) → reply
                   → benchmark.score → result log + submission CSV
 ```
 
 `final_agent/` now uses package-local imports throughout its entry point, conversation layer, tools, viewer, evaluator, map and storage. `BuildingMap` and `MapError` identities are consistent across these modules. `final_agent.storage` contains its own atomic JSON store and spatial index; no project runtime module imports the starter. The wheel includes `final_agent` and `benchmark`; the kit's `starter_agent` baseline was removed on 24 October 2026. Use `python -m final_agent` for the project CLI; `benchmark.evaluate` runs `final_agent.benchmark:answer` by default.
+
+**Persistent room reports (24 October):** the agent can save, confirm, read and resolve user reports in a local SQLite database. New ordinary reports stay pending until two distinct chats report the same issue; concrete safety hazards become active immediately. Search, inspection, location and full-route results include active reports plus, separately labelled, the current chat's own pending reports. The system prompt classifies reports, matches paraphrases and decides contextual relevance; deterministic storage counts confirmations and gates automatic lookups. See [room report usage](#persistent-room-reports). Sampled live CLI checks on 25 October confirmed classification, paraphrase confirmation, pending filtering and resolution (see BACKLOG L1-08); a structured-output tool-loop defect in HTTP turns was fixed by structuring the reply after the tool loop, and the same flow then passed live over HTTP.
+
+**Earlier room-report verification (before confirmation gating):** the full suite ran **183 tests: 180 pass, 3 credential-dependent skips** before the prompt follow-up. A no-API smoke check on `proc-factory-dev-003` saved a report for facility `3`, room `H-A1`, reloaded tools from the same database and returned the report on the `H-A2` → `H-A1` route (17.1 m). CLI help exposes both new options; `git diff --check` passes. After tightening relevance instructions, all **10 focused room-report/integration tests** and **3 live cases** pass: an unrelated route omits a broken coffee machine, a coffee request mentions the fault, and a subsequent route warns about a newly reported wet floor while omitting the coffee fault. Live checks used the saved production prompt and a temporary database; a hash check confirmed the interactive database was unchanged. These sampled checks are not a benchmark score or a guarantee of every conversation.
+
+**Earlier confirmation-gating verification:** the full offline suite ran **204 tests: 201 pass, 3 credential-dependent skips**, including **11 room-report scenarios** covering activation, active-only context, session identity, legacy migration, archival/recurrence and rollback. HTTP integration also exercises the real SDK runner with a mocked transport; its tool wrapper implements the SDK's runnable interface. `git diff --check` passes. No paid API calls were made; classification and paraphrase matching remain unverified with a live model.
+
+**HTTP API v1:** all 18 operations from [openapi.yaml](openapi.yaml) are implemented with the semantics in [DESIGN.md](DESIGN.md). Run `uv run python -m final_agent.api` for `http://127.0.0.1:8000/api/v1`; see [frontend integration, configuration and fixtures](docs/api/README.md). Building selection, floor geometry, search and direct routing need no model credentials. Messages use structured agent responses and verified JSON map effects. Edits require action confirmation; routes remain immutable snapshots. Sessions live in memory in one worker, while room reports share persistent SQLite storage. POST idempotency, revisions, optional Bearer auth, CORS, request tracing and bounded JSON bodies follow the contract. The original CLI and benchmark remain separate entry points.
+
+**HTTP verification:** 16 API scenarios cover all contract operations and validate responses against the supplied OpenAPI schemas, including concurrency, retry semantics, expiry, rollback, preference overrides and a real SDK runner with a mocked HTTP transport. The full suite runs **205 tests: 202 pass, 3 credential-dependent skips**. A real loopback server passed session → route → proposal → confirmation → updated plan → unreachable route → historical-route reload → deletion. All 18 generated frontend examples validate and regenerate byte-for-byte. These checks use temporary data/output databases and no paid model calls; they do not establish live conversational accuracy.
+
+**Main/Max merge verification — 25 October 2026:** the combined implementation runs **263 tests: 260 pass, 3 credential-dependent skips**, and the oracle warm-up passes **369/369**. Regression checks cover stable workspace report identities, shared storage through rendering/door edits/resume, facility isolation, and selected-model/fallback/timeout preservation in structured replies. The combined 70-package lock installs successfully. These are offline checks, including mocked model transport, rather than a live benchmark score.
 
 ### What exists and what it does not yet cover
 
@@ -492,6 +511,7 @@ benchmark.evaluate → agent(building_directory, question_text) → reply
 | Visualization | Static PNG per crossed floor, space polygons, route line and closed-room shading | No asset markers, interactive locate view, animation or stacked 3D floors; selected opening identities are not preserved for rendering |
 | Evaluation | Project warm-up evaluator, isolated benchmark callable, official scorer/runner, CSV export and 11 passing storage/integration tests | No measured live benchmark baseline, complete geometry/interaction regression coverage or Sunday adapter |
 | Assets | Reads/searches equipment supplied in building JSON | No movement/update API, barcode/RFID ingestion or asset history |
+| Room reports (current addition) | Durable local SQLite reports scoped to facility and stable room id; add/confirm/read/resolve tools; two-chat activation for ordinary reports, immediate hazards, active-only automatic context | Classification, semantic matching and relevance depend on the model; chats are not verified people. Reports do not themselves change route constraints; new classification behavior is not live-verified |
 
 ### Status against challenge levels
 
@@ -559,7 +579,7 @@ P0/P1/P2 are project delivery priorities, not organizer weights. P1 includes req
 | Supplied kit vs. Synera automatic route check | Kit 1.1.0 aligns expected answers with wall-respecting door-to-door walks and height costs, and forbids outside shortcuts. The announcement also specifies forklift restrictions, destination-only production bays and ordered-space validation. | Use the 1.1.0 model for current data; keep its heuristic disconnected-geometry fallback explicit. Forklift profiles and the actual Sunday schema still need implementation/confirmation. |
 | Demo format | The 1.1.0 kit README requests a 3–5 minute live demo without restart; the earlier PDF describes online video submission and finalist pitches. | Preserve the earlier source below and confirm the final process with organizers. |
 | Optional extension scope | Source recommends picking one add-in | Choose based on the completed core workflow and available time; no optional extension is selected or finished by this document. |
-| Setup/reference drift | `.env.example` is referenced but absent; attribution references `config/furniture_catalog.yaml`, also absent from the supplied tree | Supply missing setup instructions/resources where needed. Preserve original reference wording and identify missing resources rather than inventing their contents. |
+| Setup/reference drift | `.env.example` now documents optional model credentials, API token and browser origins. Attribution still references `config/furniture_catalog.yaml`, absent from the supplied tree | API startup and frontend examples are documented in `docs/api/README.md`; the furniture catalogue is a historical generation reference, not needed by the server. |
 
 ## 12. Consolidated agent reference
 
@@ -626,6 +646,10 @@ selection, outputs, constraints, side effects and failure behavior.
 | `add_door` | Applies a validated shared-wall door and saves `building_edited.json`; reroutes the active request |
 | `show_location` | Selects a space/asset and saves a highlighted PNG |
 | `show_route` | Saves PNGs for the current active route, including activated errands/tours |
+| `add_room_note` | Saves a facility/room report; hazards activate immediately, ordinary reports await a second chat |
+| `confirm_room_note` | Adds one confirmation per chat to an existing report |
+| `get_room_notes` | Reads active reports, the current chat's pending reports, or explicitly requested pending reports |
+| `resolve_room_note` | Archives a selected report while retaining its history |
 | `recall_examples` (benchmark only) | Up to three accepted reference examples, called before building tools; examples never supply current-building facts |
 
 All paged tools accept `page` (starting at 1) and `page_size` (1–100). Keep
@@ -666,6 +690,108 @@ filters do not establish forklift access or destination-only production-bay rule
 202 tests: 199 pass and 3 credential-dependent cases skip. The generated schemas
 for all 22 tools (including optional recall) document all 95 arguments. These
 checks do not establish live model understanding or benchmark accuracy.
+
+#### Persistent room reports
+
+The agent-facing specifications for `add_room_note`, `confirm_room_note`, `get_room_notes` and
+`resolve_room_note` live in their docstrings in [final_agent/tools.py](final_agent/tools.py).
+They describe when to use each tool, its arguments, JSON result, persistence effects
+and failure handling. `ArgumentCheckedTool` uses the Anthropic SDK to generate the
+tool descriptions and input schemas from those docstrings and typed signatures;
+the conversation runner passes these definitions to the model with its tool list.
+
+Reports use Python's built-in SQLite support; no database server or new dependency
+is needed. The first saved report creates `agent_output/room_notes.sqlite3` (or
+`<output>/room_notes.sqlite3` when `--output` is set). Reuse that file to retain
+reports after restarting. Use `--notes-db` to share reports across sessions with
+different image/edit output directories.
+
+CLI workspaces keep report storage separate from map revisions and image folders.
+They save the report database path, chat identity and per-building facility overrides
+in `session.json`; `--resume` retains them. A new chat gets a new identity while
+using the same configured reports database. The workspace CLI also accepts
+`--notes-db` and `--facility-number`.
+
+```bash
+uv run python -m final_agent data/dev/proc-factory-dev-003 --facility-number 3 --notes-db agent_output/room_notes.sqlite3
+```
+
+For this example building, try:
+
+```text
+you> The floor in H-A1 is wet.
+you> What reports do we have for H-A1?
+you> Give me directions from H-A2 to H-A1.
+you> The floor in H-A1 is dry again. Resolve the wet-floor report.
+```
+
+New reports have category `safety` or `general`. The agent uses `safety` only for
+concrete hazards to people, such as wet stairs, unstable scaffolding or exposed
+live wires. Ordinary equipment faults and all other non-hazard information are
+`general`; urgency alone is not a hazard. Mixed statements become separate reports.
+A safety report is active immediately. A general report is saved as `pending`
+with one confirmation and becomes `active` when a second distinct chat reports
+the same condition on the same object. The initial report counts as one;
+repetitions in the same chat never add confirmations. The agent acknowledges a
+pending report as recorded but awaiting a second chat, not as an active warning.
+
+Before adding or confirming, the agent reads `get_room_notes(include_pending=true)`
+to find matching active or pending reports. Semantic matching uses the model;
+ambiguous devices/issues require clarification. Exact repeats also merge in
+storage. `confirm_room_note` takes a verified room and existing `note_id`, never
+a claimed number of agreeing people. The application supplies a stable chat ID:
+one UUID per CLI chat (retained on workspace resume), or the existing HTTP session ID across turns.
+Different chats are a demo approximation for different people; no user login or
+person verification is implemented. Use the same `--notes-db` file across chats.
+
+The facility key defaults to `building.facility_number` when present, otherwise
+`building.id`. `--facility-number 3` assigns the loaded map to facility `3` for
+reports; workspace resume retains that override for the selected building. Other
+loaded buildings keep their own facility keys. Both facility numbers and room labels are text, preserving `015`. Records
+store `facility_number`, stable `space_id`, `room_number` (the room's `ref`, falling
+back to its id), report text, category, UTC creation time and optional resolution time. The
+lookup index uses facility and stable room id so repeated room numbers on
+different floors stay separate; ambiguous room references require clarification.
+The confirmation table stores `(note_id, session_id)` uniquely and timestamps each
+confirmation; returned records include derived `status` and `confirmation_count`.
+Multiple reports can be stored for each room. One real correction resolves either
+an active or pending report. Resolved reports and confirmations remain as history
+but disappear from all current lookups. A recurring problem creates a fresh report
+with fresh confirmations. Existing databases migrate automatically and retain old
+reports as active `legacy` reports without inventing historical confirmations;
+archived reports remain archived. Local SQLite files are ignored by Git.
+
+All active reports for the relevant rooms reach the model without keyword
+filtering. Other chats' pending reports are excluded deterministically from automatic results
+and ordinary `get_room_notes` lookups; the reporting chat sees its own separately as
+`reporter_pending_room_notes`, labelled unconfirmed. Only `include_pending=true` returns them in
+a separate `pending_room_notes` list for report management or an explicit request
+for unconfirmed reports; the prompt excludes pending/resolved claims from ordinary
+answers even if their text remains in conversation history. An empty active list
+does not prove that equipment works. Search results use the displayed page and assets' containing rooms;
+routes use every room in `space_path`, including transit rooms. Tours, errands,
+reroutes and route images also return reports. The system prompt requires fresh
+lookups when reusing old results or using other room-specific tools. It instructs
+the agent to mention wet floors or structural hazards for a relevant visit, and
+to omit a broken coffee machine on an unrelated journey while mentioning it for
+a coffee request. Explicit report-list requests return all active reports.
+Reports are treated as user-supplied data, never instructions or verified safety
+assessments. They do not automatically close rooms or alter computed paths;
+requested closures still use `set_closed`.
+
+Report/confirmation writes commit atomically per operation, so a model turn never
+holds a database write lock. Saved reports survive later HTTP model errors;
+retries cannot add another vote from the same chat.
+Save failures are tool errors. Automatic lookups preserve successfully computed
+results and expose `room_notes_error` if the database cannot be read; the prompt
+requires the agent to explain that reports could not be checked. Benchmark and
+live warm-up evaluation use temporary report databases per question, isolated
+from interactive reports and earlier questions. Offline regression checks cover
+persistence across agents, transit/equipment lookup, facility and duplicate-number
+isolation, confirmation thresholds, repeated chats, active-only context, legacy
+migration, resolution/recurrence, HTTP chat IDs, invalid inputs and transaction
+rollback. Earlier live relevance checks predate confirmation gating; no live
+classification result or conversational benchmark score is claimed for this change.
 
 #### Building storage and spatial indexes
 

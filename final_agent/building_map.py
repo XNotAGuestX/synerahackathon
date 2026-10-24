@@ -134,6 +134,11 @@ def walking_path(polygon: Polygon, start: Point2, end: Point2) -> list[Point2]:
 class MapError(ValueError):
     """Raised for anything the user should be told about (unknown place, no route, ...)."""
 
+    def __init__(self, message: str, *, reason: str | None = None, candidates: list[dict] | None = None) -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.candidates = candidates or []
+
 
 def check_number(name: str, value: float, minimum: float | None = None) -> float:
     """Validate a numeric tool argument at the boundary: finite and, optionally, at least minimum."""
@@ -478,10 +483,11 @@ class BuildingMap:
             return exact_assets[0]
         candidates = self.search(reference)[:MAX_SEARCH_RESULTS]
         if not candidates:
-            raise MapError(f"No place matches '{reference}'. Try search_building with fewer words.")
+            raise MapError(f"No place matches '{reference}'. Try search_building with fewer words.", reason="not_found")
         raise MapError(
             f"'{reference}' is ambiguous or not exact. Use one of these ids: "
-            + "; ".join(f"{item['id']} ({item['name']})" for item in candidates)
+            + "; ".join(f"{item['id']} ({item['name']})" for item in candidates),
+            reason="ambiguous", candidates=candidates,
         )
 
     # ---------- routing ----------
@@ -661,7 +667,7 @@ class BuildingMap:
         constraints = self.constraints_text(step_free, min_width_m, entrance)
         for stop in stops:
             if stop in self.closed:
-                raise MapError(f"{self.describe_space(stop)} is closed. {constraints}")
+                raise MapError(f"{self.describe_space(stop)} is closed. {constraints}", reason="unreachable")
         if entrance is not None:
             try:
                 self.validate_entrance(entrance, stops[0], step_free, min_width_m)
@@ -677,7 +683,7 @@ class BuildingMap:
             except nx.NetworkXNoPath as error:
                 raise MapError(
                     f"No route from {self.describe_space(leg_start)} to {self.describe_space(leg_end)} "
-                    f"(leg {number} of {len(stops) - 1}). {constraints}"
+                    f"(leg {number} of {len(stops) - 1}). {constraints}", reason="unreachable",
                 ) from error
             leg_edges = self.select_edges(graph, leg_nodes)
             legs.append({

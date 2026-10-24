@@ -1,7 +1,7 @@
 """Run selected labelled cases without confusing missing tools with passing tests.
 
 Offline mode probes existing tools with labelled, resolved inputs (an input oracle).
-Agent mode sends only building directory + question text to an answer callable and
+Agent mode sends building directory + question text with its supplied kind to an answer callable and
 uses the unchanged official scorer afterward. It selects scored questions only.
 Components mode calls the dedicated analysis tool for every scored question in a split
 with the labelled resolved inputs, formats a final answer line from the tool JSON and
@@ -24,6 +24,7 @@ sys.path.insert(0, str(ROOT))
 from anthropic.lib.tools import ToolError
 
 from benchmark.score import score_reply
+from final_agent.benchmark import question_with_kind
 from final_agent.building_map import BuildingMap
 from final_agent.tools import make_tools
 
@@ -154,7 +155,7 @@ def load_question(case: dict) -> dict:
     if len(matches) != 1:
         raise ValueError(f"Expected one source question: {case['question_id']}")
     question = matches[0]
-    if question["kind"] != case["kind"] or question["building_id"] != case["building_id"]:
+    if (question.get("kind") or case["kind"]) != case["kind"] or question["building_id"] != case["building_id"]:
         raise ValueError(f"Stale case metadata: {case['question_id']}")
     return question
 
@@ -312,7 +313,10 @@ def main() -> int:
                 row = {**case, "status": status, "detail": detail}
             else:
                 # Labels/inputs are never passed into the production answer callable.
-                reply = answer_function(ROOT / Path(case["source_file"]).parent, question["question"])
+                reply = answer_function(
+                    ROOT / Path(case["source_file"]).parent,
+                    question_with_kind(question["question"], question.get("kind")),
+                )
                 row = {**case, "status": "PASS" if score_reply(question["answer"], reply) else "FAIL", "reply": reply}
         except Exception as error:
             row = {**case, "status": "FAIL", "detail": f"{type(error).__name__}: {error}"}

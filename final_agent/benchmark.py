@@ -13,7 +13,7 @@ from tempfile import TemporaryDirectory
 from .agent import MODEL, BuildingAgent, MissingCredentialsError
 from .building_map import BuildingMap
 from .embedding import default_embedder
-from .run_library import RunIndex, index_path, load_runs
+from .run_library import SKILL_BY_KIND, RunIndex, ScoredKind, index_path, load_runs
 
 RUN_LIBRARY_PATH = Path(__file__).with_name("run_library.jsonl")
 logger = logging.getLogger(__name__)
@@ -28,14 +28,31 @@ def run_index() -> RunIndex:
     return RunIndex(load_runs(RUN_LIBRARY_PATH), default_embedder(), index_path(RUN_LIBRARY_PATH))
 
 
-def answer(building_directory: Path, question_text: str, model: str = MODEL) -> str:
+def question_with_kind(question_text: str, kind: ScoredKind | None = None) -> str:
+    """Include public question metadata in the model request; never include labelled inputs or answers."""
+    if not kind:
+        return question_text
+    if kind not in SKILL_BY_KIND:
+        raise ValueError(f"Unknown benchmark question kind: {kind!r}")
+    return (
+        f"Benchmark question kind: {kind}\n"
+        "Use this supplied kind for recall_examples when that tool is available; do not reclassify it.\n\n"
+        + question_text
+    )
+
+
+def answer(
+    building_directory: Path, question_text: str, model: str = MODEL, *, kind: ScoredKind | None = None,
+) -> str:
     """Answer one question with worked examples of similar accepted runs."""
-    return _answer(building_directory, question_text, run_index(), model)
+    return _answer(building_directory, question_with_kind(question_text, kind), run_index(), model)
 
 
-def answer_without_examples(building_directory: Path, question_text: str, model: str = MODEL) -> str:
+def answer_without_examples(
+    building_directory: Path, question_text: str, model: str = MODEL, *, kind: ScoredKind | None = None,
+) -> str:
     """Answer one question without the run library (A/B baseline)."""
-    return _answer(building_directory, question_text, None, model)
+    return _answer(building_directory, question_with_kind(question_text, kind), None, model)
 
 
 def _answer(building_directory: Path, question_text: str, examples: RunIndex | None, model: str) -> str:
