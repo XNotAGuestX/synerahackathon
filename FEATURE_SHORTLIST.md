@@ -1,0 +1,75 @@
+# Feature shortlist
+
+The revised system prompt discussed in chat is a proposal. `final_agent/agent.py`
+still contains the existing draft; this shortlist does not replace it or implement
+the capabilities below. [BACKLOG.md](BACKLOG.md) owns task priorities and status.
+
+## Location updates when the mobile app is implemented
+
+Current proposed rule:
+
+> A destination is not the user's current location. Update location only when
+> the user confirms it.
+
+Replace it once the mobile app supplies reliable location events:
+
+> Update the user's current location automatically from mobile location events.
+> A requested destination alone does not update location. If tracking is unavailable
+> or uncertain, use the last confirmed location and ask when needed for routing.
+
+Implement this with **L1-01 / L1-04**, not just a prompt change:
+
+- Keep current location separate from destination in building/session state.
+- Include building, floor, position or resolved space, timestamp and accuracy in
+  location events. Reject events from other buildings/sessions and stale events.
+- Resolve positions through deterministic map tools. Ask when the floor or room
+  remains ambiguous; do not infer arrival from route generation.
+- Use accepted location updates as the start of subsequent routes. Recompute an
+  active route when movement requires rerouting, retaining accessibility needs.
+- Verify movement and arrival without chat confirmation, plus unavailable,
+  uncertain, stale and wrong-building events. Keep explicit confirmation as the
+  fallback for the CLI and sessions without tracking.
+
+## Implementation needed before expanding prompt claims
+
+| Capability | Required change | Existing tasks |
+|---|---|---|
+| Visible landmarks and turn directions | Add route-aware landmark inspection and heading/turn geometry. Asset presence alone does not prove visibility. `find_navigation_landmarks` does not exist. | L2-01; MAP-02–03 |
+| Route maps and locate highlights | Preserve selected openings/connectors; render the computed path and selected room/asset. | MAP-02–03; L1-01–02 |
+| Closure rerouting | Invalidate old routes after edits and failed searches; recompute before showing a route. | MAP-04; L2-02 |
+| Reliable edits | Validate doors and make save failures transactional; support review/cancel/undo. | MAP-05–06; L4-04 |
+| Editing layout | Add tools to edit room boundaries, names/types, doors and connections; validate geometry, preserve IDs/metadata, save changes and invalidate affected routes/indexes. Support preview/cancel/undo. | MAP-04–06; L4-03–05 |
+| Furniture changes | Add typed asset add/move/remove tools, persistence and index invalidation. Current tools only search assets. | EXT-01, if selected |
+| Width and delivery constraints | Enforce opening widths, entry identity and constrained reachability in deterministic tools. | MAP-08; BEN-06–07 |
+| Nearest destinations and tours | Compare constrained route distances for nearest selection; preserve requested tour order. Ordered `via` exists; optimal stop ordering does not. | BEN-08; L2-03 |
+| Shortest tour in any order | Add a proposed `find_best_tour(start, stops, destination, step_free)` tool: compute constrained pairwise shortest paths, optimize stop order and return the order, legs, directions and total distance. Reorder only when the user permits it; use an explicit stop limit for exact optimization or label approximate results. | L2-05 (optional) |
+| What-if analysis | Simulate on isolated state without saving or altering the active map. | BEN-09; MAP-06 |
+| Benchmark facts | Add exact enumeration, geometry and aggregation tools for all nine question kinds; never count a truncated search page. | MAP-07–08; BEN-01–09 |
+| More buildings and new plans | Add building selection, walkway routing, calibrated plan ingestion and validated export. | L3-02–03; L4-01–06 |
+
+Keep the local anchor-based route model distinct from the Synera automatic route
+check described in the [README](README.md#route-scoring-clarification-synera).
+Wall-respecting paths, height costs and forklift/production-bay rules require
+deterministic routing changes, not prompt instructions alone.
+
+## System prompt note: Building changes
+
+Retain this section as a reference for the editing workflow:
+
+```text
+# Building changes
+- Resolve affected elements before editing.
+- Use set_closed for closures/reopenings and add_door for supported door additions.
+- Apply other changes only if an appropriate tool exists.
+- Confirm only successful changes; report edit or save failures.
+- After relevant edits, recompute the active route with its original constraints.
+- For hypothetical changes, use isolated simulation. Never persist them.
+  If simulation is unavailable, state the limitation.
+```
+
+## Verification before enabling new behavior
+
+Run the relevant focused tests and the interaction script in **L2-04**. Check
+benchmark formatting with the unchanged scorer (**QA-02**), then measure live
+interpretation (**QA-03**) when credentials are configured. Oracle warm-up results
+do not verify prompt behavior. No live prompt evaluation was run for this shortlist.

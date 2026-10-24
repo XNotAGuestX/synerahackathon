@@ -17,6 +17,8 @@
 
 **Current status:** `final_agent` is independently wired and packaged: CLI, tools, viewer, evaluator, building map and storage use local modules, with no starter imports. Its storage/integration suite passes 11 tests; its free dev warm-up passes 369/369. The scored runner selects it with `--agent final_agent.benchmark:answer`, using fresh state and temporary outputs per question. The nine scored benchmark kinds still need dedicated analysis tools; no live benchmark score or generated test answers are claimed. Sunday output format and release time remain organizer-dependent. See [final-agent commands](final_agent/README.md), [BACKLOG.md](BACKLOG.md) and sections 9–11.
 
+[FEATURE_SHORTLIST.md](FEATURE_SHORTLIST.md) records proposed features, prompt-related implementation gaps and the future switch to automatic mobile location updates; these capabilities remain unimplemented.
+
 The original kit reference follows. References such as “section 6” below retain their original numbering. The repository tree and setup instructions are source reference material; section 9 covers implementation additions, and section 11 identifies missing referenced setup resources.
 
 **Industrial Agents Hackathon 2026**, in cooperation with UVC Partners and Anthropic. This is the student kit for Track 01.
