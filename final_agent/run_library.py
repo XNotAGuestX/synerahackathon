@@ -5,11 +5,14 @@ Stored runs never contain a question's expected ``answer`` or ``inputs``.
 """
 
 import json
+import logging
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
 
 from .embedding import Embedder
+
+logger = logging.getLogger(__name__)
 
 ScoredKind = Literal[
     "largest_room", "floor_area_total", "straight_line_3d", "room_stacked",
@@ -128,6 +131,7 @@ class RunIndex:
     def similar(self, kind: str, semantic_translation: str, limit: int = 3) -> list[Run]:
         """Return accepted runs of this kind, most similar translation first."""
         if not self.runs:
+            logger.debug("recall %s %r: the run library has no accepted runs", kind, semantic_translation)
             return []
         from qdrant_client import models
 
@@ -138,4 +142,9 @@ class RunIndex:
         response = self.client.query_points(
             self.COLLECTION, query=vector, query_filter=same_kind, limit=limit, with_payload=False,
         )
+        logger.debug("recall %s %r: %d matched", kind, semantic_translation, len(response.points))
+        for point in response.points:
+            run = self.runs[point.id]
+            logger.debug("  %.3f %s %r", point.score, run.question_id, run.semantic_translation)
+            logger.debug("        %s", run.question)
         return [self.runs[point.id] for point in response.points]

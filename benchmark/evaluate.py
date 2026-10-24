@@ -9,7 +9,9 @@ import argparse
 import csv
 import importlib
 import json
+import logging
 import random
+import sys
 from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
@@ -59,6 +61,17 @@ def sample_per_kind(questions: list[tuple[Path, dict]], per_kind: int | None) ->
 def load_agent(reference: str | None) -> AgentFunction:
     module_name, function_name = (reference or DEFAULT_AGENT).split(":")
     return getattr(importlib.import_module(module_name), function_name)
+
+
+def enable_debug_log(agent_reference: str | None) -> None:
+    """Print the agent package's debug log, e.g. the run-library questions matched for each answer.
+
+    Only that package logs at DEBUG, so SDK, HTTP and Qdrant logs stay quiet. It goes to stdout
+    to stay in order with the per-question result lines.
+    """
+    module_name = (agent_reference or DEFAULT_AGENT).split(":")[0]
+    logging.basicConfig(stream=sys.stdout, format="[debug] %(message)s")
+    logging.getLogger(module_name.partition(".")[0]).setLevel(logging.DEBUG)
 
 
 def cost_dollars(usage: Counter[str]) -> float:
@@ -149,7 +162,12 @@ def main() -> None:
     parser.add_argument(
         "--submission-csv", type=Path, default=None, help="also write question_id,answer for the judge app"
     )
+    parser.add_argument(
+        "--debug", action="store_true", help="print each question and the run-library questions it matched"
+    )
     arguments = parser.parse_args()
+    if arguments.debug:
+        enable_debug_log(arguments.agent)
     run(
         arguments.directory,
         arguments.per_kind,

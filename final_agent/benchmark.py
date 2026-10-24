@@ -4,6 +4,7 @@
 is the same agent without them, the baseline for an A/B comparison.
 """
 
+import logging
 from functools import cache
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -14,6 +15,7 @@ from .embedding import default_embedder
 from .run_library import RunIndex, load_runs
 
 RUN_LIBRARY_PATH = Path(__file__).with_name("run_library.jsonl")
+logger = logging.getLogger(__name__)
 
 
 @cache
@@ -38,6 +40,7 @@ def _answer(building_directory: Path, question_text: str, examples: RunIndex | N
     Edits and closures affect only this question. Scratch images and snapshots
     are removed afterward; the benchmark runner retains the returned reply.
     """
+    logger.debug("question: %s", question_text)
     with TemporaryDirectory(prefix="final-agent-benchmark-") as temporary:
         agent = BuildingAgent(BuildingMap.load(building_directory), Path(temporary), examples=examples)
         try:

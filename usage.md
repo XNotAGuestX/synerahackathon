@@ -15,6 +15,8 @@ Run from the repo root. Commands marked *paid* call Claude and need credentials
   `final_agent.benchmark:answer_without_examples`
 - `--name NAME`: replies saved to `agent_output/benchmark/NAME.jsonl`
 - `--submission-csv PATH`: also write `question_id,answer`
+- `--debug`: print each question, the agent's `recall_examples` declaration and the
+  run-library questions it matched (similarity score, question ID, translation, question)
 
 **Warm-up check** (free): `uv run python -m final_agent.evaluate data/dev --oracle`
 - `--limit N`: first N questions only
