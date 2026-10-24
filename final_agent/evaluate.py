@@ -14,7 +14,7 @@ from pathlib import Path
 
 import anthropic
 
-from .agent import BuildingAgent
+from .agent import BuildingAgent, MissingCredentialsError
 from .building_map import BuildingMap, MapError
 
 QUESTIONS_FILENAME = "questions_basic.jsonl"
@@ -99,6 +99,8 @@ def evaluate(directory: Path, limit: int | None, oracle: bool) -> None:
             agent = BuildingAgent(building_map, OUTPUT_DIRECTORY, client)
             try:
                 reply = agent.ask(question["question"])
+            except MissingCredentialsError as error:
+                raise SystemExit(str(error)) from error
             except anthropic.APIError as error:
                 print(f"[eval] {question['id']}: API error {error}")
                 reply = ""
