@@ -19,6 +19,21 @@ type BrowserSpeech = {
   stop: () => void
 }
 
+async function requestMicrophone(): Promise<string | null> {
+  if (!window.isSecureContext) return copy.speechSecureContext
+  if (!navigator.mediaDevices?.getUserMedia) return copy.speechMicrophoneUnavailable
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    stream.getTracks().forEach((track) => track.stop())
+    return null
+  } catch (error) {
+    const name = error instanceof DOMException ? error.name : ''
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') return copy.speechPermissionDenied
+    if (name === 'NotFoundError') return copy.speechMicrophoneUnavailable
+    return copy.speechPermissionFailed
+  }
+}
+
 function createSpeechRecognition(): BrowserSpeech | null {
   const host = window as Window & {
     SpeechRecognition?: new () => BrowserSpeech
@@ -99,7 +114,7 @@ export function GuidePanel({
     if (!transcript) speechRef.current?.stop()
   }, [transcript])
 
-  const listen = () => {
+  const listen = async () => {
     if (listening) {
       speechRef.current?.stop()
       setListening(false)
@@ -107,7 +122,14 @@ export function GuidePanel({
     }
     const recognition = createSpeechRecognition()
     if (!recognition) {
+      fieldRef.current?.focus()
       setSpeechNote(copy.speechUnavailable)
+      return
+    }
+    const microphoneError = await requestMicrophone()
+    if (microphoneError) {
+      fieldRef.current?.focus()
+      setSpeechNote(microphoneError)
       return
     }
     recognition.lang = 'en-US'
@@ -116,7 +138,7 @@ export function GuidePanel({
       const said = event.results[0]?.[0]?.transcript?.trim() ?? ''
       if (said) onQuery(said)
     }
-    recognition.onerror = () => setSpeechNote(copy.speechUnavailable)
+    recognition.onerror = () => { fieldRef.current?.focus(); setSpeechNote(copy.speechKeyboardHint) }
     recognition.onend = () => setListening(false)
     speechRef.current = recognition
     setSpeechNote(null)
@@ -150,6 +172,8 @@ export function GuidePanel({
         <input
           ref={fieldRef}
           value={query}
+          inputMode="text"
+          autoComplete="off"
           onChange={(event) => onQuery(event.target.value)}
           placeholder={copy.placeholder}
           aria-label={copy.prompt}
