@@ -77,3 +77,17 @@ No paid live benchmark, scored end-to-end accuracy, UI route review, new buildin
 `buildings.json` is the fixed sample. The three `reviews/*_annotations.json` files preserve every subagent classification and note. `build_catalog.py` checks exact source coverage, normalizes subtype vocabulary, and regenerates the CSV/Markdown catalogs and test table; it never edits production data or the scorer. `test_cases.json` owns the representative selection and difficulty tiers, which are analysis judgments rather than organizer fields.
 
 All inputs are from `data/dev`; no hidden labels or building-specific production answers were created. Building IDs, source paths and line numbers allow verification against the original data. Preserve the dataset attribution in [ATTRIBUTION.md](../ATTRIBUTION.md), especially if redistributing the OSM-derived fixtures. Root [README](../README.md) and [BACKLOG](../BACKLOG.md) remain the product requirements and task reference; the proposed tool APIs here are analysis recommendations.
+
+## Update after implementation (24 Oct 2026)
+
+The audit above is a snapshot from before the tools existed; its text is unchanged. After the feature work the same runner was rerun offline (no model or API calls, no credentials), now that all nine scored kinds have registered tools in `final_agent`:
+
+| Run | Result |
+|---|---|
+| `python bench_analsysis/run_tests.py` (45 representatives, offline) | **45/45 PASS**, 0 GAP, 0 FAIL; 6/6 scorer-format checks |
+| `python bench_analsysis/run_tests.py --mode components --split data/dev` | **138/138** scored dev questions |
+| `python bench_analsysis/run_tests.py --mode components --split data/train` | **517/517** scored train questions |
+
+Per kind, in the order dev / train: `largest_room` 20/20, 76/76; `floor_area_total` 31/31, 150/150; `straight_line_3d` 13/13, 17/17; `room_stacked` 9/9, 17/17; `shared_walls_count` 24/24, 119/119; `wide_delivery_count` 19/19, 61/61; `step_free_reachable_count` 1/1, 1/1; `errand` 19/19, 74/74; `what_if_door` 2/2, 2/2.
+
+`--mode components` reads each labelled question's resolved `inputs`, calls the production tool and compares the result with the label, so it checks the tools only. It does not test question interpretation, the system prompt or the model's `Answer:` formatting, and it is not a live benchmark score; `--mode agent` (live, uses credits) was not run. The earlier gap table, tool plan and "missing tool" counts describe the audit-time state; the tool names are now registered (see [final_agent/README.md](../final_agent/README.md#tools)), and [BENCHMARK.md](../BENCHMARK.md) lists the commands and the remaining unverified live checks.

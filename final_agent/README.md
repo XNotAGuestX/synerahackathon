@@ -54,7 +54,7 @@ the coordinator verifies names and arguments after merging.
 | `set_closed` | Close or reopen a lift, stair, door or room (saved); recomputes the active route | **`element`**, **`closed`** | `{"element": "Lift 1", "closed": true}` |
 | `add_door` | Add a door in the middle of the wall two rooms share (saved) | **`first_space`**, **`second_space`**, `step_free`, `width_m` | `{"first_space": "Office 0.23", "second_space": "Meeting room 0.24"}` |
 | `show_route` | Draw the active route on the floor plans, return image paths | none (F14 adds `landmark_ids`, pending merge) | `{}` |
-| `analyze_what_if_door` *(pending merge, F12)* | Hypothetical door; nothing saved. `count` = rooms on the target floor whose walk to the nearest entrance gets shorter by more than the threshold | **`first_space`**, **`second_space`**, **`floor_level`**, `improvement_threshold_m` (default 1.0) | `{"first_space": "Corridor 0.01", "second_space": "Lecture hall 0.21", "floor_level": 3}` |
+| `analyze_what_if_door` | Hypothetical door; nothing saved. `count` = rooms on the target floor whose walk to the nearest entrance gets shorter by more than the threshold | **`first_space`**, **`second_space`**, **`floor_level`**, `improvement_threshold_m` (default 1.0) | `{"first_space": "Corridor 0.01", "second_space": "Lecture hall 0.21", "floor_level": 3}` |
 | `show_location` *(pending merge, F14)* | Select a room or asset on the map and return an image | **`element`** | `{"element": "Coordinate measuring machine"}` |
 | `describe_destination_context` *(pending merge, F14)* | Nearby sizable named rooms around a destination; relation `adjacent` only with a shared wall of at least 1 m, otherwise `near` | **`space`**, `radius_m` (15), `min_area_m2` (40) | `{"space": "Office 0.23"}` |
 

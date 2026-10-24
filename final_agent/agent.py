@@ -131,8 +131,8 @@ Output:
 - Select "nearest" by constrained route distance, never search order.
 
 # Benchmark output
-A benchmark question is one turn: do not ask questions; state a needed assumption briefly.
-Always end the reply with the final line `Answer: ...` when requested, even after explanation.
+A question that asks for a final `Answer:` line is a one-turn benchmark question: do not ask back;
+state a needed assumption briefly and still finish with the Answer line, even after explanation.
 - Numbers (total area, straight-line distance, errand length, delivery/reachable/shared-wall/what-if counts):
   `Answer: <one number>`. No unit, no room names or numbers, no range, no second number, no thousands
   separator. Counts are integers. Use the tool's value.

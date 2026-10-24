@@ -95,14 +95,33 @@ so they are not a benchmark score.
 - Verified without credentials: the unit/integration tests, the oracle and the submission validator
   (on synthetic files, including broken ones). See the table for the component numbers.
 
-| Check | Command | Result (coordinator to fill in) |
+Results below were run on 24 October 2026 without credentials (coordinator-verified).
+
+| Check | Command | Result |
 |---|---|---|
-| Unit/integration tests | `python -m unittest discover -s tests` | _pending_ |
-| Warm-up oracle (dev) | `python -m final_agent.evaluate data/dev --oracle` | _pending_ |
-| Components, dev, per kind | `bench_analsysis/run_tests.py --mode components --split data/dev` | _pending_ |
-| Components, train, per kind | `bench_analsysis/run_tests.py --mode components --split data/train` | _pending_ |
+| Unit/integration tests | `python -m unittest discover -s tests` | all pass (165 at F15 phase 2) |
+| Warm-up oracle (dev) | `python -m final_agent.evaluate data/dev --oracle` | 369/369 |
+| Components, dev | `bench_analsysis/run_tests.py --mode components --split data/dev` | 138/138 |
+| Components, train | `bench_analsysis/run_tests.py --mode components --split data/train` | 517/517 |
+| Offline representatives | `bench_analsysis/run_tests.py` | 45/45 PASS, 6/6 format checks |
 | Live dev smoke / full | `benchmark.evaluate ... --name final-dev-smoke / final-dev-full` | _not run_ |
 | Live public test + validator | command above, then `--check` | _not run_ |
+
+Components per scored kind (tools called with labelled, resolved inputs, so they do not test question
+interpretation or the model's formatting):
+
+| Kind | dev | train |
+|---|---|---|
+| `largest_room` | 20/20 | 76/76 |
+| `floor_area_total` | 31/31 | 150/150 |
+| `straight_line_3d` | 13/13 | 17/17 |
+| `room_stacked` | 9/9 | 17/17 |
+| `shared_walls_count` | 24/24 | 119/119 |
+| `wide_delivery_count` | 19/19 | 61/61 |
+| `step_free_reachable_count` | 1/1 | 1/1 |
+| `errand` | 19/19 | 74/74 |
+| `what_if_door` | 2/2 | 2/2 |
+| **all** | **138/138** | **517/517** |
 
 ## Sunday benchmark
 
