@@ -11,7 +11,7 @@ import anthropic
 
 from .building_map import BuildingMap
 from .run_library import RunIndex
-from .tools import make_recall_tool, make_tools
+from .tools import make_emergency_tools, make_recall_tool, make_tools
 
 # --model choices. Haiku is the default: it matched Sonnet's 17/17 on a dev sample at about 1/20 of the cost.
 MODELS = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5", "haiku": "claude-haiku-5-5"}
@@ -215,6 +215,19 @@ EXAMPLES_PROMPT = """
 """
 
 
+# Appended only for interactive sessions, which also get the emergency tools.
+EMERGENCY_PROMPT = """
+# Emergency roll call (mock)
+- The emergency tools simulate the people, their smartphone/badge locations and
+  their replies. Say once that the data is simulated.
+- Trigger a roll call only when the user explicitly asks to start one. Report the
+  time left, the counts and every unsafe or pending person with their last known
+  room and floor, exactly as the tool returns them; never invent people or places.
+- Mark someone safe only when the user says they are safe. Fast-forward the clock
+  only when the user asks to skip ahead.
+"""
+
+
 class MissingCredentialsError(RuntimeError):
     """The Anthropic client has no usable credentials."""
 
@@ -224,13 +237,17 @@ class BuildingAgent:
 
     def __init__(
         self, building_map: BuildingMap, output_directory: Path, client: anthropic.Anthropic | None = None,
-        examples: RunIndex | None = None, model: str = MODEL,
+        examples: RunIndex | None = None, model: str = MODEL, emergency: bool = False,
     ) -> None:
         self.map = building_map
         self.client = client or anthropic.Anthropic()
         self.model = model
+        self.emergency = emergency
         self.tools = make_tools(building_map, output_directory)
         system_text = SYSTEM_PROMPT.format(overview=json.dumps(building_map.overview(), ensure_ascii=False))
+        if emergency:
+            self.tools += make_emergency_tools(building_map, output_directory)
+            system_text += EMERGENCY_PROMPT
         if examples is not None:
             self.tools.append(make_recall_tool(examples))
             system_text += EXAMPLES_PROMPT
@@ -311,7 +328,7 @@ def chat(building_directory: Path, output_directory: Path, model: str = MODEL) -
         building_map = BuildingMap.load(building_directory)
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise SystemExit(f"Cannot load building {building_directory}: {error}") from error
-    agent = BuildingAgent(building_map, output_directory, model=model)
+    agent = BuildingAgent(building_map, output_directory, model=model, emergency=True)
     print(f"Guide for {agent.map.data['building']['name']}. Ask me anything (type 'exit' to stop).")
     while True:
         try:
