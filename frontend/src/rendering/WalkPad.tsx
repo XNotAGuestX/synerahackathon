@@ -5,7 +5,8 @@ import { copy } from '../i18n/en'
 import type { FloorPlan, Point, Route } from '../domain/types'
 import {
   ARRIVE_RADIUS_M,
-  FIGURE_SPAN_M,
+  FIGURE_HEIGHT_M,
+  FIGURE_WIDTH_M,
   WALK_SPEED_M_S,
   arcLength,
   buildWalkField,
@@ -176,18 +177,18 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
     if (!token || !svg || !wrap || !point) return
     const pixel = project(svg, wrap, point)
     if (!pixel) return
-    const span = FIGURE_SPAN_M * pixelsPerMetre(svg)
+    const scale = pixelsPerMetre(svg)
+    const width = FIGURE_WIDTH_M * scale
+    const height = FIGURE_HEIGHT_M * scale
     const facing = Math.cos(headingRef.current) >= 0 ? 1 : -1
     token.style.transform = `translate(${pixel.x}px, ${pixel.y}px)`
     token.style.setProperty('--facing', String(facing))
-    token.dataset.span = span.toFixed(2)
+    token.dataset.span = width.toFixed(2)
     const body = token.querySelector<HTMLElement>('.walk-body')
     if (body) {
-      body.style.width = `${span}px`
-      body.style.height = `${span}px`
+      body.style.width = `${width}px`
+      body.style.height = `${height}px`
     }
-    const callout = token.querySelector<HTMLElement>('.walk-callout')
-    if (callout) callout.hidden = span >= 22
     token.classList.toggle('blocked', modeRef.current === 'blocked')
     token.classList.toggle('moving', held.current.size > 0 || followRef.current)
     token.dataset.x = point[0].toFixed(3)
@@ -509,7 +510,7 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
       <div ref={tokenRef} className="walk-token" aria-hidden="true" data-walk-token="">
         <div className="walk-body">
           <svg className="stick-figure" viewBox="0 0 48 64" preserveAspectRatio="xMidYMid meet">
-            <g fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
+            <g fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round">
               <circle className="stick-head" cx="24" cy="10" r="7" />
               <path d="M24 17 V34" />
               <path className="stick-arm front" d="M24 22 L13 31" />
@@ -518,19 +519,6 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
               <path className="stick-leg back" d="M24 34 L33 54" />
             </g>
           </svg>
-        </div>
-        <div className="walk-callout">
-          <svg className="stick-figure" viewBox="0 0 48 64" preserveAspectRatio="xMidYMid meet">
-            <g fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
-              <circle className="stick-head" cx="24" cy="10" r="7" />
-              <path d="M24 17 V34" />
-              <path className="stick-arm front" d="M24 22 L13 31" />
-              <path className="stick-arm back" d="M24 22 L35 31" />
-              <path className="stick-leg front" d="M24 34 L15 54" />
-              <path className="stick-leg back" d="M24 34 L33 54" />
-            </g>
-          </svg>
-          <span className="walk-stem" />
         </div>
       </div>
       <span ref={originRef} className="walk-mark walk-mark-a" hidden>A</span>

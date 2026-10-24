@@ -1033,31 +1033,12 @@ button:disabled { cursor: default; }
   pointer-events: none;
 }
 .walk-token.blocked { color: var(--color-danger); }
-.walk-body,
-.walk-callout {
+.walk-body {
   position: absolute;
   left: 0;
   top: 0;
   transform: translate(-50%, -50%) scaleX(var(--facing, 1));
-}
-.walk-body {
-  border-radius: 50%;
-}
-.walk-callout {
-  width: 22px;
-  height: 28px;
-  transform: translate(-50%, calc(-100% - 8px)) scaleX(var(--facing, 1));
-  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.35));
-}
-.walk-callout[hidden] { display: none; }
-.walk-stem {
-  position: absolute;
-  left: 50%;
-  top: 100%;
-  width: 1px;
-  height: 8px;
-  background: currentColor;
-  transform: translateX(-50%);
+  filter: drop-shadow(0 0 0.5px var(--color-surface));
 }
 .stick-figure { display: block; width: 100%; height: 100%; overflow: visible; }
 .stick-head { fill: var(--color-surface); }
@@ -1951,3 +1932,9 @@ button.next-distance:focus-visible { outline-color: var(--color-bar-accent); }
 .space.room-type-restroom, .space.room-type-toilet { fill: color-mix(in srgb, #4db6d6 22%, var(--map-space)); stroke: #4db6d6; }
 .space.room-type-office { fill: color-mix(in srgb, var(--color-primary) 14%, var(--map-space)); }
 
+.map-canvas-region { position: relative; min-width: 0; }
+.map-canvas-region > .map-controls { top: var(--space-4); left: var(--space-4); bottom: auto; right: auto; }
+.map-canvas-region > .map-display-mode { right: var(--space-4); bottom: var(--space-4); left: auto; top: auto; }
+@media (max-width: 650px) {
+  .map-canvas-region { display: contents; }
+}
