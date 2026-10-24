@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import networkx as nx
-from shapely.geometry import Polygon
+from shapely.geometry import Point, Polygon
 from shapely.ops import nearest_points
 
 from .storage import BuildingSpatialIndex, JsonBuildingStore
@@ -778,8 +778,6 @@ class BuildingMap:
             if not isinstance(references, (list, tuple)) or not references:
                 raise MapError("within_spaces must be a non-empty list of space references, or omitted.")
             allowed_spaces = {self.resolve_space(reference) for reference in references}
-
-        from shapely.geometry import Point  # local import keeps this section independent of the module header
 
         point = Point(x_m, y_m)
         competitors: dict[tuple[str, str], list[dict]] = {}
