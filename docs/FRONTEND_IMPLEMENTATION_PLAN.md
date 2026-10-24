@@ -110,3 +110,9 @@ Fixtures stammen aus `docs/api/examples/` und werden nicht manuell verändert. D
 - Fixture- und HTTP-Modus verwenden denselben Gateway-Vertrag.
 - Die UI funktioniert bei 320, 390, 768, 1024 und 1440 Pixeln ohne horizontale Überbreite.
 - Build, Playwright-Smoke und Accessibility-Prüfung laufen erfolgreich.
+
+## 8. Begehbare Figur
+
+- [x] Richtungstasten und eine Figur im Kartencontainer. Wände, Türen und Geräteflächen kommen aus dem geladenen Plan.
+- Spezifikation: `docs/specs/map-walker.md`. Entscheidung: `docs/adr/ADR-0002-map-walker.md`.
+- Die Figur ist keine zweite Route und ändert den Vertrag nicht.

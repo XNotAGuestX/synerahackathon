@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test:effects": "node --experimental-strip-types src/domain/effects.check.ts",
+    "test:walk": "node --experimental-strip-types src/domain/walk-field.check.ts",
     "test:e2e": "python e2e/smoke.py"
   },
   "dependencies": {

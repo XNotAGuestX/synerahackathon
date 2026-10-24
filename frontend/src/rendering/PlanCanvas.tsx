@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import type { FloorPlan, Point, Route, Selection } from '../domain/types'
 import type { Connector } from '../domain/types'
 import { connectorNoteFromPlan, landmarkIds } from '../domain/live'
+import { WalkPad } from './WalkPad'
 
 type PlanCanvasProps = {
   plan: FloorPlan | null
@@ -19,6 +20,7 @@ type PlanCanvasProps = {
   mockPoint?: Point | null
   markerArmed?: boolean
   onPlaceMarker?: (point: Point) => void
+  stepFree?: boolean
 }
 
 function polygonArea(polygon: Point[]): number {
@@ -116,13 +118,30 @@ function InteractivePlan({
   mockPoint = null,
   markerArmed = false,
   onPlaceMarker,
+  stepFree = false,
 }: PlanCanvasProps & { plan: FloorPlan }) {
+  const svgRef = useRef<SVGSVGElement>(null)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState<Point>([0, 0])
+  const [hovered, setHovered] = useState<Selection | null>(null)
+  const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 })
   const gesture = useRef({ pointerId: -1, x: 0, y: 0, panX: 0, panY: 0, moved: false })
   const pointers = useRef(new Map<number, { x: number; y: number }>())
   const pinch = useRef<{ startDistance: number; startZoom: number; anchorX: number; anchorY: number } | null>(null)
   const suppressClick = useRef(false)
+  const planWrap = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const element = planWrap.current
+    if (!element) return
+    const stopPageZoom = (event: WheelEvent) => {
+      event.preventDefault()
+      event.stopPropagation()
+      setZoom((value) => clamp(value * (event.deltaY < 0 ? 1.12 : 1 / 1.12), MIN_ZOOM, MAX_ZOOM))
+    }
+    element.addEventListener('wheel', stopPageZoom, { passive: false, capture: true })
+    return () => element.removeEventListener('wheel', stopPageZoom, true)
+  }, [])
+
   useEffect(() => {
     setZoom(1)
     setPan([0, 0])
@@ -181,6 +200,8 @@ function InteractivePlan({
   const focusedSpaceId = focusPoint ? plan.spaces.find((space) => containsPoint(space.polygon, focusPoint))?.id ?? null : null
   if (focusedSpaceId && !reasons.has(focusedSpaceId)) reasons.set(focusedSpaceId, 'selected')
 
+  const updateHover = (event: React.MouseEvent<SVGElement>, selection: Selection) => { const rect = event.currentTarget.ownerSVGElement?.getBoundingClientRect(); if (rect) setHoverPosition({ x: event.clientX - rect.left + 14, y: event.clientY - rect.top + 14 }); setHovered(selection) }
+
   const selectSpace = (space: FloorPlan['spaces'][number]) => {
     onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNoteFromPlan(plan, space.id) })
     if (!allowSelect()) return
@@ -195,8 +216,9 @@ function InteractivePlan({
   }
 
   return (
-    <div className="plan-wrap" aria-label={`${floorName} plan`} data-floor={plan.floor.id}>
+    <div ref={planWrap} className="plan-wrap" aria-label={`${floorName} plan`} data-floor={plan.floor.id}>
       <svg
+        ref={svgRef}
         className={`plan${gesture.current.pointerId >= 0 ? ' panning' : ''}`}
         viewBox={viewBox}
         data-zoom={zoom}
@@ -296,6 +318,8 @@ function InteractivePlan({
                   tabIndex={0}
                   aria-label={space.name}
                   aria-pressed={picked}
+                  onMouseEnter={(event) => updateHover(event, { kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNoteFromPlan(plan, space.id) })}
+                  onMouseLeave={() => setHovered(null)}
                   onFocus={() => onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNoteFromPlan(plan, space.id) })}
                   onBlur={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.ownerSVGElement?.contains(event.relatedTarget)) onFocusSelection(null) }}
                   onClick={() => selectSpace(space)}
@@ -320,6 +344,8 @@ function InteractivePlan({
               className={['opening', opening.kind, selectionId === opening.id ? 'picked' : '', opening.step_free ? '' : 'stepped'].filter(Boolean).join(' ')}
               role="button"
               tabIndex={-1}
+              onMouseEnter={(event) => updateHover(event, { kind: 'opening', id: opening.id, name: opening.kind, floorId: plan.floor.id, floorName: plan.floor.name, note: `${opening.width_m} m - ${opening.step_free ? 'Step-free' : 'Has a step'}` })}
+              onMouseLeave={() => setHovered(null)}
               aria-label={`${opening.kind}, ${opening.width_m} m`}
               onClick={(event) => {
                 event.stopPropagation()
@@ -350,6 +376,8 @@ function InteractivePlan({
                 className={['asset', asset.category, highlighted ? 'highlighted' : '', landmark ? 'landmark' : '', picked ? 'picked' : ''].filter(Boolean).join(' ')}
                 role="button"
                 tabIndex={highlighted ? 0 : -1}
+                onMouseEnter={(event) => updateHover(event, { kind: 'asset', id: asset.id, name: asset.name, floorId: plan.floor.id, floorName: plan.floor.name, note: `${asset.type} - ${asset.category}` })}
+                onMouseLeave={() => setHovered(null)}
                 aria-label={asset.name}
                 aria-pressed={picked}
                 onClick={(event) => {
@@ -416,6 +444,9 @@ function InteractivePlan({
           {mockPoint && <circle className="mock-marker" cx={mockPoint[0]} cy={mockPoint[1]} r={1.3} />}
         </g>
       </svg>
+      <WalkPad svgRef={svgRef} plan={plan} route={route} closedIds={closedIds} stepFree={stepFree} />
+      {hovered && <div className="map-tooltip" role="status" style={{ left: hoverPosition.x, top: hoverPosition.y }}><strong>{hovered.name}</strong><dl><dt>Type</dt><dd>{hovered.kind === 'space' ? 'Room / area' : hovered.kind === 'asset' ? 'Equipment / item' : 'Opening / connector'}</dd><dt>Floor</dt><dd>{hovered.floorName}</dd><dt>Details</dt><dd>{hovered.note || 'No additional details'}</dd></dl></div>}
+      <div className="map-legend" aria-label="Map legend"><strong>Map legend</strong><span><i className="legend-sample sample-room" /><b>Room</b></span><span><i className="legend-sample sample-equipment" /><b>Equipment</b></span><span><i className="legend-sample sample-opening" /><b>Door / connector</b></span><span><i className="legend-sample sample-route" /><b>Current route</b></span><span><i className="legend-sample sample-closed" /><b>Closed / blocked</b></span><small>Shapes and colors match the map.</small></div>
       <div
         className="map-controls"
         role="group"
@@ -426,7 +457,7 @@ function InteractivePlan({
           if (event.key === '0') resetView()
         }}
       >
-        <button type="button" aria-label="Zoom out" onClick={() => setZoomAroundCenter(zoom / 1.25)} disabled={zoom <= MIN_ZOOM}>−</button>
+        <button type="button" aria-label="Zoom out" onClick={() => setZoomAroundCenter(zoom / 1.25)} disabled={zoom <= MIN_ZOOM}>-</button>
         <span aria-live="polite">{Math.round(zoom * 100)}%</span>
         <button type="button" aria-label="Zoom in" onClick={() => setZoomAroundCenter(zoom * 1.25)} disabled={zoom >= MAX_ZOOM}>+</button>
         <button type="button" aria-label="Reset map to 100 percent" onClick={resetView}>Reset</button>
@@ -434,3 +465,5 @@ function InteractivePlan({
     </div>
   )
 }
+
+

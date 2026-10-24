@@ -105,6 +105,8 @@ Ablauf:
 
 Stufenfrei: fehlt `preferences` beim Anlegen, ist `step_free` false. `PUT .../preferences` wird der spätere Default. Ein Satz darf das über `client_context.preferences.step_free` nur für diesen Turn übersteuern. Die Oberfläche zeigt `understood.constraints.step_free`.
 
+Begehbare Figur: Die Karte kann eine Figur auf der aktuellen Etage bewegen. Wände und Türen werden aus den Polygonkanten und Öffnungen des gelesenen Plans abgeleitet. Die Figur berechnet keine Route, schreibt keine Sitzung und wechselt die Etage nicht. Siehe `docs/specs/map-walker.md` und `docs/adr/ADR-0002-map-walker.md`.
+
 ## 6. Datenmodell
 
 Erfolgsbodies tragen `schema_version: 1`. Das Fehlerpaket trägt das Feld nicht. Die Fehlerform ändert sich innerhalb von v1 nicht.
