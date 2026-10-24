@@ -343,6 +343,8 @@ class BuildingMap:
 
     def resolve_space(self, reference: str) -> str:
         """Accept a space id, asset id, exact room ref/name or asset name; return a space id."""
+        if not reference.strip():
+            raise MapError("Give a place: a room name or number, an asset name, or an id.")
         if reference in self.spaces:
             return reference
         if reference in self.assets:

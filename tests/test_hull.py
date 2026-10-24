@@ -1,5 +1,7 @@
 """Entry-point checks for the hull without Claude: a scripted stand-in drives the real agent loop and tools."""
 
+import contextlib
+import io
 import os
 from pathlib import Path
 import subprocess
@@ -13,8 +15,10 @@ import anthropic
 
 from final_agent.agent import MISSING_CREDENTIALS_MESSAGE, BuildingAgent, MissingCredentialsError
 from final_agent.benchmark import answer
-from final_agent.building_map import BuildingMap
+from final_agent.building_map import BuildingMap, MapError
+from final_agent.tools import ArgumentCheckedTool, make_tools
 from anthropic.lib.tools import ToolError
+from anthropic.lib.tools._beta_runner import BetaToolRunner
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -227,6 +231,69 @@ class CommandLineTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(MISSING_CREDENTIALS_MESSAGE, result.stderr)
         self.assertNotIn("Traceback", result.stderr)
+
+
+class BadToolArgumentTests(unittest.TestCase):
+    """Bad model-sent arguments become readable is_error results, not logged tracebacks."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.building = BuildingMap.load(BUILDING)
+        cls.tools = {tool.name: tool for tool in make_tools(cls.building, Path(tempfile.gettempdir()))}
+
+    def error_text(self, name: str, tool_input: object) -> str:
+        with self.assertRaises(ToolError) as caught:
+            self.tools[name].call(tool_input)
+        return str(caught.exception)
+
+    def test_bad_arguments_name_the_argument_and_reason(self):
+        self.assertEqual(
+            self.error_text("find_largest_room", {"room_type": "office", "floor_level": 5.5}),
+            "Invalid arguments for find_largest_room: floor_level: Input should be a valid integer, "
+            "got a number with a fractional part.",
+        )
+        self.assertIn("floor_level: Input should be a valid integer", self.error_text("find_largest_room", {"room_type": "office", "floor_level": "high"}))
+        self.assertEqual(
+            self.error_text("straight_line_distance_3d", {}),
+            "Invalid arguments for straight_line_distance_3d: first: Missing required argument; "
+            "second: Missing required argument.",
+        )
+        self.assertEqual(
+            self.error_text("straight_line_distance_3d", ["a", "b"]),
+            "Invalid arguments for straight_line_distance_3d: expected a JSON object of named arguments, got list.",
+        )
+
+    def test_other_exceptions_propagate_unchanged(self):
+        def broken(item: str) -> str:
+            """Broken tool."""
+            raise ValueError("our own bug") if item == "value" else KeyError(item)
+
+        tool = ArgumentCheckedTool(broken)
+        with self.assertRaisesRegex(ValueError, "our own bug"):
+            tool.call({"item": "value"})
+        with self.assertRaises(KeyError):
+            tool.call({"item": "key"})
+
+    def test_schemas_unchanged_by_the_wrapper(self):
+        self.assertEqual(len(self.tools), 21)
+        for tool in self.tools.values():
+            plain = anthropic.beta_tool(tool.func).to_dict()
+            self.assertEqual(tool.to_dict(), plain)
+
+    def test_sdk_runner_returns_error_result_without_logging(self):
+        runner = BetaToolRunner.__new__(BetaToolRunner)
+        tool_use = call("find_largest_room", room_type="office", floor_level=5.5)
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), self.assertNoLogs("anthropic"):
+            result = runner._run_tool(self.tools["find_largest_room"], tool_use)
+        self.assertTrue(result["is_error"])
+        self.assertIn("Invalid arguments for find_largest_room: floor_level:", str(result["content"]))
+        self.assertEqual(stderr.getvalue(), "")
+
+    def test_blank_place_reference_gets_direct_message(self):
+        for blank in ("", "   "):
+            with self.assertRaisesRegex(MapError, "Give a place"):
+                self.building.resolve_space(blank)
 
 
 if __name__ == "__main__":

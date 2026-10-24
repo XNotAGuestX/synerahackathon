@@ -6,13 +6,39 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from anthropic import beta_tool
 from anthropic.lib.tools import ToolError
+from anthropic.lib.tools._beta_functions import BetaFunctionTool
+from pydantic import ValidationError
 
 from .building_map import MAX_SEARCH_RESULTS, NEW_DOOR_WIDTH_M, BuildingMap, MapError, RouteResult
 from .viewer import draw_location, draw_route, landmark_targets, route_floor_ids, route_handoffs
 
 JSON_INDENT = 1
+
+
+class ArgumentCheckedTool(BetaFunctionTool):
+    """SDK function tool whose bad-argument failures reach the model as readable ToolErrors.
+
+    The SDK raises a bare ValueError for invalid arguments; the tool runner logs that with a full traceback
+    and the model never learns which argument was wrong. Every other exception propagates unchanged.
+    """
+
+    def call(self, input: object) -> str:
+        if not isinstance(input, dict):
+            raise ToolError(
+                f"Invalid arguments for {self.name}: expected a JSON object of named arguments, "
+                f"got {type(input).__name__}."
+            )
+        try:
+            return super().call(input)
+        except ValueError as error:
+            if not isinstance(error.__cause__, ValidationError):
+                raise
+            problems = "; ".join(
+                f"{'.'.join(str(part) for part in item['loc']) or 'input'}: {item['msg']}"
+                for item in error.__cause__.errors()
+            )
+            raise ToolError(f"Invalid arguments for {self.name}: {problems}.") from None
 
 
 def as_json(value: object) -> str:
@@ -35,7 +61,7 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
     tools = []
 
     def register(function: Callable[..., str]) -> object:
-        tool = beta_tool(function)
+        tool = ArgumentCheckedTool(function)
         tools.append(tool)
         return tool
 
