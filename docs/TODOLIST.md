@@ -45,6 +45,18 @@ Prioritäten: **P0** blockiert die MVP-Abnahme, **P1** erforderlich für die vol
 - [~] **EFFECT-01 Declarative effects:** zentrale Effects werden verarbeitet; vollständige Regression für alle bekannten Effect-Typen fehlt.
   - Dateien: `frontend/src/domain/presentation.ts`, `frontend/src/rendering/PlanCanvas.tsx`
 
+## P1 – Wichtig: Discovery und Karteninteraktion
+
+- [ ] **DISCOVERY-01 Kategorie-basierte Ortssuche:** Im Standardzustand keine zufälligen Gebäude/Orte anzeigen. Aus dem aktiven Datensatz alle vorhandenen Asset-/Raumkategorien als große Kategorien anzeigen; ein Klick auf eine Kategorie öffnet die nächste Filterstufe, z. B. `Getränke/Lebensmittel` → `Wasserspender`, `Kaffeemaschine`, `Automat`. **Done:** Kategorien und Unterkategorien werden ausschließlich aus den geladenen Gebäudedaten abgeleitet, leere Kategorien werden nicht angezeigt und die Auswahl führt zu einer begrenzten Ergebnisliste.
+  - Dateien: `frontend/src/app/App.tsx`, `frontend/src/api/gateway.ts`, `frontend/src/api/fixtures.ts`, `frontend/src/domain/types.ts`, `frontend/src/styles.css`
+- [ ] **MAP-01 Interne Kartenzoom-Steuerung:** Minus-/Plus-Steuerung und sichtbarer Zoomstatus direkt in der Karte ergänzen. Zoom darf die Interaktion kleiner Räume und Komponenten nicht verschieben oder unbrauchbar machen; Tastaturbedienung und `prefers-reduced-motion` berücksichtigen. **Done:** Zoom funktioniert auf Desktop und Mobile, bleibt innerhalb sinnvoller Grenzen und unterstützt Zurücksetzen auf 100 %.
+  - Dateien: `frontend/src/rendering/PlanCanvas.tsx`, `frontend/src/app/App.tsx`, `frontend/src/styles.css`
+- [ ] **MAP-02 Karten-Pan:** Die Karte frei per Drag/Pan verschiebbar machen, ohne Auswahl- und Focus-Events zu verschlucken. **Done:** Drag funktioniert mit Maus und Touch/Pointer, Klick auf Raum/Gerät bleibt möglich und die Ansicht kann auf den Ausgangszustand zurückgesetzt werden.
+  - Dateien: `frontend/src/rendering/PlanCanvas.tsx`, `frontend/src/app/App.tsx`, `frontend/src/styles.css`
+- [ ] **DEBUG-01 Nicht-verdeckendes Debug-Panel:** Debug-Ausgabe darf keine Kartenposition dauerhaft verdecken. Panel als verschiebbares, einklappbares oder außerhalb der Karte liegendes Werkzeug organisieren und bei kleinen Viewports in eine nicht-blockierende Ansicht wechseln. **Done:** Alle Kartenbereiche bleiben erreichbar; Debug-Funktionen und Auswahlinformationen bleiben erhalten.
+  - Dateien: `frontend/src/features/debug/DebugPanel.tsx`, `frontend/src/app/App.tsx`, `frontend/src/styles.css`
+- [ ] **THEME-01 Vollständige Theme-Abdeckung:** Alle UI-Komponenten müssen die semantischen Light/Dark/System-Token verwenden; insbesondere `ask-block`, Debug-Panel, Notices, Suchergebnisse, Auswahlzustände und Kartensteuerung dürfen keine festen Light-Only-Farben enthalten. **Done:** Light, Dark und System werden bei 320/768/1440 px ohne unlesbare Kontraste oder harte helle Flächen geprüft.
+  - Dateien: `frontend/src/styles.css`, `frontend/src/features/guide/GuidePanel.tsx`, `frontend/src/features/debug/DebugPanel.tsx`, `frontend/src/app/App.tsx`
 ## P2 – UX-, Accessibility- und Demoqualität
 
 - [x] **UX-01 Responsive shell:** Desktop, Tablet, Mobile, `viewport-fit` und 320px-Schutz.
@@ -99,14 +111,15 @@ Diese Aufgaben sind nicht durch die React-Oberfläche erledigt und müssen paral
 
 ## Empfohlene Reihenfolge
 
-1. `NAV-01 Route here`
-2. `NAV-02 Step-free preference`
-3. `API-01` und `API-02` gegen echte `/api/v1`-Antworten
-4. `ACTION-01` Revision refresh und `SESSION-01` Reload recovery
-5. `QA-01`, `QA-02`, `QA-03` automatisierte und responsive Prüfung
-6. `DEMO-01` Demo-Skript
-7. P3 Three.js/Voice erst nach stabiler 2D-Navigation
-8. Parallel: `BENCH-*` und `CORE-*` für die eigentliche Hackathon-Bewertung
+1. `DISCOVERY-01 Kategorie-basierte Ortssuche` und `MAP-01`/`MAP-02` Karteninteraktion
+2. `NAV-01 Route here`
+3. `NAV-02 Step-free preference`
+4. `API-01` und `API-02` gegen echte `/api/v1`-Antworten
+5. `ACTION-01` Revision refresh und `SESSION-01` Reload recovery
+6. `QA-01`, `QA-02`, `QA-03` automatisierte und responsive Prüfung
+7. `DEMO-01` Demo-Skript
+8. P3 Three.js/Voice erst nach stabiler 2D-Navigation
+9. Parallel: `BENCH-*` und `CORE-*` für die eigentliche Hackathon-Bewertung
 
 ## Definition of Done für den Frontend-MVP
 
