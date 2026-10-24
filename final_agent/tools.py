@@ -280,6 +280,48 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
     # ---------- tours ----------
 
+    @register
+    def find_best_tour(
+        start: str, stops: list[str], destination: str, step_free: bool = False,
+        min_width_m: float = 0.0, activate: bool = True,
+    ) -> str:
+        """Shortest tour through all stops in the best order (exact, at most 10 stops), start and end fixed.
+
+        Use this only when the user allows ANY visiting order. If they name an order, keep it with
+        find_route(via=...). Never use it for "fetch X, then deliver to Y" errands. For a round trip pass the
+        start as destination. With activate=False it is a read-only preview that does not replace the displayed
+        route: it reports `given_order_length_m` (stops in the order given) and `saving_m`, so you can offer a
+        shorter tour and activate it only when the user chooses it. With activate=True the tour becomes the
+        route show_route draws; after a closure it is recomputed in the same stop order. An unreachable or
+        closed stop makes the whole tour impossible (an error names it); stops are never dropped.
+        Lengths use the kit distance model (distance_model).
+
+        Args:
+            start: Space id, asset id, or exact room number/name where the tour starts.
+            stops: Places that must all be visited, in any order (0 to 10). Repeats count as separate visits.
+            destination: Where the tour ends (same as start for a round trip).
+            step_free: True to avoid stairs and steps.
+            min_width_m: Only use doors at least this wide in metres. 0 = any.
+            activate: True (default) to make this the active route; False to only compare.
+        """
+        try:
+            result = building_map.find_best_tour(start, stops, destination, step_free, min_width_m, activate)
+        except MapError as error:
+            raise ToolError(str(error)) from error
+        route = result.pop("route")
+        result["legs"] = [
+            {
+                "from": leg["from_space_id"], "to": leg["to_space_id"], "distance_m": round(leg["length_m"], 2),
+                "space_path": leg["space_path"], "element_path": leg["element_path"],
+            }
+            for leg in route.legs
+        ]
+        result["length_m"] = round(result["length_m"], 2)
+        result["given_order_length_m"] = round(result["given_order_length_m"], 2)
+        result["saving_m"] = round(result["saving_m"], 2)
+        result["route"] = route_json(route)
+        return as_json(result)
+
     # ---------- what-if analysis ----------
 
     # ---------- navigation landmarks ----------

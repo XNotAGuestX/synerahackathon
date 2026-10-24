@@ -878,6 +878,125 @@ class BuildingMap:
 
     # ---------- tours ----------
 
+    MAX_TOUR_STOPS = 10
+    TOUR_EPSILON = 1e-9
+
+    def tour_distances(
+        self, points: list[str], step_free: bool, min_width_m: float
+    ) -> dict[str, dict[str, float]]:
+        """Shortest kit distance between all distinct points on the same filtered graph compute_route uses.
+
+        Raises MapError naming the first required point that cannot be reached from the first one.
+        """
+        constraints = self.constraints_text(step_free, min_width_m, None)
+        for point in points:
+            if point in self.closed:
+                raise MapError(f"{self.describe_space(point)} is closed. {constraints}")
+        graph = self.graph(step_free, min_width_m)
+        distances = {
+            point: nx.single_source_dijkstra_path_length(graph, point, weight="weight")
+            for point in dict.fromkeys(points)
+        }
+        for point in points[1:]:
+            if point not in distances[points[0]]:
+                raise MapError(
+                    f"The tour is impossible: {self.describe_space(point)} cannot be reached from "
+                    f"{self.describe_space(points[0])}. {constraints}"
+                )
+        return distances
+
+    def best_stop_order(
+        self, start: str, stop_ids: list[str], destination: str, distances: dict[str, dict[str, float]]
+    ) -> tuple[list[int], float]:
+        """Exact Held-Karp: the cheapest order of stop indices from start to destination, and its length.
+
+        remaining[mask][last] is the cheapest way to visit all stops outside mask, beginning at the last visited
+        stop (index len(stop_ids) stands for the start) and ending at the destination. Equal-cost orders (within
+        TOUR_EPSILON) are resolved by walking forward and taking the smallest stop id, then the lowest index, so
+        the result is the lexicographically smallest optimal id sequence and independent of input order ties.
+        """
+        count = len(stop_ids)
+        points = [*stop_ids, start]
+        full = (1 << count) - 1
+        remaining: list[dict[int, float]] = [{} for _ in range(full + 1)]
+        for mask in range(full, -1, -1):
+            lasts = [index for index in range(count) if mask >> index & 1] or [count]
+            for last in lasts:
+                if mask == full:
+                    remaining[mask][last] = distances[points[last]][destination]
+                else:
+                    remaining[mask][last] = min(
+                        distances[points[last]][stop_ids[nxt]] + remaining[mask | 1 << nxt][nxt]
+                        for nxt in range(count) if not mask >> nxt & 1
+                    )
+        order: list[int] = []
+        mask, last = 0, count
+        while mask != full:
+            best = remaining[mask][last]
+            candidates = [
+                nxt for nxt in range(count)
+                if not mask >> nxt & 1
+                and distances[points[last]][stop_ids[nxt]] + remaining[mask | 1 << nxt][nxt]
+                <= best + self.TOUR_EPSILON
+            ]
+            chosen = min(candidates, key=lambda index: (stop_ids[index], index))
+            order.append(chosen)
+            mask, last = mask | 1 << chosen, chosen
+        return order, remaining[0][count]
+
+    def find_best_tour(
+        self, start: str, stops: list[str], destination: str, step_free: bool = False,
+        min_width_m: float = 0.0, activate: bool = True,
+    ) -> dict:
+        """Shortest tour from start through every stop, in any order, ending at destination (kit model).
+
+        Exact for up to MAX_TOUR_STOPS intermediate stops; more raises MapError (no heuristic is ever called
+        shortest). Repeated stops stay separate visits (zero-length legs). All lengths are unrounded.
+        The returned 'route' is compute_route(via=best order), so legs, directions and map match find_route.
+        activate=True makes it the active route like route(): the request keeps the optimised via order and the
+        constraints, so a later reroute after a closure visits the stops in the chosen order (no re-optimising).
+        activate=False is a read-only preview: last_route, active_request and closures stay untouched.
+        """
+        if activate:
+            self.last_route = None
+            self.active_request = None
+        min_width_m = check_number("min_width_m", min_width_m, 0)
+        stops = list(stops or [])
+        if len(stops) > self.MAX_TOUR_STOPS:
+            raise MapError(
+                f"{len(stops)} stops is too many for an exact shortest tour: at most {self.MAX_TOUR_STOPS} "
+                "intermediate stops are supported. Split the request or choose fewer stops."
+            )
+        start_id = self.resolve_space(start)
+        stop_ids = [self.resolve_space(reference) for reference in stops]
+        destination_id = self.resolve_space(destination)
+        distances = self.tour_distances([start_id, *stop_ids, destination_id], step_free, min_width_m)
+        order, best_length = self.best_stop_order(start_id, stop_ids, destination_id, distances)
+        best_stops = [stop_ids[index] for index in order]
+        route = self.compute_route(start_id, destination_id, step_free, best_stops, min_width_m)
+        if not math.isclose(route.length_m, best_length, abs_tol=1e-6):
+            raise RuntimeError(f"Tour length {route.length_m} differs from the optimum {best_length}.")
+        given_sequence = [start_id, *stop_ids, destination_id]
+        given_length = sum(distances[a][b] for a, b in itertools.pairwise(given_sequence))
+        if activate:
+            self.last_route = route
+            self.active_request = {
+                "start": start_id, "destination": destination_id, "step_free": step_free,
+                "via": best_stops or None, "min_width_m": min_width_m, "entrance": None,
+            }
+        return {
+            "route": route,
+            "stop_sequence": route.stops,
+            "stops": [self.space_summary(space_id) for space_id in route.stops],
+            "length_m": route.length_m,
+            "given_order_length_m": given_length,
+            "saving_m": max(given_length - route.length_m, 0.0),
+            "constraints": {"step_free": step_free, "min_width_m": min_width_m, "closed": sorted(self.closed)},
+            "optimal": True,
+            "distance_model": KIT_DISTANCE_MODEL,
+            "activated": activate,
+        }
+
     # ---------- what-if analysis ----------
 
     # ---------- navigation landmarks ----------
