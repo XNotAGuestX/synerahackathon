@@ -19,12 +19,13 @@ route_step_free,same_floor_unreachable,1,1,swiss-5097-Q06
 route_with_closure,stairs_closure_reachable,10,10,osm-way22744230-Q09
 route_with_closure,stairs_closure_unreachable,5,5,osm-way27326387-Q06
 shared_walls_count,same_floor_tolerant_wall_count,13,13,osm-way22744230-H08
-step_free_reachable_count,lift_outage_step_free_room_count,1,1,osm-way22744230-H03
+step_free_reachable_count,lift_outage_step_free_room_count,2,2,osm-way22744230-H03
 straight_line_3d,centroid_xyz_distance,10,10,osm-way22744230-H09
 tour,ordered_tour_cross_floor,12,12,osm-way27326387-Q07
 tour,ordered_tour_same_floor,4,4,resplan-8269-Q09
 tour,ordered_tour_via_outside,4,4,osm-way22744230-Q10
-what_if_door,corridor_to_corridor_other_floor_exit_improvement,1,1,osm-way27917482-H08
+what_if_door,corridor_to_corridor_other_floor_exit_improvement,2,2,osm-way27917482-H08
+what_if_door,room_to_corridor_other_floor_exit_improvement,1,1,osm-way58216509-H08
 what_if_door,room_to_room_other_floor_exit_improvement,1,1,osm-way27917482-H09
 wide_delivery_count,cross_floor_step_free_width,2,2,proc-campus-dev-009-H03
 wide_delivery_count,same_floor_step_free_width,9,9,proc-campus-dev-000-H03

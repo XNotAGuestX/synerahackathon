@@ -1,4 +1,4 @@
-"""Run the selected dev cases without confusing missing tools with passing tests.
+"""Run selected labelled cases without confusing missing tools with passing tests.
 
 Offline mode probes existing tools with labelled, resolved inputs (an input oracle).
 Agent mode sends only building directory + question text to an answer callable and
@@ -165,9 +165,10 @@ def offline_case(case: dict, question: dict, output: Path) -> tuple[str, str]:
     Scored kinds use their dedicated tool (COMPONENT_CALLS); an unregistered tool is a GAP.
     """
     kind = question["kind"]
+    building_directory = ROOT / Path(case["source_file"]).parent
     if kind in COMPONENT_CALLS:
-        return component_case(ROOT / "data" / "dev" / case["building_id"], question, output)
-    building_path = ROOT / "data" / "dev" / case["building_id"] / "building.json"
+        return component_case(building_directory, question, output)
+    building_path = building_directory / "building.json"
     original = building_path.read_bytes()
     building = BuildingMap.load(building_path)
     tools = {tool.name: tool for tool in make_tools(building, output)}
@@ -311,7 +312,7 @@ def main() -> int:
                 row = {**case, "status": status, "detail": detail}
             else:
                 # Labels/inputs are never passed into the production answer callable.
-                reply = answer_function(ROOT / "data" / "dev" / case["building_id"], question["question"])
+                reply = answer_function(ROOT / Path(case["source_file"]).parent, question["question"])
                 row = {**case, "status": "PASS" if score_reply(question["answer"], reply) else "FAIL", "reply": reply}
         except Exception as error:
             row = {**case, "status": "FAIL", "detail": f"{type(error).__name__}: {error}"}

@@ -1,14 +1,17 @@
 """Route results, constraints, active-route state, door placement and edit rollback on tiny buildings."""
 
 import json
+import math
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from shapely.geometry import LineString
+
 from anthropic.lib.tools import ToolError
 
-from final_agent.building_map import BuildingMap, MapError
+from final_agent.building_map import BuildingMap, MapError, outline, walking_lengths, walking_path
 from final_agent.tools import make_tools
 from final_agent.viewer import route_polylines
 from test_storage import example_building
@@ -44,18 +47,59 @@ class RouteResultTests(unittest.TestCase):
         building = make_map(connectors=[connector("V1", "stairs", False), connector("V2", "lift", True)])
         self.assertEqual(building.route("left", "upstairs").element_path, ["V1"])
         result = building.route("left", "upstairs", step_free=True)
-        self.assertEqual((result.element_path, result.length_m), (["V2"], 21.0))
+        self.assertEqual((result.element_path, result.length_m), (["V2"], 18.0))
         self.assertIn("Take V2 (lift) to First.", result.steps)
         self.assertEqual([segment["floor_id"] for segment in result.floor_segments], ["F0", "F1"])
+
+    def test_lift_skips_intermediate_stop_and_charges_wait_once(self):
+        data = example_building()
+        data["floors"].append({"id": "F3", "level": 3, "name": "Third", "elevation_m": 11.4})
+        data["spaces"].append({**data["spaces"][2], "id": "top", "name": "Top", "floor_id": "F3"})
+        lift = connector("lift", "lift", True)
+        lift["floor_ids"].append("F3")
+        lift["space_ids"].append("top")
+        data["vertical_connectors"] = [lift]
+        building = BuildingMap(data)
+        result = building.route("left", "top", step_free=True)
+        self.assertEqual(result.node_path, ["left", "top"])
+        self.assertEqual(result.element_path, ["lift"])
+        self.assertAlmostEqual(result.length_m, 26.4)
+        building.set_closed("upstairs", True)
+        self.assertAlmostEqual(building.route("left", "top", step_free=True).length_m, 26.4)
+
+    def test_door_to_door_path_includes_corridor_without_visiting_its_anchor(self):
+        data = example_building()
+        data["spaces"][1]["polygon"] = [[12, -2], [16, -2], [16, 2], [12, 2]]
+        data["spaces"].append({"id": "hall", "name": "Hall", "floor_id": "F0", "room_type": "corridor",
+                               "polygon": [[0, -2], [12, -2], [12, 8], [0, 8]]})
+        data["openings"] = [door("D1", "left", "hall", 0, 0), door("D2", "hall", "right", 12, 0)]
+        building = BuildingMap(data)
+        result = building.route("left", "right")
+        self.assertAlmostEqual(result.length_m, 16.0)
+        self.assertEqual(result.space_path, ["left", "hall", "right"])
+        self.assertNotIn("hall", result.node_path)
+        self.assertEqual(result.element_path, ["D1", "D2"])
+        points = route_polylines(building, result)[0][1]
+        self.assertNotIn(building.anchor("hall"), points)
+        self.assertTrue(all(y == 0 for _, y in points))
+
+    def test_l_shaped_walk_goes_around_the_inner_corner(self):
+        polygon = outline([(0, 0), (6, 0), (6, 2), (2, 2), (2, 6), (0, 6)])
+        start, end = (5.0, 1.0), (1.0, 5.0)
+        points = walking_path(polygon, start, end)
+        length = walking_lengths(polygon, [start, end])[(0, 1)]
+        self.assertGreater(length, math.dist(start, end) + 0.5)
+        self.assertAlmostEqual(sum(math.dist(a, b) for a, b in zip(points, points[1:])), length)
+        self.assertTrue(polygon.buffer(-0.15).buffer(0.02).covers(LineString(points)))
 
     def test_parallel_doors_use_the_recorded_cheapest_door(self):
         building = make_map([door("far", "left", "right", 0, 1.5), door("D1", "left", "right", 0, 0)])
         result = building.route("left", "right")
-        self.assertEqual(result.element_path, ["D1", "D1"])
+        self.assertEqual(result.element_path, ["D1"])
         self.assertEqual(result.node_path, ["left", "door:D1", "right"])
         self.assertEqual(
             route_polylines(building, result),
-            [("F0", [building.anchor("left"), (0, 0), building.anchor("right")])],
+            [("F0", [building.anchor("left"), (-0.3, 0.0), (0, 0), (0.3, 0.0), building.anchor("right")])],
         )
 
     def test_same_room_and_repeated_stop(self):
@@ -67,20 +111,16 @@ class RouteResultTests(unittest.TestCase):
         self.assertEqual(repeated.legs[1]["length_m"], 0.0)
         self.assertEqual(repeated.element_path, repeated.legs[0]["element_path"])
 
-    def test_outside_and_reentry_keep_separate_segments_and_polylines(self):
+    def test_separate_entrances_do_not_connect_through_outside(self):
         building = entrance_map()
-        result = building.route("left", "right")
-        self.assertEqual(result.element_path, ["E1", "E1", "E2", "E2"])
-        self.assertEqual(result.space_path, ["left", "outside", "right"])
-        self.assertEqual(
-            [(segment["floor_id"], segment["space_ids"]) for segment in result.floor_segments],
-            [("F0", ["left"]), (None, ["outside"]), ("F0", ["right"])],
-        )
-        self.assertEqual([len(points) for _, points in route_polylines(building, result)], [2, 2])
+        with self.assertRaisesRegex(MapError, "No route"):
+            building.route("left", "right")
+        self.assertIsNone(building.last_route)
+        self.assertNotIn("outside", building.graph())
 
     def test_min_width_equality_passes_and_narrower_fails_with_leg_and_constraints(self):
         building = make_map([door("D1", "left", "right", 0, 0, width=0.9)])
-        self.assertEqual(building.route("left", "right", min_width_m=0.9).element_path, ["D1", "D1"])
+        self.assertEqual(building.route("left", "right", min_width_m=0.9).element_path, ["D1"])
         with self.assertRaisesRegex(MapError, r"leg 1 of 1.*step_free=True.*min_width_m=0.91.*closed=\[\]"):
             building.route("left", "right", step_free=True, min_width_m=0.91)
         with self.assertRaises(MapError):
@@ -126,7 +166,7 @@ class RouteResultTests(unittest.TestCase):
         building.route("left", "right", min_width_m=0.5)
         building.set_closed("near", True)
         self.assertIsNone(building.last_route)
-        self.assertEqual(building.recompute_active_route().element_path, ["far", "far"])
+        self.assertEqual(building.recompute_active_route().element_path, ["far"])
         building.set_closed("far", True)
         with self.assertRaises(MapError):
             building.recompute_active_route()
@@ -179,7 +219,7 @@ class EditRollbackAndToolTests(unittest.TestCase):
                                                         "width_m": 0.5}))
             self.assertIn("active_route", added)
             closed = json.loads(tools["set_closed"].call({"element": "near", "closed": True}))
-            self.assertEqual(closed["active_route"]["element_path"], [added["added"]["id"]] * 2)
+            self.assertEqual(closed["active_route"]["element_path"], [added["added"]["id"]])
             building.set_closed(added["added"]["id"], True)
             failed = json.loads(tools["set_closed"].call({"element": "right", "closed": True}))
             self.assertIn("is closed", failed["active_route_error"])

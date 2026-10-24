@@ -13,8 +13,8 @@ def example_building() -> dict:
     return {
         "building": {"id": "test", "name": "Test building", "units": "m"},
         "floors": [
-            {"id": "F0", "level": 0, "name": "Ground"},
-            {"id": "F1", "level": 1, "name": "First"},
+            {"id": "F0", "level": 0, "name": "Ground", "elevation_m": 0.0},
+            {"id": "F1", "level": 1, "name": "First", "elevation_m": 3.0},
         ],
         "spaces": [
             {"id": "left", "name": "Left", "floor_id": "F0", "room_type": "office",
@@ -56,6 +56,21 @@ class StorageTests(unittest.TestCase):
             self.assertEqual(restored.route("left", "right").length_m, length)
             restored.save(target)
             self.assertEqual(BuildingMap.load(target).closed, set())
+
+    def test_cached_walking_lengths_keep_question_edits_isolated(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary)
+            baseline = BuildingMap(example_building())
+            opening = baseline.add_door("left", "right")
+            baseline.save(path)
+            cache = {}
+            first = BuildingMap.load_cached(path, cache)
+            first.set_closed(opening["id"], True)
+            first.walks.pop("left")
+            second = BuildingMap.load_cached(path, cache)
+            self.assertEqual(second.closed, set())
+            self.assertIn("left", second.walks)
+            self.assertAlmostEqual(second.route("left", "right").length_m, 4.0)
 
     def test_failed_save_preserves_existing_json_and_cleans_temporary_file(self):
         with tempfile.TemporaryDirectory() as temporary:

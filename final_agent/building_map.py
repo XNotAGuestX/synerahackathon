@@ -1,7 +1,8 @@
 """Deterministic core of the project agent: load a building.json, search it, route through it, edit it.
 
 The agent (agent.py) is only the conversation layer; every fact it states comes from this module.
-The route cost model matches the one used to compute the dataset's expected answers."""
+The route model follows kit 1.1.0: door-to-door walking with wall clearance, height-based
+vertical costs and no outside shortcut. Expected answers use the same geometry rules."""
 
 import contextlib
 import copy
@@ -12,6 +13,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import networkx as nx
+import numpy as np
+import shapely
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import nearest_points
 
@@ -20,15 +23,112 @@ from .storage import BuildingSpatialIndex, JsonBuildingStore
 OUTSIDE = "outside"
 DOOR_PREFIX = "door:"
 LIFT = "lift"
-STAIRS_COST_PER_FLOOR_M = 12.0
-LIFT_WAIT_COST_M = 15.0
-LIFT_COST_PER_FLOOR_M = 6.0
+# Vertical movement in equivalent walking metres per metre of height (floors' elevation_m), the grading rule.
+STAIRS_M_PER_RISE = 2.0
+LIFT_FIXED_M = 15.0
+LIFT_M_PER_RISE = 1.0
+# Walking inside a space: stay 15 cm off the walls; a door lands 30 cm inside the space.
+WALL_CLEARANCE_M = 0.15
+DOOR_LANDING_M = 0.30
+NARROW_LANDING_M = 0.05
+COVER_TOLERANCE_M = 0.02
+BLOCKED_DETOUR_FACTOR = 1.5  # used when no clear walk exists between two points of a space
+LENGTH_DECIMALS = 3
 MAX_SEARCH_RESULTS = 15
 SHARED_WALL_TOLERANCE_M = 0.35
 NEW_DOOR_WIDTH_M = 0.9
 MAX_INSPECTED_ASSET_IDS = 50
-KIT_DISTANCE_MODEL = "kit"
+KIT_DISTANCE_MODEL = "kit-1.1.0"
 GEOMETRY_EPSILON = 1e-9
+
+
+Point2 = tuple[float, float]
+
+
+def outline(points: list[Point2]) -> Polygon:
+    polygon = Polygon(points)
+    return polygon if polygon.is_valid else polygon.buffer(0)
+
+
+def door_landing(polygon: Polygon, position: Point2) -> Point2:
+    """Where a door at `position` lands inside the space: 30 cm in from the walls."""
+    inner = polygon.buffer(-DOOR_LANDING_M)
+    if inner.is_empty:
+        inner = polygon.buffer(-NARROW_LANDING_M)
+    if inner.is_empty:
+        point = polygon.representative_point()
+        return (point.x, point.y)
+    if inner.contains(Point(position)):
+        return (position[0], position[1])
+    landing = nearest_points(inner, Point(position))[0]
+    return (landing.x, landing.y)
+
+
+def visibility_matrix(allowed: Polygon, nodes: list[Point2]) -> np.ndarray:
+    """Straight-line lengths between nodes that see each other inside `allowed`, infinite where blocked."""
+    coordinates = np.asarray(nodes, dtype=float)
+    straight = np.hypot(*(coordinates[:, None, :] - coordinates[None, :, :]).transpose(2, 0, 1))
+    first, second = np.triu_indices(len(nodes), k=1)
+    shapely.prepare(allowed)
+    clear = shapely.covers(
+        allowed, shapely.linestrings(np.stack([coordinates[first], coordinates[second]], axis=1))
+    )
+    usable = clear | (straight[first, second] == 0)
+    matrix = np.full(straight.shape, np.inf)
+    np.fill_diagonal(matrix, 0.0)
+    matrix[first[usable], second[usable]] = straight[first[usable], second[usable]]
+    matrix[second[usable], first[usable]] = straight[first[usable], second[usable]]
+    return matrix
+
+
+def shortest_lengths(matrix: np.ndarray) -> np.ndarray:
+    """All-pairs shortest path lengths (Floyd-Warshall)."""
+    for middle in range(len(matrix)):
+        matrix = np.minimum(matrix, matrix[:, middle, None] + matrix[None, middle, :])
+    return matrix
+
+
+def walking_visibility(polygon: Polygon, points: list[Point2]) -> tuple[list[Point2], np.ndarray]:
+    """The exact kit visibility graph, shared by distance calculation and route rendering."""
+    walkable = polygon.buffer(-WALL_CLEARANCE_M)
+    if walkable.is_empty or walkable.geom_type != "Polygon":
+        walkable = polygon
+    allowed = walkable.buffer(COVER_TOLERANCE_M)
+    corners = [
+        corner for ring in [walkable.exterior, *walkable.interiors] for corner in list(ring.coords)[:-1]
+    ]
+    nodes = list(points) + corners
+    return nodes, visibility_matrix(allowed, nodes)
+
+
+def walking_lengths(polygon: Polygon, points: list[Point2]) -> dict[tuple[int, int], float]:
+    """Kit 1.1.0 shortest walks, including its fallback for disconnected visibility nodes."""
+    _, matrix = walking_visibility(polygon, points)
+    walks = shortest_lengths(matrix)
+    lengths = {}
+    for source in range(len(points)):
+        for target in range(len(points)):
+            walk = float(walks[source, target])
+            fallback = math.dist(points[source], points[target]) * BLOCKED_DETOUR_FACTOR
+            lengths[(source, target)] = walk if math.isfinite(walk) else fallback
+    return lengths
+
+
+def walking_path(polygon: Polygon, start: Point2, end: Point2) -> list[Point2]:
+    """Geometry of the same visibility walk used by walking_lengths."""
+    nodes, matrix = walking_visibility(polygon, [start, end])
+    graph = nx.Graph()
+    graph.add_nodes_from(range(len(nodes)))
+    first, second = np.triu_indices(len(nodes), k=1)
+    graph.add_weighted_edges_from(
+        (int(a), int(b), float(matrix[a, b]))
+        for a, b in zip(first, second) if math.isfinite(matrix[a, b])
+    )
+    try:
+        return [nodes[index] for index in nx.shortest_path(graph, 0, 1, weight="weight")]
+    except nx.NetworkXNoPath:
+        # Kit 1.1.0 assigns a heuristic length here; there is no validated drawable walk.
+        return []
 
 
 class MapError(ValueError):
@@ -53,10 +153,9 @@ def normalize_type(value: str) -> str:
 class RouteResult:
     """A computed route. Lengths are unrounded; round only when presenting.
 
-    node_path holds the graph nodes (spaces, 'door:<opening id>', 'outside'). element_path has one entry
-    per traversed edge: the opening id for space/door and outside/door edges, the connector id for
-    stair/lift edges. min_width_m and entrance are the requested constraints. The length follows the
-    kit model (anchor-to-door distances); an entrance only has to be valid, it adds no length.
+    node_path holds spaces and 'door:<opening id>' nodes. edge_path records the selected
+    space or connector for each graph edge; element_path lists each traversed opening and
+    connector once per use. Lengths follow kit 1.1.0; entrance validates entry without adding length.
     """
 
     start_space_id: str
@@ -69,6 +168,7 @@ class RouteResult:
     stops: list[str] = field(default_factory=list)
     node_path: list[str] = field(default_factory=list)
     element_path: list[str] = field(default_factory=list)
+    edge_path: list[str] = field(default_factory=list)
     legs: list[dict] = field(default_factory=list)
     floor_segments: list[dict] = field(default_factory=list)
     min_width_m: float = 0.0
@@ -85,6 +185,7 @@ class BuildingMap:
         self.connectors = {connector["id"]: connector for connector in building["vertical_connectors"]}
         self.openings = {opening["id"]: opening for opening in building["openings"]}
         self.closed: set[str] = set(building.get("navigation_state", {}).get("closed", []))
+        self.walks: dict[str, list[tuple[str, str, float]]] = {}
         self._spatial_index: BuildingSpatialIndex | None = None
         self.last_route: RouteResult | None = None
         self.active_request: dict | None = None
@@ -95,6 +196,17 @@ class BuildingMap:
     @classmethod
     def load(cls, path: Path) -> "BuildingMap":
         return cls(JsonBuildingStore.load(path))
+
+    @classmethod
+    def load_cached(cls, path: Path, walks_cache: dict[Path, dict]) -> "BuildingMap":
+        """A fresh map that reuses the walking lengths of the unchanged building, computed once per path."""
+        if path not in walks_cache:
+            pristine = cls.load(path)
+            pristine.graph(step_free=False)
+            walks_cache[path] = pristine.walks
+        building_map = cls.load(path)
+        building_map.walks = dict(walks_cache[path])
+        return building_map
 
     # ---------- descriptions ----------
 
@@ -372,14 +484,35 @@ class BuildingMap:
 
     # ---------- routing ----------
 
-    def anchor(self, space_id: str) -> tuple[float, float]:
-        point = Polygon(self.spaces[space_id]["polygon"]).representative_point()
+    def anchor(self, space_id: str) -> Point2:
+        point = outline(self.spaces[space_id]["polygon"]).representative_point()
         return (point.x, point.y)
+
+    def space_walks(self, space_id: str) -> list[tuple[str, str, float]]:
+        """Walking lengths between the room's centre point and each of its doors, and between its doors."""
+        if space_id not in self.walks:
+            polygon = outline(self.spaces[space_id]["polygon"])
+            members = [(space_id, self.anchor(space_id), 0.0)]
+            for opening in self.openings.values():
+                if space_id in opening["space_ids"]:
+                    position = (opening["position"][0], opening["position"][1])
+                    landing = door_landing(polygon, position)
+                    members.append((DOOR_PREFIX + opening["id"], landing, math.dist(landing, position)))
+            lengths = walking_lengths(polygon, [landing for _, landing, _ in members])
+            self.walks[space_id] = [
+                (
+                    members[first][0],
+                    members[second][0],
+                    lengths[(first, second)] + members[first][2] + members[second][2],
+                )
+                for first, second in itertools.combinations(range(len(members)), 2)
+            ]
+        return self.walks[space_id]
 
     def graph(
         self, step_free: bool = False, min_width_m: float = 0.0, extra_closed: Iterable[str] = ()
     ) -> nx.MultiGraph:
-        """Kit routing graph without closed elements, steps (if step_free) or openings narrower than min_width_m.
+        """Kit 1.1.0 routing graph without closed elements, steps (if step_free) or openings narrower than min_width_m.
 
         Connectors have no width: only the doors that give access to them are filtered by width.
         extra_closed adds query-only closures on top of self.closed, which stays untouched.
@@ -388,22 +521,18 @@ class BuildingMap:
         closed = self.closed | set(extra_closed)
         # MultiGraph: a stair and a lift may join the same two spaces; both edges must be kept.
         graph = nx.MultiGraph()
-        anchors = {space_id: self.anchor(space_id) for space_id in self.spaces if space_id not in closed}
-        graph.add_nodes_from(anchors)
-        for opening in self.openings.values():
-            if (
-                opening["id"] in closed
-                or (step_free and not opening["step_free"])
-                or opening["width_m"] < min_width_m
-            ):
-                continue
-            door = DOOR_PREFIX + opening["id"]
-            for space_id in opening["space_ids"]:
-                if space_id == OUTSIDE:
-                    graph.add_edge(OUTSIDE, door, weight=0.0, via=opening["id"])
-                elif space_id in anchors:
-                    distance = math.dist(anchors[space_id], opening["position"])
-                    graph.add_edge(space_id, door, weight=distance, via=opening["id"])
+        open_doors = {
+            DOOR_PREFIX + opening["id"] for opening in self.openings.values()
+            if opening["id"] not in closed
+            and (opening["step_free"] or not step_free)
+            and opening["width_m"] >= min_width_m
+        }
+        open_spaces = [space_id for space_id in self.spaces if space_id not in closed]
+        graph.add_nodes_from(open_spaces)
+        for space_id in open_spaces:
+            for first, second, length in self.space_walks(space_id):
+                if (first == space_id or first in open_doors) and second in open_doors:
+                    graph.add_edge(first, second, weight=round(length, LENGTH_DECIMALS), space=space_id)
         levels = {floor_id: floor["level"] for floor_id, floor in self.floors.items()}
         for connector in self.connectors.values():
             if connector["id"] in closed or (step_free and not connector["step_free"]):
@@ -412,16 +541,17 @@ class BuildingMap:
                 zip(connector["floor_ids"], connector["space_ids"], strict=True),
                 key=lambda stop: levels[stop[0]],
             )
-            for (low_floor, low_space), (high_floor, high_space) in itertools.pairwise(stops):
-                if low_space not in anchors or high_space not in anchors:
+            is_lift = connector["kind"] == LIFT
+            pairs = itertools.combinations(stops, 2) if is_lift else itertools.pairwise(stops)
+            for (low_floor, low_space), (high_floor, high_space) in pairs:
+                if low_space not in graph or high_space not in graph:
                     continue
-                span = abs(levels[high_floor] - levels[low_floor])
-                cost = (
-                    LIFT_WAIT_COST_M + LIFT_COST_PER_FLOOR_M * span
-                    if connector["kind"] == LIFT
-                    else STAIRS_COST_PER_FLOOR_M * span
-                )
-                graph.add_edge(low_space, high_space, weight=cost, via=connector["id"])
+                try:
+                    rise = abs(self.floors[high_floor]["elevation_m"] - self.floors[low_floor]["elevation_m"])
+                except KeyError as error:
+                    raise MapError(f"Connector {connector['id']} needs elevation_m on both stop floors.") from error
+                cost = LIFT_FIXED_M + LIFT_M_PER_RISE * rise if is_lift else STAIRS_M_PER_RISE * rise
+                graph.add_edge(low_space, high_space, weight=round(cost, LENGTH_DECIMALS), via=connector["id"])
         return graph
 
     def constraints_text(self, step_free: bool, min_width_m: float, entrance: str | None) -> str:
@@ -486,21 +616,41 @@ class BuildingMap:
 
     @staticmethod
     def select_edges(graph: nx.MultiGraph, nodes: list[str]) -> list[tuple[str, float]]:
-        """The (element id, weight) of the edge used between each consecutive node pair.
+        """The (space or connector id, weight) selected between each consecutive node pair.
 
         Parallel edges (two doors, a stair and a lift) are resolved once here: minimum weight, ties by id.
         """
         selected = []
         for previous, current in itertools.pairwise(nodes):
-            weight, element = min((edge["weight"], edge["via"]) for edge in graph[previous][current].values())
+            weight, element = min((edge["weight"], edge.get("via", edge.get("space"))) for edge in graph[previous][current].values())
             selected.append((element, weight))
         return selected
+
+    def spaces_passed(self, nodes: list[str], edges: list[tuple[str, float]]) -> list[str]:
+        """Include spaces crossed door to door even when their anchors are not visited."""
+        spaces = [nodes[0]]
+        for current, (element, _) in zip(nodes[1:], edges, strict=True):
+            for space_id in (element if element in self.spaces else None,
+                             current if current in self.spaces else None):
+                if space_id is not None and spaces[-1] != space_id:
+                    spaces.append(space_id)
+        return spaces
+
+    def elements_passed(self, nodes: list[str], edges: list[tuple[str, float]]) -> list[str]:
+        """One entry for every opening or connector crossed, in travel order."""
+        elements = []
+        for current, (element, _) in zip(nodes[1:], edges, strict=True):
+            if element in self.connectors:
+                elements.append(element)
+            elif current.startswith(DOOR_PREFIX):
+                elements.append(current.removeprefix(DOOR_PREFIX))
+        return elements
 
     def compute_route(
         self, start: str, destination: str, step_free: bool = False, via: list[str] | None = None,
         min_width_m: float = 0.0, entrance: str | None = None,
     ) -> RouteResult:
-        """Shortest kit route through the stops in order. Pure: changes no state, so it is safe for comparisons.
+        """Shortest kit 1.1.0 route through the stops in order. Pure: changes no state, so it is safe for comparisons.
 
         entrance, if given, must be a usable entrance into the start space (see validate_entrance).
         """
@@ -530,12 +680,12 @@ class BuildingMap:
             leg_edges = self.select_edges(graph, leg_nodes)
             legs.append({
                 "from_space_id": leg_start, "to_space_id": leg_end, "length_m": leg_length,
-                "space_path": [node for node in leg_nodes if not node.startswith(DOOR_PREFIX)],
-                "element_path": [element for element, _ in leg_edges],
+                "space_path": self.spaces_passed(leg_nodes, leg_edges),
+                "element_path": self.elements_passed(leg_nodes, leg_edges),
             })
             nodes += leg_nodes if not nodes else leg_nodes[1:]
             edges += leg_edges
-        space_path = [node for node in nodes if not node.startswith(DOOR_PREFIX)]
+        space_path = self.spaces_passed(nodes, edges)
         return RouteResult(
             start_space_id=stops[0],
             destination_space_id=stops[-1],
@@ -546,7 +696,8 @@ class BuildingMap:
             closed=sorted(self.closed),
             stops=stops,
             node_path=nodes,
-            element_path=[element for element, _ in edges],
+            element_path=self.elements_passed(nodes, edges),
+            edge_path=[element for element, _ in edges],
             legs=legs,
             floor_segments=self.floor_segments(space_path),
             min_width_m=min_width_m,
@@ -580,10 +731,10 @@ class BuildingMap:
         return self.last_route
 
     def directions(self, nodes: list[str], edges: list[tuple[str, float]]) -> list[str]:
-        """Turn a node path and its selected edges into followable steps: one line per room or floor change."""
+        """Follow selected walking spaces and connectors, with a direction at each crossed door."""
         steps = [f"Start in {self.describe_space(nodes[0])}."]
         walked = 0.0
-        for current, (element, weight) in zip(nodes[1:], edges, strict=True):
+        for index, (current, (element, weight)) in enumerate(zip(nodes[1:], edges, strict=True), start=1):
             walked += weight
             if element in self.connectors:
                 connector = self.connectors[element]
@@ -593,17 +744,13 @@ class BuildingMap:
                     f"{self.floor_name(self.spaces[current]['floor_id'])}."
                 )
                 walked = 0.0
-            elif current == OUTSIDE:
-                steps.append(f"Walk about {walked:.0f} m and leave the building through the entrance.")
+            elif current.startswith(DOOR_PREFIX) and index < len(edges):
+                opening = self.openings[current.removeprefix(DOOR_PREFIX)]
+                following = edges[index][0]
+                passage = "through the door" if opening["kind"] == "door" else "through the opening"
+                steps.append(f"Walk about {walked:.0f} m {passage} into {self.spaces[following]['name']}.")
                 walked = 0.0
-            elif not current.startswith(DOOR_PREFIX):
-                opening = self.openings[element]
-                passage = {"door": "through the door", "entrance": "outside to the entrance and in"}.get(
-                    opening["kind"], "through the opening"
-                )
-                steps.append(f"Walk about {walked:.0f} m {passage} into {self.spaces[current]['name']}.")
-                walked = 0.0
-        steps.append(f"You have arrived at {self.describe_space(nodes[-1])}.")
+        steps.append(f"Walk about {walked:.0f} m. You have arrived at {self.describe_space(nodes[-1])}.")
         return steps
 
     # ---------- inspection ----------
@@ -768,9 +915,8 @@ class BuildingMap:
         Pure: closed_elements are closed for this query only; no map state or file changes.
         Only spaces of broad type 'room' are counted (halls, corridors, stairs, lifts and outdoor spaces
         are only passed through); the start room counts when it qualifies. floor_level and room_type
-        select the counted rooms and never limit the traversal. Like every route, the traversal may leave
-        by one entrance and re-enter by another through the zero-cost outside node; the labelled counts
-        are identical with and without that shortcut.
+        select the counted rooms and never limit the traversal. Entrances are terminal openings;
+        traversal never leaves and re-enters through the outside.
         """
         min_width_m = check_number("min_width_m", min_width_m, 0)
         if not isinstance(step_free, bool):
@@ -1367,14 +1513,18 @@ class BuildingMap:
     )
 
     def exit_distances(self) -> dict[str, float]:
-        """Kit route length from every space to its nearest entrance: one Dijkstra from the outside node.
+        """Kit 1.1.0 route length to the nearest entrance, using a multi-source Dijkstra.
 
         Plain walking: no step-free or width limit, current closures respected. Unreachable spaces are absent.
         """
         graph = self.graph()
-        if OUTSIDE not in graph:
+        entrances = [
+            DOOR_PREFIX + opening["id"] for opening in self.openings.values()
+            if OUTSIDE in opening["space_ids"] and DOOR_PREFIX + opening["id"] in graph
+        ]
+        if not entrances:
             return {}
-        lengths = nx.single_source_dijkstra_path_length(graph, OUTSIDE, weight="weight")
+        lengths = nx.multi_source_dijkstra_path_length(graph, entrances, weight="weight")
         return {node: length for node, length in lengths.items() if node in self.spaces}
 
     def analyze_what_if_door(
@@ -1707,6 +1857,7 @@ class BuildingMap:
         """
         closed, openings = set(self.closed), dict(self.openings)
         opening_list, last_route = list(self.data["openings"]), self.last_route
+        walks = dict(self.walks)
         try:
             yield
         except BaseException:
@@ -1716,6 +1867,7 @@ class BuildingMap:
             self.openings.update(openings)
             self.data["openings"][:] = opening_list
             self.last_route = last_route
+            self.walks = walks
             self._spatial_index = None
             raise
 
@@ -1760,9 +1912,10 @@ class BuildingMap:
         }
 
     def add_door(
-        self, first: str, second: str, step_free: bool = True, width_m: float = NEW_DOOR_WIDTH_M
+        self, first: str, second: str, step_free: bool = True, width_m: float = NEW_DOOR_WIDTH_M,
+        position: Point2 | None = None,
     ) -> dict:
-        """Add a door at the middle of the wall two neighbouring same-floor spaces share."""
+        """Add a door on a shared wall, defaulting to the midpoint; preserve explicit kit positions."""
         first_id, second_id = self.resolve_space(first), self.resolve_space(second)
         if first_id == second_id:
             raise MapError("A door must join two different spaces.")
@@ -1777,7 +1930,15 @@ class BuildingMap:
                 f"long enough for a {width_m:g} m door (longest shared stretch {longest:.2f} m)."
             )
         # Micrometre precision drops floating-point noise such as -4e-16 from the stored coordinates.
-        position = [round(value, 6) + 0.0 for value in wall["midpoint"]]
+        if position is not None:
+            if not isinstance(position, (list, tuple)) or len(position) != 2:
+                raise MapError("position must contain two finite metre coordinates.")
+            position = [check_number("position", value) for value in position]
+            point = Point(position)
+            if any(self.valid_polygon(space_id).boundary.distance(point) > SHARED_WALL_TOLERANCE_M
+                   for space_id in (first_id, second_id)):
+                raise MapError("The explicit door position must lie on the shared wall.")
+        position = [round(value, 6) + 0.0 for value in (position if position is not None else wall["midpoint"])]
         for existing in self.openings.values():
             if set(existing["space_ids"]) == {first_id, second_id} and (
                 math.dist(position, existing["position"]) <= width_m
@@ -1800,6 +1961,8 @@ class BuildingMap:
         }
         self.openings[opening["id"]] = opening
         self.data["openings"].append(opening)
+        for space_id in (first_id, second_id):
+            self.walks.pop(space_id, None)
         self._spatial_index = None
         self.last_route = None
         return opening

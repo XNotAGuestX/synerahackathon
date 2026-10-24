@@ -1,0 +1,29 @@
+[
+  {
+    "question_id": "osm-way58216509-H03",
+    "building_id": "osm-way58216509",
+    "source_file": "data/train/osm-way58216509/questions.jsonl",
+    "kind": "step_free_reachable_count",
+    "subtype": "lift_outage_floor_reachability_count",
+    "tier": "hard",
+    "note": "Close Lift 2 in isolated state; count step-free reachable type=room targets on floor 2. Expected 64; a lift outage does not imply zero reachability. Train supplement: all dev examples were already selected."
+  },
+  {
+    "question_id": "osm-way58216509-H07",
+    "building_id": "osm-way58216509",
+    "source_file": "data/train/osm-way58216509/questions.jsonl",
+    "kind": "what_if_door",
+    "subtype": "shared_wall_midpoint_other_floor_exit_improvement",
+    "tier": "hard",
+    "note": "Insert the door at the shared-wall midpoint in isolated state; count floor-2 rooms with nearest-exit distance improving strictly more than 1 m. Expected 40; preserve local anchor-model semantics. Train supplement: all dev examples were already selected."
+  },
+  {
+    "question_id": "osm-way58216509-H08",
+    "building_id": "osm-way58216509",
+    "source_file": "data/train/osm-way58216509/questions.jsonl",
+    "kind": "what_if_door",
+    "subtype": "shared_wall_midpoint_other_floor_exit_improvement",
+    "tier": "hard",
+    "note": "Insert the door at the shared-wall midpoint in isolated state; count floor-2 rooms with nearest-exit distance improving strictly more than 1 m. Expected 40; preserve local anchor-model semantics. Train supplement: all dev examples were already selected."
+  }
+]

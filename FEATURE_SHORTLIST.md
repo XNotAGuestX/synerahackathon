@@ -1,13 +1,19 @@
 # Feature shortlist
 
-The revised system prompt discussed in chat is a proposal. `final_agent/agent.py`
-still contains the existing draft; this shortlist does not replace it or implement
-the capabilities below. [BACKLOG.md](BACKLOG.md) owns task priorities and status.
+`final_agent/agent.py` retains the existing draft with appended completion-evidence
+rules and use cases. The larger proposed capabilities below remain unimplemented;
+prompt instructions do not supply missing tools or application state.
+[BACKLOG.md](BACKLOG.md) owns task priorities and status.
 
 [IMPLEMENTATION_HANDOFF.md](IMPLEMENTATION_HANDOFF.md) expands the requested
 features into tool contracts, one Sonnet implementation agent per feature and
 independent verification gates. These remain planned capabilities; the handoff
 does not implement them.
+
+[TASK_TARGET_OBJECT_HANDOFF.md](TASK_TARGET_OBJECT_HANDOFF.md) specifies typed
+requests, follow-up patches, session context and application-owned completion
+(L1-06). The appended prompt examples explain evidence and partial failures;
+the classes/controller and live interpretation checks remain outstanding.
 
 ## Location updates when the mobile app is implemented
 

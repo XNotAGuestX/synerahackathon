@@ -1,6 +1,6 @@
 # Talk to Your Building: Agent-First Indoor Navigation
 
-> **Consolidated project description — 24 October 2026.** This is the project reference for the challenge, existing implementation and open problems; [BACKLOG.md](BACKLOG.md) tracks the remaining implementation work. This document combines the original root README, both agent READMEs, the supplied challenge PDF and the code review. Original grading, scoring, submission, data-format and reference wording is preserved; the assessment and proposed work are labelled separately. Package READMEs link here.
+> **Consolidated project description — 24 October 2026.** This is the project reference for the challenge, existing implementation and open problems; [BACKLOG.md](BACKLOG.md) tracks the remaining implementation work. This document combines the original root README, both agent READMEs, the supplied challenge PDF and the code review. Kit 1.1.0 updates are merged below; the challenge PDF remains preserved as historical source material; the assessment and proposed work are labelled separately. Package READMEs link here.
 
 | Find | Sections |
 |---|---|
@@ -15,13 +15,19 @@
 | Complete challenge PDF text, including its grading table | [13. Challenge PDF reference](#13-challenge-pdf-reference) |
 | Full data attribution | [8. Licences](#8-licences), [14. Data sources and licences](#14-data-sources-and-licences) |
 
-**Current status:** `final_agent` is independently wired and packaged: CLI, tools, viewer, evaluator, building map and storage use local modules. The kit's `starter_agent` was removed on 24 October 2026 after `final_agent` was verified to contain all of its files, map functions and tools; `benchmark.evaluate` now runs `final_agent.benchmark:answer` by default. Its storage/integration suite passes 11 tests; its free dev warm-up passes 369/369. The scored runner selects it with `--agent final_agent.benchmark:answer`, using fresh state and temporary outputs per question. The nine scored benchmark kinds still need dedicated analysis tools; no live benchmark score or generated test answers are claimed. Sunday output format and release time remain organizer-dependent. See [final-agent commands](final_agent/README.md), [BACKLOG.md](BACKLOG.md) and sections 9–11.
+**Current status:** `final_agent` is the only agent package; `benchmark.evaluate` runs `final_agent.benchmark:answer` by default with fresh state and temporary outputs per question. The 24 October kit **1.1.0** update is integrated (source commit `dc03c44`): corrected train/dev answers, door-to-door walking with wall clearance, height-based stairs/lifts, direct multi-floor lift rides and no outside shortcut. Tools for all nine scored kinds are present; no live benchmark score or generated test answers are claimed. Sunday output format and release time remain organizer-dependent.
+
+**Kit 1.1.0 data refresh:** [CHANGELOG.md](CHANGELOG.md) preserves the upstream release notes. All 3,474 files in `data/` match the supplied release. The update changes **1,314 expected answers in 334 files**: 1,217 warm-up answers and 97 scored answers (errands and what-if doors). Question IDs, wording and inputs, building geometry, equipment, images, manifest and all 145 public test questions are unchanged. The existing `data_old/` backup is preserved. Previous 1.0.0 evaluation evidence and handoff examples are historical; use `data/` for current checks. The router reports `distance_model="kit-1.1.0"`.
+
+**Verification of this refresh:** the corrected dev warm-up passes **369/369** with the oracle. The unit/integration suite runs **176 tests: 173 pass, 3 skip** (credential-dependent cases); release consistency checks are reported in section 9. Oracle results establish deterministic compatibility, not live conversational accuracy.
 
 [FEATURE_SHORTLIST.md](FEATURE_SHORTLIST.md) records proposed features, prompt-related implementation gaps and the future switch to automatic mobile location updates; these capabilities remain unimplemented.
 
 [IMPLEMENTATION_HANDOFF.md](IMPLEMENTATION_HANDOFF.md) specifies the requested paginated search, room inspection, reachability, all nine analysis kinds, optimal tours, navigation landmarks and map highlights. It assigns one Sonnet implementation agent per feature and requires independent verification afterwards; it is an implementation specification, not a claim that these features are complete.
 
-[Benchmark request analysis](bench_analsysis/README.md) reviews 280 questions across 20 varied dev buildings, with implementation/missing-tool tables, underdocumented expected results and 45 runnable representatives in three difficulty tiers. Its offline evidence distinguishes passing component checks from missing capabilities; it does not claim live benchmark accuracy.
+[TASK_TARGET_OBJECT_HANDOFF.md](TASK_TARGET_OBJECT_HANDOFF.md) specifies typed user tasks, follow-up patches, session context and application-owned completion checks (L1-06). The system prompt includes completion-evidence rules and use cases; task classes and the controller are not implemented, and these prompt changes have no live interpretation result yet.
+
+[Benchmark request analysis](bench_analsysis/README.md) reviews 280 questions across 20 varied dev buildings plus three scarce-kind train supplements, with implementation/missing-tool tables, underdocumented expected results and 71 runnable representatives in three difficulty tiers. Thirteen kinds have five cases each; lift-outage reachability and door what-if use all two and four available labelled examples respectively. Its offline evidence distinguishes passing component checks from missing capabilities; it does not claim live benchmark accuracy.
 
 The original kit reference follows. References such as “section 6” below retain their original numbering. The repository tree and setup instructions are source reference material; section 9 covers implementation additions, and section 11 identifies missing referenced setup resources.
 
@@ -107,14 +113,14 @@ Use what is possible today: voice in and out, an agent that asks back, showing w
 
 ### Judging
 
-Three things count, in this order: does it work, is it a pleasure to use, and what did you add that we did not ask for.
-
 | Part | Points | What counts |
 |---|---|---|
-| Does it work | 55 | The Sunday benchmark plus automatic checks on buildings and questions you have not seen (levels 1–4): correct answers, valid routes, route length vs. the best route, buildings built correctly from plans. **Your test-set submission (section 6) is part of this.** |
-| Interaction | 25 | A short scripted conversation with tricky users, rated on a rubric. Does it ask only what it needs, show what it understood, and give directions a person can follow? Voice counts here. |
-| Creativity | 10 | Level 5 and add-ins: anything that makes the product better in a way we did not think of. |
-| Submission demo | 10 | Your demo video and technical explanation: clear, convincing, and showing the real product. |
+| Does it work | 55 | An automatic check on unseen buildings and questions (levels 1–4): correct answers, valid routes, route length vs. the optimum, buildings built correctly from plans. **Your test-set submission (section 6) is part of this.** |
+| Interaction | 25 | A scripted conversation with tricky users. The agent asks only what it needs, shows what it understood, and gives directions people can follow. |
+| Creativity | 10 | Level 5 and add-ins. |
+| Pitch and demo | 10 | A 3–5 minute live demo that works without a restart. |
+
+The 1.1.0 README changes the final category to **Pitch and demo: a 3–5 minute live demo without a restart**. The earlier challenge PDF and online submission details retained below describe video submission and finalist pitches; confirm the final process with the organizers.
 
 ### Sunday benchmark
 
@@ -157,9 +163,9 @@ Hi all, a quick note on how route answers are scored in the automatic check, so 
 
 Questions? Ask any of the Synera folks on site or in the channel.
 
-**Implementation impact (project assessment):** this clarification differs from the supplied kit's [anchor-based route model](#the-route-model-behind-the-expected-answers) and [local text-answer scorer](#how-it-is-scored). The current router uses room anchors and fixed per-floor stair/lift costs; it does not yet implement wall-respecting door-to-door paths with approximately 15 cm clearance, height-based vertical costs, a forklift-only routing profile or destination-only production bays. The automatic route check requires a valid ordered space sequence and recomputes its distance; reporting a plausible distance alone is insufficient. Keep local kit compatibility identifiable when implementing these rules. The announcement does not specify an output file schema or release time, and does not resolve the kit's zero-cost outside-node behavior.
+**Implementation impact (project assessment):** kit 1.1.0 now aligns local expected answers with the clarification's door-to-door geometry and height costs. It also explicitly removes the old outside shortcut; see [the route model](#the-route-model-behind-the-expected-answers). The updated router implements these rules and returns every traversed space and selected opening/connector. Forklift-only profiles, destination-only production bays and the Sunday structured-output adapter still require work. The automatic route check requires valid ordered space sequences; a distance alone is insufficient.
 
-### Submission and judging process
+### Submission and judging process (earlier brief)
 
 There are no pitch rooms. All teams submit online by code freeze through the organizers' platform:
 
@@ -175,6 +181,7 @@ We review all Track 01 submissions and pick four finalists. Finalists present at
 
 ```
 README.md                  this file
+CHANGELOG.md               upstream kit release notes (1.1.0: corrected routing and expected answers)
 ATTRIBUTION.md             data sources and licences (read before you share anything)
 pyproject.toml             Python project for the project agent and the scorer (uv or pip)
 .env.example               copy to .env and add your ANTHROPIC_API_KEY
@@ -264,7 +271,7 @@ Notes:
 - **Room types** include: `bedroom`, `living_room`, `kitchen`, `bathroom`, `toilet`, `storage`, `corridor`, `balcony`, `stairwell`, `lift`, `office`, `meeting_room`, `seminar_room`, `lecture_hall`, `lab`, `makerspace`, `library`, `server_room`, `technical_room`, `lobby`, `canteen`, `shop`, `print_room`, `locker_room`, `production_zone`, `additive_zone`, `assembly_zone`, `warehouse_zone`, `logistics_zone`, `quality_lab` and `generic_room` (an OSM room with no type tag).
 - **Door widths:** `width_m` matters for moving wide loads such as trolleys, pallets or beds. Swiss Dwellings and ResPlan widths come from the drawings. Procedural doors are 0.9 m for offices, 1.1 m for lifts, 1.2 m for labs, seminar rooms, meeting rooms, libraries, toilets and stairwells, and 1.6 m double doors for halls, storage, server and technical rooms. OSM doors default to 0.9 m.
 - **Step-free:** `step_free: false` means steps, such as a stair connector or an entrance with steps.
-- **Stairs and lifts:** a connector joins its stop spaces floor to floor in the order of their levels.
+- **Stairs and lifts:** stairs join consecutive stop spaces in floor-level order. A lift joins every pair of its stops directly, so its fixed waiting cost is charged once per ride.
 - **Asset names** are unique within a building, e.g. `Desk 2.03-B` is the second desk in room 2.03.
 
 ### `equipment.csv`
@@ -277,18 +284,22 @@ Notes:
 
 ### The route model behind the expected answers
 
-**Scope:** this is the original supplied kit model, implemented by the current router and used by the local warm-up checks. The newer [Synera route-scoring clarification](#route-scoring-clarification-synera) describes different geometry, vertical costs and route-validation rules for the automatic route check; the model below does not implement that clarification.
+Route lengths in the answers follow the same rules the judges grade with, so your router reproduces them if you build the same graph:
 
-Route lengths in the answers come from this graph, so your router reproduces them if you build the same one:
+- **Nodes:** one per space, at shapely's `representative_point()` of its polygon (repaired with `buffer(0)` if invalid), plus one per opening at its `position`.
+- **Walking inside a space:** every pair of the space's nodes (its centre point and each of its openings) is joined by the shortest walk inside the space that stays **15 cm off the walls** and goes **round corners, never through them**. That walk is computed on `polygon.buffer(-0.15)`, through a visibility graph of the start, the end and the corners of that shrunken outline (a segment counts as clear if `buffer(0.02)` of the shrunken outline covers it). An opening "lands" 30 cm inside each space (the nearest point of `polygon.buffer(-0.30)`), and the step from the opening to its landing is added. So a corridor you only pass through is walked door to door, not via its centre. Edge lengths are rounded to 3 decimals.
+- **Furniture and machines** are not obstacles. A route to an item ends in the room or bay that holds it.
+- **Stairs:** 2 m of walking per metre climbed. **Lifts:** 15 m for waiting and doors, once per ride however many floors it passes, plus 1 m per metre climbed. The height is the difference between the two floors' `elevation_m`. Stairs and lifts join the spaces' centre points.
+- **Step-free routing** drops every stair and every opening with `step_free: false`.
+- **Closures:** a closed stair, lift, opening or room can't be used at all.
+- **No way round the outside:** an entrance leads out of the building, not into another part of it. If two parts of a building only meet outside, there is no route between them, and the expected answer is `reachable: false`.
+- **Parallel connections:** a stair and a lift can join the same two spaces, and two doors the same two rooms. Keep both; a simple graph would drop one.
 
-- **Nodes:** one per space, anchored at shapely's `Polygon(space.polygon).representative_point()`, plus one node per opening at its `position`.
-- **Edges:** each space connects to each of its openings, weighted by the straight-line distance from the anchor to the opening.
-- **Stairs:** 12 m per floor between consecutive stops. **Lifts:** a 15 m wait plus 6 m per floor.
-- **Step-free routing** drops every edge with `step_free: false`.
-- **Parallel connections:** a stair and a lift can join the same two spaces. Keep both; a simple graph would drop one.
-- **Outside:** all entrances meet at one `"outside"` node at zero cost, so a route may go out one entrance and back in another for free. The benchmark questions only use cases where this shortcut makes no difference.
+These rules changed in 1.1.0; see `CHANGELOG.md`.
 
-`final_agent/building_map.py` implements exactly this model.
+`final_agent/building_map.py` implements this kit 1.1.0 model, preserving the project's width filters, query-only closures, route state and transactional edits. `edge_path` records the space or connector of every graph edge; `element_path` lists openings and connectors once per use. The renderer follows the selected visibility walks around corners.
+
+**Inherited kit limitation:** if no visibility walk connects two nodes, the upstream code uses 1.5 times the straight-line distance as a fallback. This is retained for answer compatibility and is not proof of a valid walk through malformed or disconnected geometry; the renderer leaves such segments as gaps. Forklift-only restrictions and destination-only production bays remain separate requirements from the Synera announcement.
 
 ---
 
@@ -302,10 +313,10 @@ One search or one route each. Every line is `{"id", "building_id", "kind", "ques
 |---|---|---|
 | `locate` | "Where is the coordinate measuring machine?" | `asset_id`, `space_id`, `space_name`, `floor_level`, `position` |
 | `count` | "How many chair items are on the floor 2?" | `count`, `asset_type`, `floor_level` |
-| `route` | "How do I get from Office 0.30 (Ground floor) to Office 0.46 (Ground floor)?" | `from_space_id`, `to_space_id`, `optimal_length_m`, `space_path`, `element_path` |
+| `route` | "How do I get from Office 0.30 (Ground floor) to Office 0.46 (Ground floor)?" | `from_space_id`, `to_space_id`, `optimal_length_m`, `space_path` (every traversed space), `element_path` (openings/connectors once per use), or `reachable: false` |
 | `route_step_free` | "Is there a step-free route from … to …?" | Same as route, or `reachable: false` |
 | `route_with_closure` | "Lift 1 is closed for maintenance. How do I get from … to …?" | Route fields plus `closed_element_id`, or `reachable: false` |
-| `tour` | "Starting at …, visit … then … in this order." | `stops`, `optimal_length_m`, `legs` |
+| `tour` | "Starting at …, visit … then … in this order." | `stops`, `optimal_length_m`, `legs` (one route per leg), or `reachable: false` |
 
 ### Benchmark questions (`questions.jsonl`; this is what is scored)
 
@@ -429,7 +440,15 @@ The data comes under several licences: CC BY 4.0 (Swiss Dwellings, ResPlan), ODb
 
 ## 9. Current implementation and verified baseline
 
-This section is a code assessment as of 24 October 2026, not an organizer specification. Sections 1–8 retain the original kit documentation. Section 12 consolidates the package READMEs, including the storage documentation added during consolidation. Section 13 preserves the challenge PDF. Source claims, measured results, proposed tasks and unresolved requirements are distinguished below.
+This section retains the earlier 24 October 2026 audit, not an organizer specification. The release-refresh verification below supersedes its old route model and test counts; other historical gap assessments have not been re-audited here. Sections 1–8 incorporate the kit 1.1.0 documentation. Section 12 consolidates the package READMEs, including the storage documentation added during consolidation. Section 13 preserves the challenge PDF. Source claims, measured results, proposed tasks and unresolved requirements are distinguished below.
+
+### Kit 1.1.0 refresh verification
+
+- `.venv/bin/python -m final_agent.evaluate data/dev --oracle`: **369/369**, using the corrected 1.1.0 labels (count 40, locate 100, route 120, step-free 40, closures 29, tours 40).
+- `.venv/bin/python -m unittest discover -s tests -v`: **176 tests run, 173 passed, 3 skipped** because credentials are configured; covers real tool calls and PNG rendering without API credits.
+- Every `data/` file matches the source kit byte for byte; 1,314 answer changes verified against `data_old/`, with all non-answer question fields unchanged. The official `benchmark/score.py` is unchanged.
+- New regressions cover door-to-door corridor traversal, direct lift rides and L-shaped walks around corners. Fixtures now supply actual floor elevations and expect entrances to remain disconnected outside.
+- Eight labelled deterministic checks pass: four sampled dev errands and all four train/dev what-if doors. A real two-floor errand route was rendered and visually inspected. These checks use labelled inputs and do not measure conversational accuracy.
 
 ### Architecture and repository state
 
@@ -475,7 +494,7 @@ benchmark.evaluate → agent(building_directory, question_text) → reply
 
 ### Evaluation evidence and limits
 
-The free dev warm-up command was rerun during the backlog audit:
+The free dev warm-up command was rerun with the corrected kit 1.1.0 answers:
 
 ```bash
 .venv/bin/python -m final_agent.evaluate data/dev --oracle
@@ -493,9 +512,9 @@ The free dev warm-up command was rerun during the backlog audit:
 
 This is an oracle-assisted warm-up result, not a conversational-agent benchmark score. The oracle supplies destinations, constraints and closures from expected answers; for locate questions it directly assigns the expected asset ID. The warm-up scorer is also permissive: route checks primarily compare distance, and an unreachable case can pass when no route was computed. It does not establish correct natural-language interpretation, correct final answer formatting or a valid full submission.
 
-After rewiring, `.venv/bin/python -m unittest discover -s tests -v` passes **11 tests**. Storage tests now target the canonical final map/store, rather than requiring new APIs on the original starter map. Integration tests block starter imports, check the CLI and class/error identities, exercise spatial queries, door/closure snapshots and actual PNG generation, and verify benchmark state/output isolation. The built wheel also loads the CLI, evaluator and benchmark adapter with `starter_agent` removed. No paid live API check was performed.
+Historical verification after rewiring (before the 1.1.0 refresh): `.venv/bin/python -m unittest discover -s tests -v` passes **11 tests**. Storage tests now target the canonical final map/store, rather than requiring new APIs on the original starter map. Integration tests block starter imports, check the CLI and class/error identities, exercise spatial queries, door/closure snapshots and actual PNG generation, and verify benchmark state/output isolation. The built wheel also loads the CLI, evaluator and benchmark adapter with `starter_agent` removed. No paid live API check was performed.
 
-The original README's “under 5%” benchmark statement remains a source claim. No paid live-agent evaluation was run for this review. All nine scored benchmark kinds still need dedicated tool support.
+The original README's “under 5%” benchmark statement remains a source claim. No paid live-agent evaluation was run for this review. Dedicated tools for the nine scored kinds have since been added; live benchmark accuracy remains unmeasured.
 
 ## 10. Tasks, priorities and completion criteria
 
@@ -526,7 +545,8 @@ P0/P1/P2 are project delivery priorities, not organizer weights. P1 includes req
 | Project package | Entry point and internal imports now use the final package; storage is local and the wheel includes it | Use the final CLI; the benchmark runner calls it by default. The kit's starter baseline was removed on 24 October 2026. |
 | Persistent changes vs. what-if analysis | Final closures/doors save snapshots and reload correctly; benchmark questions have isolated maps and temporary outputs | Add transactional edits, preview/undo and dedicated what-if analysis; isolate concurrent interactive outputs. |
 | New-building ingestion quality | Only JSON loading and one door edit exist; no image ingestion implementation | Decide extraction method and uncertainty handling; demonstrate geometry and connectivity validation on a genuinely new plan. |
-| Supplied kit vs. Synera automatic route check | The kit uses anchor-to-door segments, fixed per-floor costs and a zero-cost outside node. The [Synera clarification](#route-scoring-clarification-synera) specifies wall-respecting door-to-door paths with about 15 cm clearance, height-based costs, forklift restrictions, destination-only production bays and ordered-space validation. | Implement the clarified automatic-check rules and distinguish them from local kit scoring. Confirm schema, route endpoint details and outside handling with organizers; the clarification supplies no file format or outside-node rule. |
+| Supplied kit vs. Synera automatic route check | Kit 1.1.0 aligns expected answers with wall-respecting door-to-door walks and height costs, and forbids outside shortcuts. The announcement also specifies forklift restrictions, destination-only production bays and ordered-space validation. | Use the 1.1.0 model for current data; keep its heuristic disconnected-geometry fallback explicit. Forklift profiles and the actual Sunday schema still need implementation/confirmation. |
+| Demo format | The 1.1.0 kit README requests a 3–5 minute live demo without restart; the earlier PDF describes online video submission and finalist pitches. | Preserve the earlier source below and confirm the final process with organizers. |
 | Optional extension scope | Source recommends picking one add-in | Choose based on the completed core workflow and available time; no optional extension is selected or finished by this document. |
 | Setup/reference drift | `.env.example` is referenced but absent; attribution references `config/furniture_catalog.yaml`, also absent from the supplied tree | Supply missing setup instructions/resources where needed. Preserve original reference wording and identify missing resources rather than inventing their contents. |
 

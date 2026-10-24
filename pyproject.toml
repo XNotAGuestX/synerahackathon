@@ -1,12 +1,13 @@
 [project]
 name = "track01-student-kit"
-version = "1.0.0"
+version = "1.1.0"
 description = "Track 01 Google Maps for Every Building: project agent and scorer"
 requires-python = ">=3.12"
 dependencies = [
     "anthropic>=2.1.0",
     "matplotlib>=3.11.2",
     "networkx>=3.7",
+    "numpy>=2.0",
     "shapely>=2.2.0",
 ]
 

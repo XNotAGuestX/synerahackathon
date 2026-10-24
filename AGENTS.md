@@ -53,10 +53,11 @@ keep the codebase small and easy for teammates to understand.
 - Route constraints are correctness requirements: accessibility, widths, closures,
   real connectivity and unreachable cases. Preserve selected openings/connectors
   so the displayed path and directions match the computed route.
-- Distinguish the local kit's anchor-based distance model from the Synera automatic
-  route-check rules in the README. Keep local compatibility explicit when adding
-  wall-respecting paths, height costs, forklift restrictions and destination-only
-  production bays. Never silently mix scoring models.
+- Use the kit 1.1.0 route model documented in the README: door-to-door walking,
+  wall clearance, height-based stair/lift costs and no outside shortcut. Keep its
+  inherited disconnected-geometry fallback explicit. Forklift restrictions and
+  destination-only production bays remain additional Synera automatic-check rules;
+  never silently mix scoring models or use the old 1.0.0 labels in data_old/.
 - Isolate buildings, sessions and benchmark questions. What-if analysis must not
   persist edits or leak state. Relevant edits must invalidate routes and spatial
   indexes; save failures must not leave an unexplained partial change.
