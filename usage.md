@@ -43,3 +43,6 @@ skipped.
 - `--library PATH`: default `final_agent/run_library.jsonl`
 
 The first run with examples downloads the embedding model (~67 MB) to `~/.cache/fastembed`.
+The Qdrant index of the accepted runs is saved in `final_agent/run_library.qdrant/` and
+rebuilt automatically when the library or the embedding model changes; deleting the folder
+is always safe.

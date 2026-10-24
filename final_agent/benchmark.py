@@ -13,7 +13,7 @@ from tempfile import TemporaryDirectory
 from .agent import MODEL, BuildingAgent, MissingCredentialsError
 from .building_map import BuildingMap
 from .embedding import default_embedder
-from .run_library import RunIndex, load_runs
+from .run_library import RunIndex, index_path, load_runs
 
 RUN_LIBRARY_PATH = Path(__file__).with_name("run_library.jsonl")
 logger = logging.getLogger(__name__)
@@ -24,8 +24,8 @@ USAGE: Counter[str] = Counter()
 
 @cache
 def run_index() -> RunIndex:
-    """The committed run library, indexed once per process on the first answer, never at import."""
-    return RunIndex(load_runs(RUN_LIBRARY_PATH), default_embedder())
+    """The committed run library's index, saved beside it and opened on the first answer, never at import."""
+    return RunIndex(load_runs(RUN_LIBRARY_PATH), default_embedder(), index_path(RUN_LIBRARY_PATH))
 
 
 def answer(building_directory: Path, question_text: str, model: str = MODEL) -> str:

@@ -23,7 +23,7 @@ from .agent import MODELS, BuildingAgent, MissingCredentialsError, add_model_arg
 from .benchmark import RUN_LIBRARY_PATH
 from .building_map import BuildingMap
 from .embedding import default_embedder
-from .run_library import SKILL_BY_KIND, Run, RunIndex, load_runs, save_runs
+from .run_library import SKILL_BY_KIND, Run, RunIndex, index_path, load_runs, save_runs
 
 DATA_DIRECTORY = Path(__file__).resolve().parent.parent / "data"
 TRAIN_DIRECTORY = DATA_DIRECTORY / "train"
@@ -106,7 +106,7 @@ def build(selected: list[Question], library: Path, model: str, full: bool) -> No
     if full and not confirm_full(len(pending), model):
         raise SystemExit("Aborted: the full build only starts after typing 'yes'.")
     # Built once, so runs accepted during this build become examples from the next build on.
-    index = RunIndex(list(runs.values()), default_embedder())
+    index = RunIndex(list(runs.values()), default_embedder(), index_path(library))
     usage: Counter[str] = Counter()
     results: Counter[tuple[str, bool]] = Counter()
     for building_directory, question in pending:

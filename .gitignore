@@ -35,3 +35,6 @@ coverage.xml
 
 # macOS metadata
 .DS_Store
+
+# Saved Qdrant run index; rebuilt from run_library.jsonl when missing or stale
+*.qdrant/

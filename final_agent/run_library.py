@@ -4,13 +4,18 @@ Only accepted runs are indexed, so only successful runs ever reach the agent as 
 Stored runs never contain a question's expected ``answer`` or ``inputs``.
 """
 
+import atexit
+import hashlib
 import json
 import logging
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from .embedding import Embedder
+
+if TYPE_CHECKING:
+    from qdrant_client import QdrantClient
 
 logger = logging.getLogger(__name__)
 
@@ -96,37 +101,81 @@ def example_json(run: Run) -> dict:
     }
 
 
-class RunIndex:
-    """Accepted runs in an in-memory Qdrant collection, rebuilt from the JSONL per process.
+def index_path(library: Path) -> Path:
+    """Where the Qdrant state of a run library is stored: next to it, e.g. ``run_library.qdrant/``."""
+    return Path(library).with_suffix(".qdrant")
 
-    Vectors come from the ``Embedder`` adapter rather than Qdrant's FastEmbed
-    integration, so either side can be replaced alone. Moving to a Qdrant server
-    only changes the client constructor.
+
+def open_client(path: Path | None) -> "QdrantClient":
+    """Qdrant stored in the folder ``path``, or in memory without a path."""
+    # Imported here: qdrant_client also imports FastEmbed, which chat never needs.
+    from qdrant_client import QdrantClient
+
+    if path is None:
+        return QdrantClient(":memory:")
+    try:
+        client = QdrantClient(path=str(path))
+    except RuntimeError as error:
+        # Local Qdrant allows one process per folder (e.g. a benchmark during a build); the
+        # in-memory copy gives the same results, it is just rebuilt and not saved.
+        if "already accessed" not in str(error):
+            raise
+        reason = str(error)
+    else:
+        # Released before interpreter shutdown, when Qdrant's own cleanup can no longer import.
+        atexit.register(client.close)
+        return client
+    logger.warning("%s Using an in-memory run index for this process.", reason)
+    return QdrantClient(":memory:")
+
+
+class RunIndex:
+    """Accepted runs in a Qdrant collection, searched by kind and similarity.
+
+    With a ``path`` the collection is saved there and later processes reuse it while the
+    accepted runs and the embedding model are unchanged; any change rebuilds it. Without a
+    path it lives in memory. Vectors come from the ``Embedder`` adapter rather than Qdrant's
+    FastEmbed integration, so either side can be replaced alone. Moving to a Qdrant server
+    only changes ``open_client``.
     """
 
-    COLLECTION = "runs"
+    COLLECTION_PREFIX = "runs-"
 
-    def __init__(self, runs: list[Run], embedder: Embedder) -> None:
+    def __init__(self, runs: list[Run], embedder: Embedder, path: Path | None = None) -> None:
         self.runs = [run for run in runs if run.accepted]
         self.embedder = embedder
         self.client = None
         if not self.runs:
             # Nothing to search, so neither Qdrant nor the embedding model is loaded.
             return
-        # Imported here: qdrant_client also imports FastEmbed, which chat never needs.
-        from qdrant_client import QdrantClient, models
+        from qdrant_client import models
 
-        self.client = QdrantClient(":memory:")
+        self.client = open_client(path)
+        self.collection = self.COLLECTION_PREFIX + self.fingerprint()
+        # The count check rejects a collection whose build was interrupted.
+        if self.client.collection_exists(self.collection):
+            if self.client.count(self.collection).count == len(self.runs):
+                logger.debug("reusing stored run index %s", self.collection)
+                return
+        for collection in self.client.get_collections().collections:
+            if collection.name.startswith(self.COLLECTION_PREFIX):
+                self.client.delete_collection(collection.name)
         self.client.create_collection(
-            self.COLLECTION,
+            self.collection,
             vectors_config=models.VectorParams(size=embedder.dimension, distance=models.Distance.COSINE),
         )
         vectors = embedder.embed([run.semantic_translation for run in self.runs])
         # The point id is the run's position in self.runs.
-        self.client.upsert(self.COLLECTION, points=[
+        self.client.upsert(self.collection, points=[
             models.PointStruct(id=position, vector=vector, payload={"kind": run.kind})
             for position, (run, vector) in enumerate(zip(self.runs, vectors, strict=True))
         ])
+
+    def fingerprint(self) -> str:
+        """Hash of the embedding model and the indexed runs in order, since point ids are positions."""
+        indexed = [[run.question_id, run.kind, run.semantic_translation] for run in self.runs]
+        content = json.dumps([self.embedder.model_name, indexed], ensure_ascii=False)
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
 
     def similar(self, kind: str, semantic_translation: str, limit: int = 3) -> list[Run]:
         """Return accepted runs of this kind, most similar translation first."""
@@ -140,7 +189,7 @@ class RunIndex:
             must=[models.FieldCondition(key="kind", match=models.MatchValue(value=kind))]
         )
         response = self.client.query_points(
-            self.COLLECTION, query=vector, query_filter=same_kind, limit=limit, with_payload=False,
+            self.collection, query=vector, query_filter=same_kind, limit=limit, with_payload=False,
         )
         logger.debug("recall %s %r: %d matched", kind, semantic_translation, len(response.points))
         for point in response.points:

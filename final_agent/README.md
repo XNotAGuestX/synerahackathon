@@ -61,8 +61,11 @@ non-blank semantic translation.
 `final_agent.benchmark:answer` gives the agent a `recall_examples(kind,
 semantic_translation)` tool that it calls first. That call declares the kind and returns
 up to three accepted runs of that kind, nearest by translation similarity: FastEmbed
-`BAAI/bge-small-en-v1.5` vectors, cached in `~/.cache/fastembed`, in an in-memory Qdrant
-collection that is rebuilt from the JSONL once per process. Chat has no recall tool.
+`BAAI/bge-small-en-v1.5` vectors, cached in `~/.cache/fastembed`, in a Qdrant collection
+saved in `final_agent/run_library.qdrant/` (git-ignored, next to the `--library` file).
+Later runs reuse it while the accepted runs and the embedding model are unchanged and
+rebuild it otherwise. Local Qdrant allows one process per folder, so a second concurrent
+run warns and uses an in-memory copy. Chat has no recall tool.
 `final_agent/embedding.py` is the adapter: to use a dedicated embedding server, add a
 class implementing `Embedder` and return it from `default_embedder()`.
 

@@ -1,6 +1,8 @@
+import gc
 import json
 import tempfile
 import unittest
+import warnings
 import zlib
 from dataclasses import fields
 from pathlib import Path
@@ -14,9 +16,14 @@ from final_agent.run_library import (
 class FakeEmbedder:
     """Offline stand-in for FastEmbed (hashed bag of words); proves the adapter is swappable."""
 
+    model_name = "fake-hashed-words"
     dimension = 64
 
+    def __init__(self) -> None:
+        self.calls = 0
+
     def embed(self, texts: list[str]) -> list[list[float]]:
+        self.calls += 1
         vectors = []
         for text in texts:
             vector = [0.0] * self.dimension
@@ -79,6 +86,28 @@ class RunLibraryTests(unittest.TestCase):
         self.assertEqual([run.question_id for run in index.similar("errand", query)], ["near", "far"])
         self.assertEqual(index.similar("what_if_door", query), [])
         self.assertEqual(RunIndex([runs[1]], FakeEmbedder()).similar("errand", query), [])
+
+    def test_saved_index_is_reused_until_the_accepted_runs_change(self):
+        query = "largest <room_type> on <floor>"
+        runs = [sample_run("q1"), sample_run("q2", text=query)]
+        embedder = FakeEmbedder()
+        # qdrant-client's local storage leaves some SQLite and lock handles to the collector.
+        with tempfile.TemporaryDirectory() as temporary, warnings.catch_warnings():
+            warnings.simplefilter("ignore", ResourceWarning)
+            path = Path(temporary) / "runs.qdrant"
+            RunIndex(runs, embedder, path).client.close()
+            reused = RunIndex(runs, embedder, path)
+            self.assertEqual(embedder.calls, 1)  # the second process embedded nothing
+            self.assertEqual([run.question_id for run in reused.similar("errand", query)], ["q2", "q1"])
+            # While the folder is held, another index works from memory instead of failing.
+            with self.assertLogs("final_agent.run_library", "WARNING"):
+                self.assertEqual(len(RunIndex(runs, embedder, path).similar("errand", query)), 2)
+            reused.client.close()
+            changed = RunIndex(runs[:1], embedder, path)
+            self.assertEqual([run.question_id for run in changed.similar("errand", query)], ["q1"])
+            self.assertEqual([c.name for c in changed.client.get_collections().collections], [changed.collection])
+            changed.client.close()
+            gc.collect()
 
     def test_kinds_literal_matches_skills(self):
         self.assertEqual(set(get_args(ScoredKind)), set(SKILL_BY_KIND))

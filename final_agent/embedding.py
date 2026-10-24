@@ -14,8 +14,12 @@ EMBEDDING_CACHE = Path.home() / ".cache" / "fastembed"
 
 
 class Embedder(Protocol):
-    """Turns texts into fixed-size vectors; ``dimension`` sizes the vector collection."""
+    """Turns texts into fixed-size vectors; ``dimension`` sizes the vector collection.
 
+    ``model_name`` identifies the vectors, so a stored index is rebuilt when the model changes.
+    """
+
+    model_name: str
     dimension: int
 
     def embed(self, texts: list[str]) -> list[list[float]]: ...
