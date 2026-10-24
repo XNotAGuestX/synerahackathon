@@ -4,8 +4,16 @@ Everything about the people is simulated: who is inside, where their smartphone 
 them, and when (or whether) they confirm. The simulation is seeded from the building id, so a demo replays the same
 way every time. Nothing is saved; ending the roll call discards it.
 
+How a real system would locate people, best first:
+- Opt-in app: a phone fix taken when the person taps "I'm safe" (the only reliable moment to ask the phone).
+- No opt-in: the enterprise Wi-Fi hardware triangulates every connected phone; no app needed, several metres
+  accurate, but it finds the phone, not the person.
+- RFID badge: only the last door reader passed; a scan at the assembly-point reader confirms safety.
+- Nothing works (e.g. phone left inside): an admin confirms the person by hand.
+Here a "smartphone" fix stands for the first two tiers. EMERGENCY_MOCK_REASONING.md has the full reasoning.
+
 The roll call is meant for admins only, but the app has no user roles yet, so every user counts as an admin.
-EMERGENCY_ROLL_CALL_HANDOFF.md tracks that gap and argues whether a real smartphone app could do this.
+EMERGENCY_ROLL_CALL_HANDOFF.md tracks that gap.
 """
 
 import math
