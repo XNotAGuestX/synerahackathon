@@ -4,7 +4,6 @@ The agent (agent.py) is only the conversation layer; every fact it states comes 
 The route cost model matches the one used to compute the dataset's expected answers."""
 
 import itertools
-import json
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,6 +11,8 @@ from pathlib import Path
 import networkx as nx
 from shapely.geometry import Polygon
 from shapely.ops import nearest_points
+
+from starter_agent.storage import BuildingSpatialIndex, JsonBuildingStore
 
 OUTSIDE = "outside"
 DOOR_PREFIX = "door:"
@@ -47,14 +48,14 @@ class BuildingMap:
         self.assets = {asset["id"]: asset for asset in building["assets"]}
         self.connectors = {connector["id"]: connector for connector in building["vertical_connectors"]}
         self.openings = {opening["id"]: opening for opening in building["openings"]}
-        self.closed: set[str] = set()
+        self.closed: set[str] = set(building.get("navigation_state", {}).get("closed", []))
+        self._spatial_index: BuildingSpatialIndex | None = None
         self.last_route: RouteResult | None = None
         self.located_asset_ids: list[str] = []
 
     @classmethod
     def load(cls, path: Path) -> "BuildingMap":
-        building_file = path / "building.json" if path.is_dir() else path
-        return cls(json.loads(building_file.read_text(encoding="utf-8")))
+        return cls(JsonBuildingStore.load(path))
 
     # ---------- descriptions ----------
 
@@ -136,6 +137,18 @@ class BuildingMap:
         if any(result["kind"] == "asset" for result in results):
             self.located_asset_ids = [result["id"] for result in results if result["kind"] == "asset"]
         return results
+
+    def spatial_search(
+        self, x_m: float, y_m: float, floor_level: int, radius_m: float = 0,
+        kind: str = "all",
+    ) -> list[dict]:
+        """Find nearby spaces, assets and openings in the building's local metre frame."""
+        if self._spatial_index is None:
+            self._spatial_index = BuildingSpatialIndex(self.data)
+        try:
+            return self._spatial_index.search(x_m, y_m, floor_level, radius_m, kind)
+        except ValueError as error:
+            raise MapError(str(error)) from error
 
     def matches(self, text: str, words: list[str], floor_id: str, floor_level: int | None) -> bool:
         if floor_level is not None and self.floors[floor_id]["level"] != floor_level:
@@ -317,7 +330,14 @@ class BuildingMap:
         }
         self.openings[opening["id"]] = opening
         self.data["openings"].append(opening)
+        self._spatial_index = None
         return opening
 
     def save(self, path: Path) -> None:
-        path.write_text(json.dumps(self.data, indent=1, ensure_ascii=False), encoding="utf-8")
+        snapshot = {
+            **self.data,
+            "navigation_state": {
+                **self.data.get("navigation_state", {}), "closed": sorted(self.closed)
+            },
+        }
+        JsonBuildingStore.save(path, snapshot)

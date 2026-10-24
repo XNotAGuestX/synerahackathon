@@ -39,6 +39,26 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
         return as_json({"matches": len(results), "results": results[:MAX_SEARCH_RESULTS]})
 
     @beta_tool
+    def spatial_search(
+        x_m: float, y_m: float, floor_level: int, radius_m: float = 0,
+        kind: str = "all",
+    ) -> str:
+        """Find rooms, assets and doors near a point using a per-floor spatial index.
+
+        Args:
+            x_m: X coordinate in the building's local metre frame.
+            y_m: Y coordinate in the same frame.
+            floor_level: Floor to search (0 = ground floor, -1 = basement).
+            radius_m: Maximum distance in metres; 0 finds rooms covering the point.
+            kind: all, space, asset or opening. Rooms use polygons; other kinds use positions.
+        """
+        try:
+            results = building_map.spatial_search(x_m, y_m, floor_level, radius_m, kind)
+        except MapError as error:
+            raise ToolError(str(error)) from error
+        return as_json({"matches": len(results), "results": results[:MAX_SEARCH_RESULTS]})
+
+    @beta_tool
     def find_route(
         start: str, destination: str, step_free: bool = False, via: list[str] | None = None
     ) -> str:
@@ -68,9 +88,12 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
             element_id = building_map.set_closed(element, closed)
         except MapError as error:
             raise ToolError(str(error)) from error
-        return as_json(
-            {"element_id": element_id, "closed": closed, "all_closed": sorted(building_map.closed)}
-        )
+        saved_path = output_directory / "building_edited.json"
+        building_map.save(saved_path)
+        return as_json({
+            "element_id": element_id, "closed": closed,
+            "all_closed": sorted(building_map.closed), "saved_to": str(saved_path),
+        })
 
     @beta_tool
     def add_door(first_space: str, second_space: str, step_free: bool = True) -> str:
@@ -95,4 +118,4 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
             raise ToolError("No route yet. Call find_route first.")
         return as_json({"images": [str(path) for path in draw_route(building_map, output_directory)]})
 
-    return [building_overview, search_building, find_route, set_closed, add_door, show_route]
+    return [building_overview, search_building, spatial_search, find_route, set_closed, add_door, show_route]
