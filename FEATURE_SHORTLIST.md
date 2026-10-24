@@ -10,8 +10,8 @@ team's separate frontend track), is **not implemented**. [BACKLOG.md](BACKLOG.md
 owns task priorities and status.
 
 [IMPLEMENTATION_HANDOFF.md](IMPLEMENTATION_HANDOFF.md) holds the tool contracts and
-verification gates for these features; F14 (map highlights, destination context) is
-pending at the time of writing.
+verification gates for these features, including F14 (map highlights, destination
+context).
 
 ## Location updates when the mobile app is implemented
 
@@ -44,8 +44,8 @@ Implement this with **L1-01 / L1-04**, not just a prompt change:
 | Capability | Status and tool | Existing tasks |
 |---|---|---|
 | Navigation landmarks and turn directions | **Implemented (tool)**: `find_navigation_landmarks` (inner radius, outer same-type ambiguity count, minimum footprint area, `is_unambiguous`). Not implemented: heading/turn geometry (no left/right) and route-integrated cue selection, which stays prompt-driven. Nearby does not prove visibility. | L2-01, L2-06; MAP-02–03 |
-| Larger destination landmarks | **Pending (F14)**: `describe_destination_context` and map display. “Next to” needs a shared wall of at least 1 m; proximity alone is “near”. | L1-05; L2-06 |
-| Route maps and locate highlights | **Partly implemented**: `show_route` draws the computed path through the selected openings/connectors. Locate highlights and markers are pending (F14: `show_location`); a visual chat/web surface belongs to the team's frontend track. | MAP-02–03; L1-01–02 |
+| Larger destination landmarks | **Implemented**: `describe_destination_context` (relation "adjacent" only with a shared wall of at least 1 m on the same floor, otherwise "near") and `show_route(landmark_ids)` draws the same rooms. | L1-05; L2-06 |
+| Route maps and locate highlights | **Implemented as PNG images**: `show_route` draws the computed path through the selected openings/connectors with start, destination, numbered stops, handoffs and closures; `show_location` selects and highlights a room or asset. An interactive chat/map surface belongs to the team's frontend track. | MAP-02–03; L1-01–02 |
 | Closure rerouting | **Implemented**: `set_closed` / `add_door` clear stale routes and recompute the active route with its constraints (`active_route` / `active_route_error`). | MAP-04; L2-02 |
 | Reliable edits | **Partly implemented**: `add_door` validates the pair and places the door at the shared-wall midpoint; a failed save rolls the edit back. Preview/cancel/undo are not implemented. | MAP-05–06; L4-04 |
 | Editing layout | **Not implemented**: tools to edit room boundaries, names/types, doors and connections with validation, preview/cancel/undo. | MAP-04–06; L4-03–05 |

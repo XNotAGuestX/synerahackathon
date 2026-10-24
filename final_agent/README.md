@@ -31,8 +31,8 @@ directories for concurrent sessions.
 ## Tools
 
 Arguments in bold are required. All tools return JSON; expected failures come back as actionable
-tool errors, not guesses. "Pending merge" rows belong to features that are not in this branch yet:
-the coordinator verifies names and arguments after merging.
+tool errors, not guesses. 21 tools are registered. Map images are per-floor PNGs written to the
+output directory; there is no interactive map surface here.
 
 | Tool | Use it for | Key arguments | Example |
 |---|---|---|---|
@@ -43,7 +43,7 @@ the coordinator verifies names and arguments after merging.
 | `inspect_space` | One room in full: area, doors and widths, connectors, contents | **`space`** | `{"space": "Office 0.23"}` |
 | `find_route` | Shortest constrained route with directions; becomes the route `show_route` draws | **`start`**, **`destination`**, `step_free`, `via`, `min_width_m`, `entrance` | `{"start": "Office 0.23", "destination": "Office 0.25", "step_free": true}` |
 | `find_best_tour` | Shortest tour through stops in any order (at most 10); preview with `activate=false` | **`start`**, **`stops`**, **`destination`**, `step_free`, `min_width_m`, `activate` | `{"start": "A", "stops": ["B", "C"], "destination": "A", "activate": false}` |
-| `plan_errand` | "Grab X from the nearest room, deliver to the largest Y on floor N" | **`start`**, **`asset_type`**, **`destination_room_type`**, **`destination_floor_level`**, `step_free`, `min_width_m`, `activate` | `{"start": "Office 0.23", "asset_type": "stove", "destination_room_type": "meeting_room", "destination_floor_level": 0}` |
+| `plan_errand` | "Grab X from the nearest room, deliver to the largest Y on floor N"; `activate=true` makes it the route `show_route` draws | **`start`**, **`asset_type`**, **`destination_room_type`**, **`destination_floor_level`**, `step_free`, `min_width_m`, `activate` | `{"start": "Office 0.23", "asset_type": "stove", "destination_room_type": "meeting_room", "destination_floor_level": 0}` |
 | `reachable_rooms` | How many rooms can be reached or delivered to under constraints | **`start`**, `floor_level`, `step_free`, `min_width_m`, `entrance`, `closed_elements`, `room_type` | `{"start": "Lobby 0.01", "floor_level": 2, "min_width_m": 1.1, "step_free": true, "entrance": "Lobby 0.01"}` |
 | `find_largest_room` | Largest room of a type on a floor, with its area | **`room_type`**, **`floor_level`** | `{"room_type": "kitchen", "floor_level": 1}` |
 | `sum_floor_area` | Total area of one room type on a floor | **`room_type`**, **`floor_level`** | `{"room_type": "office", "floor_level": 0}` |
@@ -53,10 +53,10 @@ the coordinator verifies names and arguments after merging.
 | `find_navigation_landmarks` | Step cues near a route point, with an ambiguity check | **`x_m`**, **`y_m`**, **`floor_level`**, **`inner_radius`**, **`outer_radius`**, `min_size`, `kind`, `within_spaces` | `{"x_m": 2.5, "y_m": 20, "floor_level": 0, "inner_radius": 5, "outer_radius": 10, "within_spaces": ["Office 0.23"]}` |
 | `set_closed` | Close or reopen a lift, stair, door or room (saved); recomputes the active route | **`element`**, **`closed`** | `{"element": "Lift 1", "closed": true}` |
 | `add_door` | Add a door in the middle of the wall two rooms share (saved) | **`first_space`**, **`second_space`**, `step_free`, `width_m` | `{"first_space": "Office 0.23", "second_space": "Meeting room 0.24"}` |
-| `show_route` | Draw the active route on the floor plans, return image paths | none (F14 adds `landmark_ids`, pending merge) | `{}` |
+| `show_route` | Draw the active route on every floor it crosses: start, destination, numbered stops, the doors used, stair/lift handoffs, closures and optional landmarks. An error when there is no active route (never an older one) | `landmark_ids` (space/asset ids, e.g. from `describe_destination_context`) | `{"landmark_ids": ["proc-factory-dev-003-F0-S026"]}` |
 | `analyze_what_if_door` | Hypothetical door; nothing saved. `count` = rooms on the target floor whose walk to the nearest entrance gets shorter by more than the threshold | **`first_space`**, **`second_space`**, **`floor_level`**, `improvement_threshold_m` (default 1.0) | `{"first_space": "Corridor 0.01", "second_space": "Lecture hall 0.21", "floor_level": 3}` |
-| `show_location` *(pending merge, F14)* | Select a room or asset on the map and return an image | **`element`** | `{"element": "Coordinate measuring machine"}` |
-| `describe_destination_context` *(pending merge, F14)* | Nearby sizable named rooms around a destination; relation `adjacent` only with a shared wall of at least 1 m, otherwise `near` | **`space`**, `radius_m` (15), `min_area_m2` (40) | `{"space": "Office 0.23"}` |
+| `show_location` | The only tool that selects and highlights a room or asset on its floor plan (search never does); returns the selection and the image path. An ambiguous name returns candidate ids | **`element`** (id, room number/name or asset name) | `{"element": "Coordinate measuring machine"}` |
+| `describe_destination_context` | Large named rooms around a destination (canteen, lobby, hall); relation `adjacent` only with a shared wall of at least 1 m on the same floor, otherwise `near` with the distance. Nothing is changed | **`space`**, `radius_m` (15), `min_area_m2` (40) | `{"space": "Office 0.23", "radius_m": 15, "min_area_m2": 40}` |
 
 Distances use the local kit model (`distance_model` in results); do not mix it with other models.
 

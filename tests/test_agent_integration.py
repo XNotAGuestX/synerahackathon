@@ -20,10 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BUILDING = ROOT / "data" / "dev" / "proc-factory-dev-003"
 TEMPLATE = ROOT / "data" / "test" / "submission_template.csv"
 
-# Tools other features add; the coordinator empties this set once they are merged.
-UPCOMING = {"show_location", "describe_destination_context"}
-
-# Every tool the prompt names; each must be registered (or upcoming).
+# Every tool the prompt names; each must be registered.
 PROMPT_TOOLS = {
     "building_overview", "search_building", "list_spaces", "spatial_search", "inspect_space", "find_route",
     "reachable_rooms", "find_largest_room", "sum_floor_area", "straight_line_distance_3d", "find_stacked_room",
@@ -36,6 +33,7 @@ TOOL_LIKE = re.compile(
 )
 
 OFFICE, NEIGHBOUR_OFFICE, THIRD_OFFICE, MEETING = "Office 0.23", "Office 0.25", "Office 0.26", "Meeting room 0.24"
+THIRD_OFFICE_ID = "proc-factory-dev-003-F0-S026"  # show_route takes ids, not names
 # One real call per tool; order matters (show_route needs a route, edits come last).
 CALLS = {
     "building_overview": {},
@@ -55,9 +53,9 @@ CALLS = {
     },
     "find_best_tour": {"start": OFFICE, "stops": [NEIGHBOUR_OFFICE, THIRD_OFFICE], "destination": OFFICE, "activate": False},
     "find_navigation_landmarks": {"x_m": 2.5, "y_m": 20, "floor_level": 0, "inner_radius": 5, "outer_radius": 10},
-    "show_route": {},
+    "show_route": {"landmark_ids": [THIRD_OFFICE_ID]},
     "show_location": {"element": OFFICE},
-    "describe_destination_context": {"space": OFFICE},
+    "describe_destination_context": {"space": OFFICE, "radius_m": 15, "min_area_m2": 40},
     "analyze_what_if_door": {"first_space": OFFICE, "second_space": MEETING, "floor_level": 1},
     "set_closed": {"element": "Office lift", "closed": True},
     "add_door": {"first_space": OFFICE, "second_space": MEETING},
@@ -94,11 +92,11 @@ class ToolContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             registered = {tool.name for tool in make_tools(BuildingMap(example_building()), Path(temporary))}
         mentioned = set(TOOL_LIKE.findall(SYSTEM_PROMPT))
-        self.assertEqual(mentioned - registered - UPCOMING, set(), "prompt names a tool that does not exist")
-        self.assertEqual(PROMPT_TOOLS - registered - UPCOMING, set())
+        self.assertEqual(mentioned - registered, set(), "prompt names a tool that does not exist")
+        self.assertEqual(PROMPT_TOOLS - registered, set())
         self.assertEqual(registered - mentioned, set(), "registered tool the prompt never explains")
         self.assertEqual(registered - set(CALLS), set(), "add a CALLS entry for the new tool")
-        self.assertTrue(UPCOMING <= set(CALLS))
+        self.assertEqual(set(CALLS) - registered, set(), "CALLS entry for a tool that is not registered")
 
 
 @unittest.skipUnless(BUILDING.exists(), "dev building data not available")
@@ -107,9 +105,6 @@ class RealToolCallTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             tools = {tool.name: tool for tool in make_tools(BuildingMap.load(BUILDING), Path(temporary))}
             for name, arguments in CALLS.items():
-                if name not in tools:
-                    self.assertIn(name, UPCOMING)
-                    continue
                 with self.subTest(tool=name):
                     self.assertIsInstance(json.loads(tools[name].call(arguments)), (dict, list))
 

@@ -60,7 +60,7 @@ Report success only when confirmed by tool results.
 
 # Tool selection
 - Locate (where is X, what is in Y): search_building or inspect_space (doors, widths, contents),
-  then show_location to select it on the map. Navigate (how do I get there): find_route.
+  then show_location, the only action that selects/highlights on the map (search never does). Navigate (how do I get there): find_route.
 - Exact inventory ("how many chairs on floor 2", all toilets): search_building with query="" and
   asset_type / room_type / space_type + floor_level. `matches` is the exact total, not the page size;
   follow next_page while has_more. list_spaces lists every space. Fuzzy `query` is only for finding
@@ -82,7 +82,8 @@ Report success only when confirmed by tool results.
   Room above/below: find_stacked_room. Neighbours sharing a wall: count_shared_walls.
 - Step cues: find_navigation_landmarks at the step's x/y; use only cues with `is_unambiguous`,
   nearby is not visible, never invent left/right. Larger arrival context: describe_destination_context;
-  say "next to" only for relation "adjacent", otherwise "near".
+  say "next to" only for relation "adjacent", otherwise "near". Pass the ids of the cue/context
+  rooms you mention to show_route(landmark_ids=[...]) so the text and the map name the same rooms.
 
 # Identify places
 - Search unresolved places before routing or editing. Reuse resolved IDs.
@@ -113,7 +114,7 @@ Report success only when confirmed by tool results.
 - Preserve the tool's route order, connectors and distances.
 - Never invent turns, headings, shortcuts or visible landmarks.
 - If unreachable, say so without relaxing constraints.
-- For a requested map, call show_route after a successful find_route, plan_errand or find_best_tour.
+- For a requested map, call show_route after a successful find_route, or a plan_errand / find_best_tour run with activate=True.
 
 Output:
 - One sentence: start, destination and constraints.
