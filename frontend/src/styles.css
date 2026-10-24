@@ -1026,48 +1026,43 @@ button:disabled { cursor: default; }
   position: absolute;
   left: 0;
   top: 0;
-  z-index: 4;
-  width: 36px;
-  height: 42px;
+  z-index: 6;
+  width: 0;
+  height: 0;
   color: var(--color-primary);
   pointer-events: none;
-  filter: drop-shadow(0 0 1px var(--color-surface)) drop-shadow(0 0 1px var(--color-surface));
 }
 .walk-token.blocked { color: var(--color-danger); }
-.stick-head {
+.walk-body,
+.walk-callout {
   position: absolute;
-  left: 11px;
+  left: 0;
   top: 0;
-  width: 14px;
-  height: 14px;
-  border: 2px solid currentColor;
+  transform: translate(-50%, -50%) scaleX(var(--facing, 1));
+}
+.walk-body {
   border-radius: 50%;
-  background: var(--color-surface);
 }
-.stick-torso {
+.walk-callout {
+  width: 22px;
+  height: 28px;
+  transform: translate(-50%, calc(-100% - 8px)) scaleX(var(--facing, 1));
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.35));
+}
+.walk-callout[hidden] { display: none; }
+.walk-stem {
   position: absolute;
-  left: 17px;
-  top: 14px;
-  width: 2px;
-  height: 12px;
-  border-radius: 1px;
+  left: 50%;
+  top: 100%;
+  width: 1px;
+  height: 8px;
   background: currentColor;
+  transform: translateX(-50%);
 }
-.stick-limb {
-  position: absolute;
-  left: 18px;
-  width: 12px;
-  height: 2px;
-  border-radius: 1px;
-  background: currentColor;
-  transform-origin: 0 50%;
-}
-.stick-arm { top: 16px; }
-.stick-leg { top: 26px; width: 13px; }
-.stick-arm.front { transform: rotate(52deg); }
-.stick-arm.back { transform: rotate(128deg); }
-.stick-leg.front { transform: rotate(58deg); }
-.stick-leg.back { transform: rotate(122deg); }
+.stick-figure { display: block; width: 100%; height: 100%; overflow: visible; }
+.stick-head { fill: var(--color-surface); }
+.stick-arm,
+.stick-leg { transform-box: fill-box; transform-origin: center top; }
 .walk-token.moving .stick-arm.front,
 .walk-token.moving .stick-leg.front { animation: stick-stride var(--duration-slow) var(--easing-standard) infinite alternate; }
 .walk-token.moving .stick-arm.back,
@@ -1802,8 +1797,8 @@ button.next-distance:focus-visible { outline-color: var(--color-bar-accent); }
    Motion
    ========================================================================== */
 @keyframes stick-stride {
-  from { transform: rotate(28deg); }
-  to { transform: rotate(152deg); }
+  from { transform: rotate(-18deg); }
+  to { transform: rotate(18deg); }
 }
 @keyframes route-flow { to { stroke-dashoffset: -12; } }
 @keyframes pulse { 50% { opacity: 0.35; } }

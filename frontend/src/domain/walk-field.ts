@@ -2,6 +2,8 @@ import type { FloorPlan, Opening, Point, Route } from './types'
 
 /** Shoulder radius. Fits the narrowest sampled door (0.54 m) with 0.04 m spare. */
 export const BODY_RADIUS_M = 0.16
+/** Visual span equals the collision diameter, so the drawn body stops where the walls stop. */
+export const FIGURE_SPAN_M = BODY_RADIUS_M * 2
 /** Openings sit up to 0.91 m off the nearest listed edge in the sampled plans. */
 export const OPENING_SNAP_M = 1.05
 export const MIN_PASS_WIDTH_M = BODY_RADIUS_M * 2 + 0.04
