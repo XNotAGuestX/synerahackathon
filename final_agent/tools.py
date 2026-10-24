@@ -7,8 +7,8 @@ from pathlib import Path
 from anthropic import beta_tool
 from anthropic.lib.tools import ToolError
 
-from starter_agent.building_map import MAX_SEARCH_RESULTS, BuildingMap, MapError
-from starter_agent.viewer import draw_route
+from .building_map import MAX_SEARCH_RESULTS, BuildingMap, MapError
+from .viewer import draw_route
 
 JSON_INDENT = 1
 

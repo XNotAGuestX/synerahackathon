@@ -1,20 +1,21 @@
 # Talk to Your Building: Agent-First Indoor Navigation
 
-> **Consolidated project description — 24 October 2026.** This is the single project reference for the challenge, existing implementation, tasks and open problems. It combines the original root README, both agent READMEs, the supplied challenge PDF and the code review, including the storage/spatial-query changes present during consolidation. Original grading, scoring, submission, data-format and reference wording is preserved; the assessment and proposed work are labelled separately. Package READMEs link here.
+> **Consolidated project description — 24 October 2026.** This is the project reference for the challenge, existing implementation and open problems; [BACKLOG.md](BACKLOG.md) tracks the remaining implementation work. This document combines the original root README, both agent READMEs, the supplied challenge PDF and the code review. Original grading, scoring, submission, data-format and reference wording is preserved; the assessment and proposed work are labelled separately. Package READMEs link here.
 
 | Find | Sections |
 |---|---|
 | Challenge, levels, grading and Sunday benchmark | [1. The challenge](#1-the-challenge) |
+| Synera clarification: route validity, distances, forklift rules and scoring | [Route scoring clarification](#route-scoring-clarification-synera) |
 | Dataset, schema, route model and question definitions | [2. What's in the kit](#2-whats-in-the-kit), [3. Data format](#3-data-format), [4. Questions](#4-questions) |
 | Run, evaluate, score and submit | [5. Quick start](#5-quick-start), [6. Submission format](#6-submission-format), [7. Rules and tips](#7-rules-and-tips) |
 | Current features and verified evaluation | [9. Current implementation](#9-current-implementation-and-verified-baseline) |
-| Prioritized tasks and acceptance criteria | [10. Tasks](#10-tasks-priorities-and-completion-criteria) |
+| Prioritized tasks and acceptance criteria | [Implementation backlog](BACKLOG.md), [10. Tasks](#10-tasks-priorities-and-completion-criteria) |
 | Unresolved requirements and source discrepancies | [11. Open decisions](#11-open-decisions-and-source-discrepancies) |
 | Consolidated agent commands, tools and storage reference | [12. Consolidated agent reference](#12-consolidated-agent-reference) |
 | Complete challenge PDF text, including its grading table | [13. Challenge PDF reference](#13-challenge-pdf-reference) |
 | Full data attribution | [8. Licences](#8-licences), [14. Data sources and licences](#14-data-sources-and-licences) |
 
-**Current status:** the starter has multi-floor routing, search, closures, a basic door edit and static route images. The current storage update adds atomic JSON saves, persistent closure snapshots and spatial queries. The nine scored benchmark kinds still need dedicated analysis tools. `final_agent` remains wired to starter imports. The public test CSV format is implemented; the Sunday JSON format and exact release time remain organizer-dependent open points. See sections 9–11 for evidence and tasks.
+**Current status:** `final_agent` is independently wired and packaged: CLI, tools, viewer, evaluator, building map and storage use local modules, with no starter imports. Its storage/integration suite passes 11 tests; its free dev warm-up passes 369/369. The scored runner selects it with `--agent final_agent.benchmark:answer`, using fresh state and temporary outputs per question. The nine scored benchmark kinds still need dedicated analysis tools; no live benchmark score or generated test answers are claimed. Sunday output format and release time remain organizer-dependent. See [final-agent commands](final_agent/README.md), [BACKLOG.md](BACKLOG.md) and sections 9–11.
 
 The original kit reference follows. References such as “section 6” below retain their original numbering. The repository tree and setup instructions are source reference material; section 9 covers implementation additions, and section 11 identifies missing referenced setup resources.
 
@@ -118,6 +119,39 @@ Shortly before code freeze, we release one new building nobody has seen, plus a 
 - **Scoring:** correct answers, valid routes and route length against the best route.
 
 The exact release time and the file format for the Sunday building will be announced with the release.
+
+### Route scoring clarification (Synera)
+
+Source: Synera announcement supplied by the team on 24 October 2026. The announcement below describes the automatic route check; its wording is preserved with Markdown formatting.
+
+Hi all, a quick note on how route answers are scored in the automatic check, so you know what to aim for.
+
+#### How we model a building
+
+- Every building is a set of spaces (rooms, corridors, aisles, stairwells, lifts) joined by doors, openings, stairs and lifts.
+- Walking distance is measured inside each space, from door to door, staying about 15 cm off the walls. Paths go around corners, never through walls [unless the user is a Jedi]
+- Stairs count as 2 m of walking per metre climbed. A lift counts as 15 m (waiting and doors) plus 1 m per metre of height.
+- Furniture, equipment and machines are not treated as obstacles. Distances use the room and aisle outlines only.
+- A route to a machine or other item ends in the room or bay that holds it, not at its exact position.
+
+#### Rules that apply to some questions
+
+- Without stairs: lifts, ramps and doors only.
+- Forklift: forklift aisles and openings only (3 m or wider). Pedestrian walkways don't count.
+- Closed or blocked areas must be avoided.
+- Factory production bays are destinations. You can drive into one to deliver, but not through one as a shortcut.
+- If no route exists under the rules (e.g. upstairs without stairs and no lift), the correct answer is to say so.
+
+#### How your answer is scored
+
+- Give your route as the ordered list of spaces you pass through.
+- We check that each step goes through a real door, opening, stair or lift, and that the rules above hold.
+- We then measure your route with our distance rule above. Your own distance numbers don't affect the score; what counts is picking the right sequence of spaces.
+- Score = best possible length ÷ your length. Within 1% of the best counts as full marks. An invalid route scores 0.
+
+Questions? Ask any of the Synera folks on site or in the channel.
+
+**Implementation impact (project assessment):** this clarification differs from the supplied kit's [anchor-based route model](#the-route-model-behind-the-expected-answers) and [local text-answer scorer](#how-it-is-scored). The current router uses room anchors and fixed per-floor stair/lift costs; it does not yet implement wall-respecting door-to-door paths with approximately 15 cm clearance, height-based vertical costs, a forklift-only routing profile or destination-only production bays. The automatic route check requires a valid ordered space sequence and recomputes its distance; reporting a plausible distance alone is insufficient. Keep local kit compatibility identifiable when implementing these rules. The announcement does not specify an output file schema or release time, and does not resolve the kit's zero-cost outside-node behavior.
 
 ### Submission and judging process
 
@@ -236,6 +270,8 @@ Notes:
 `building_id, split, source, group_id, name, license, floors, levels, spaces, rooms, openings, connectors, assets, has_stairs, has_lift, has_step_free_entrance, questions, path`. `path` is relative to `data/`. `group_id` prevents leakage between splits: buildings from one site are all in the same split.
 
 ### The route model behind the expected answers
+
+**Scope:** this is the original supplied kit model, implemented by the current router and used by the local warm-up checks. The newer [Synera route-scoring clarification](#route-scoring-clarification-synera) describes different geometry, vertical costs and route-validation rules for the automatic route check; the model below does not implement that clarification.
 
 Route lengths in the answers come from this graph, so your router reproduces them if you build the same one:
 
@@ -393,8 +429,8 @@ This section is a code assessment as of 24 October 2026, not an organizer specif
 
 ```text
 Terminal conversation
-  → starter_agent.agent.BuildingAgent (Claude + conversation history)
-  → seven typed tools in starter_agent/tools.py
+  → final_agent.agent.BuildingAgent (Claude + conversation history)
+  → seven typed tools in final_agent/tools.py
   → BuildingMap (JSON data + Shapely geometry + NetworkX MultiGraph)
   → route result / edited JSON / Matplotlib PNGs
 
@@ -402,7 +438,7 @@ benchmark.evaluate → agent(building_directory, question_text) → reply
                   → benchmark.score → result log + submission CSV
 ```
 
-`final_agent/` was copied from `starter_agent/` and still shares starter imports; it is not yet an independent implementation. Both map implementations now use the shared storage/spatial-index module. In particular, `final_agent/__main__.py` imports `starter_agent.agent.main`, and its agent, tools, viewer and evaluator also import starter modules. `pyproject.toml` packages only `starter_agent` and `benchmark`. Editing copied final-agent modules alone therefore does not establish that the CLI or evaluator runs those changes.
+`final_agent/` now uses package-local imports throughout its entry point, conversation layer, tools, viewer, evaluator, map and storage. `BuildingMap` and `MapError` identities are consistent across these modules. `final_agent.storage` contains its own atomic JSON store and spatial index; no project runtime module imports the starter. The wheel includes `final_agent`, `starter_agent` and `benchmark`. The starter remains available as the baseline. Use `python -m final_agent` for the project CLI and `benchmark.evaluate --agent final_agent.benchmark:answer` for scored runs; the benchmark default intentionally remains the starter.
 
 ### What exists and what it does not yet cover
 
@@ -412,13 +448,13 @@ benchmark.evaluate → agent(building_directory, question_text) → reply
 | Conversation | Claude tool loop, full in-session message history, cached initial overview, token accounting and CLI API-error messages | No web/mobile interface, durable user preferences or explicit location state; clarification and preference retention rely on the prompt |
 | Overview | Floor summaries, entrances, stairs/lifts, asset count and current closures | No detailed spatial analysis or room/door inspection tool |
 | Search | Case-insensitive matching of every query word against names, room refs/types and IDs; optional floor filter; assets resolve to their containing room | No synonyms/semantic search, exact typed enumeration or pagination; tool exposes only the first 15 results, though it reports the total match count |
-| Spatial queries and storage | Per-floor Shapely STRtree searches for spaces/assets/openings; atomic JSON replacement; missing output directories created; closure snapshots under `navigation_state.closed` | First 15 spatial results exposed without pagination; asset footprints are not used; concurrent writes are last-writer-wins |
+| Spatial queries and storage | Final package integrates its own per-floor STRtree, atomic saves, directory creation and closure snapshots; storage and integration checks pass | No pagination or merged writes; original starter map retains its original storage/spatial limitations |
 | Routes | Dijkstra on a MultiGraph, openings as nodes, room representative points, multiple floors, stairs/lifts, step-free filtering and ordered via stops | No minimum door width, reachable-room counts, nearest-equipment selection, optimal stop ordering or cross-building routing |
-| Closures | Closes/reopens a room, opening, stair or lift; later graph construction respects closures; tools save a snapshot and loading that snapshot restores closures | No automatic route invalidation/recalculation, event history or merged shared-user updates; resuming an edited file is explicit |
+| Closures | Final tools close/reopen rooms, openings, stairs and lifts; snapshots serialize closures and reload restores them | No automatic route invalidation/recalculation or event history; save failures are not transactional with in-memory edits |
 | Edits | Adds a synthetic 0.9 m door between nearby spaces on one floor and exports edited building JSON | No reliable shared-wall midpoint, custom width, preview/undo or transactional save; validation is incomplete |
 | Directions | Room/floor transitions and distance estimates from the computed route | No geometric left/right turns, equipment landmarks or live positioning |
 | Visualization | Static PNG per crossed floor, space polygons, route line and closed-room shading | No asset markers, interactive locate view, animation or stacked 3D floors; selected opening identities are not preserved for rendering |
-| Evaluation | Warm-up oracle/live evaluator; benchmark sampling by kind; external `module:function` agent; reply scorer; result logs; CSV export; seven storage/spatial-index unit tests | No measured live benchmark baseline in this review, benchmark geometry/interaction regression coverage or documented Sunday adapter |
+| Evaluation | Project warm-up evaluator, isolated benchmark callable, official scorer/runner, CSV export and 11 passing storage/integration tests | No measured live benchmark baseline, complete geometry/interaction regression coverage or Sunday adapter |
 | Assets | Reads/searches equipment supplied in building JSON | No movement/update API, barcode/RFID ingestion or asset history |
 
 ### Status against challenge levels
@@ -426,17 +462,17 @@ benchmark.evaluate → agent(building_directory, question_text) → reply
 | Level | Current status | Completion work |
 |---|---|---|
 | 1 — Locate | Search and conversation exist | Show and highlight the selected room/equipment on a usable map; handle ambiguous/nonexistent references |
-| 2 — Route | Core routing, closures, step-free routing and ordered tours exist | Reliable visualization, route invalidation, stronger interaction checks and width-aware accessibility |
+| 2 — Route | Core routing, in-memory closures, step-free routing and ordered tours exist | Reliable visualization, route invalidation, closure persistence and stronger interaction checks; width filtering is also needed for scored delivery questions |
 | 3 — Scale | Multiple floors within one building work | Multiple buildings, building disambiguation and walkway connections |
 | 4 — Build | One limited door-edit operation exists | Floor-plan ingestion, calibrated geometry, generated rooms/openings/connectors, validation, conversational correction and dependable export/reload |
 | 5 — Extend | No complete optional extension is demonstrated | Select and finish one extension after the core workflow works |
 
 ### Evaluation evidence and limits
 
-The free dev warm-up command was run during the preceding code review:
+The free dev warm-up command was rerun during the backlog audit:
 
 ```bash
-.venv/bin/python -m starter_agent.evaluate data/dev --oracle
+.venv/bin/python -m final_agent.evaluate data/dev --oracle
 ```
 
 | Warm-up kind | Correct / total |
@@ -451,87 +487,28 @@ The free dev warm-up command was run during the preceding code review:
 
 This is an oracle-assisted warm-up result, not a conversational-agent benchmark score. The oracle supplies destinations, constraints and closures from expected answers; for locate questions it directly assigns the expected asset ID. The warm-up scorer is also permissive: route checks primarily compare distance, and an unreachable case can pass when no route was computed. It does not establish correct natural-language interpretation, correct final answer formatting or a valid full submission.
 
-The seven storage/spatial-index tests were also run during consolidation with `.venv/bin/python -m unittest discover -s tests -v`; all passed. They cover save/reload of edits and closures, failed atomic replacement, preservation of input data, floor-specific containment, exact-radius queries, index invalidation after door edits and invalid search arguments.
+After rewiring, `.venv/bin/python -m unittest discover -s tests -v` passes **11 tests**. Storage tests now target the canonical final map/store, rather than requiring new APIs on the original starter map. Integration tests block starter imports, check the CLI and class/error identities, exercise spatial queries, door/closure snapshots and actual PNG generation, and verify benchmark state/output isolation. The built wheel also loads the CLI, evaluator and benchmark adapter with `starter_agent` removed. No paid live API check was performed.
 
 The original README's “under 5%” benchmark statement remains a source claim. No paid live-agent evaluation was run for this review. All nine scored benchmark kinds still need dedicated tool support.
 
 ## 10. Tasks, priorities and completion criteria
 
-The priorities below are implementation recommendations, not organizer-assigned weights. P0 is needed for a dependable scored run; P1 completes the product/challenge workflow; P2 is optional enhancement work. Public test counts are descriptive and must not be used to omit supported kinds on the unseen Sunday building.
+[BACKLOG.md](BACKLOG.md) is the canonical implementation checklist, audited against the actual code and rerun checks on 24 October 2026. It separates supplied starter capabilities, partially integrated additions, required base levels 1–4, all nine scored question kinds, submission work and optional level 5. Every open task has a stable ID, priority, dependencies where relevant and a completion criterion.
 
-### P0 — Make the project implementation independently runnable
+**CORE-01–02 and CORE-04 are implemented:** the final package is independently wired, its storage/spatial tools are active and its benchmark callable isolates each question. Packaging now includes the final package; remaining configuration work is tracked in CORE-03. Next complete the visual locate/route slice, deterministic benchmark tools, multi-building navigation, plan ingestion and submission artifacts.
 
-- [ ] Choose the project agent package and correct internal imports/CLI entry points. If using `final_agent`, ensure `python -m final_agent` actually invokes its implementation.
-- [ ] Include the chosen package in the build configuration and verify imports from an installed build, not only the repository checkout.
-- [ ] Add an actual callable `answer(building_directory: Path, question_text: str) -> str` for `benchmark.evaluate --agent module:function`.
-- [ ] Make model, effort, output paths and credentials configurable; supply a usable setup example. The original quick start references `.env.example`, which is absent in this checkout.
-- [ ] Ensure a fresh checkout can run a small dev example with the documented commands.
+- [Starter-template inventory and measured baseline](BACKLOG.md#1-what-the-starter-already-supplies)
+- [Required base levels and exit criteria](BACKLOG.md#3-required-base-levels-and-exit-criteria)
+- [P0 integration repairs](BACKLOG.md#4-p0--repair-integration-and-establish-one-working-implementation)
+- [Routing, geometry and editing fixes](BACKLOG.md#5-p0--routing-geometry-and-edit-correctness)
+- [All nine scored benchmark kinds and coverage counts](BACKLOG.md#6-p0--all-nine-scored-benchmark-kinds)
+- [Levels 1–2 and interaction](BACKLOG.md#7-p1--finish-levels-1-and-2-and-the-interaction-rubric)
+- [Level 3: multiple floors and buildings](BACKLOG.md#8-p1--complete-level-3-across-floors-and-buildings)
+- [Level 4: new buildings from plans](BACKLOG.md#9-p1--complete-level-4-building-creation-and-update)
+- [Verification and submission](BACKLOG.md#10-p0p1--verification-benchmark-delivery-and-submission)
+- [Optional level 5](BACKLOG.md#11-p2--optional-level-5) and [delivery milestones](BACKLOG.md#12-suggested-delivery-milestones)
 
-### P0 — Deterministic benchmark tools
-
-Implement calculations in Python/Shapely/NetworkX and expose compact structured results to the agent. Do not rely on the language model to reconstruct hidden geometry or enumerate truncated search results.
-
-| Kind | Dev | Public test | Required work and completion criterion |
-|---|---:|---:|---|
-| `largest_room` | 20 | 21 | Filter by exact requested room type and floor; calculate polygon areas; return the maximum room and area. Score the expected room and area within the official tolerance. |
-| `floor_area_total` | 31 | 33 | Sum polygon areas of all matching rooms on the specified floor; return a single numeric total. |
-| `errand` | 19 | 20 | Enumerate rooms containing the required asset; choose the nearest by valid route distance from the start; select the largest destination room of the requested type/floor; calculate both legs under the stated constraints. Unreachable candidates must not win. |
-| `wide_delivery_count` | 19 | 18 | Filter openings by minimum width and step-free status, respect the specified entry and floor, traverse the graph, and count eligible rooms rather than every space/node. |
-| `step_free_reachable_count` | 1 | 0 | Apply the specified closure, use the step-free graph, and count reachable rooms on the target floor. Keep this supported for unseen inputs. |
-| `room_stacked` | 9 | 9 | Select the next higher/lower floor and compare polygon intersection areas to identify the space covering most of the queried outline; respect the shared-XY-frame restriction. |
-| `shared_walls_count` | 24 | 26 | Count other eligible rooms whose boundary runs within 0.35 m of the queried boundary for at least 1 m; exclude corridors, stairwells and lifts and avoid counting mere corner contacts. |
-| `straight_line_3d` | 13 | 15 | Use polygon centroids and floor `elevation_m` to compute Euclidean XYZ distance. Do not substitute route anchors or floor numbers for the defined centres/elevations. |
-| `what_if_door` | 2 | 3 | In an isolated copy, place a door at the shared-wall midpoint; compare shortest exit distances before/after, and count target-floor rooms improving by strictly more than 1 m. Leave the actual building unchanged. |
-| **Total** | **138** | **145** | Run the official scorer over every dev question and report results per kind. |
-
-Area operations cover 54 public test questions; adding straight-line 3D distance brings that group to 69/145. These are useful early milestones, not substitutes for implementing the remaining kinds. Suggested sequence: areas → 3D distance → stacking → shared walls → constrained reachability → errands → what-if analysis.
-
-### P0 — Routing, editing and visualization correctness
-
-| Finding | Evidence / current behavior | Required fix and completion criterion |
-|---|---|---|
-| Invalid self-door | `BuildingMap.add_door(a, a)` accepts the same room on both sides | Reject identical spaces, existing duplicate connections where inappropriate, and pairs without a valid shared wall. |
-| Wrong door position | Two rectangles sharing the wall from `(5, 0)` to `(5, 10)` produced `[5, 0]`; the midpoint is `[5, 5]` | Determine the actual shared wall with wall-thickness tolerance and place the door at its midpoint. The current 0.6 m proximity check does not establish a shared wall. |
-| Stale route | Closing the start room preserves `last_route`; a subsequent failed route also preserves it | Invalidate/recompute affected routes after mutations; clear failed-route state so `show_route` cannot present an obsolete path. |
-| In-memory edit can survive save failure | New `JsonBuildingStore` creates directories and atomically replaces JSON files, fixing the previous missing-directory issue. Tools still mutate the map before saving. | Roll back the in-memory edit/closure when persistence fails, or explicitly report the applied-but-unsaved state. Atomic file replacement protects the old file, not the entire tool transaction. |
-| Renderer can choose a different door | Viewer searches for the first opening between adjacent rooms instead of the opening selected by Dijkstra | Preserve the complete selected node/element path, including opening/connector identities, and render that path. Test parallel doors, closures, floor transitions and leave/re-enter paths. |
-| Closure persistence implemented | `save()` now writes `navigation_state.closed`; `load()` restores it, and closure tools save snapshots | Verify the application deliberately reloads the edited snapshot and clearly identifies active state; preserve this behavior while adding other edits. |
-| Benchmark geometry differs from physical navigation | Route anchors connect directly to openings; every entrance meets one zero-cost outside node | Preserve the official model for scoring. Define any obstacle-aware indoor geometry/outdoor costs separately before claiming physically traversable navigation. |
-
-The first three findings were reproduced in the preceding review and their relevant logic remains unchanged. Save-order and renderer findings follow from `starter_agent/tools.py` and `starter_agent/viewer.py`. The new storage layer fixes missing output directories and closure serialization; those original gaps are recorded as resolved here.
-
-### P0 — Evaluation and submission
-
-- [ ] Enforce a final `Answer:` line. Numeric answer kinds must contain exactly one number on that line; room answers must name the selected room first, with area where required.
-- [ ] Run live-agent dev evaluation after tool-level checks and track per-kind correctness, latency, token usage and actual cost. Source price/model examples and the evaluator's hard-coded estimates are reference values, not verified current service pricing.
-- [ ] Extend the existing storage/spatial tests with focused regression coverage for geometry thresholds, exact room filtering, closed/width-constrained reachability, parallel stairs/lifts, route element paths, stale routes and isolated what-if edits.
-- [ ] Produce all 145 public test replies through the agent; validate exact IDs, no duplicates, UTF-8 CSV quoting, required header, nonempty replies and the 5 MB limit.
-- [ ] Write `BENCHMARK.md` with the real one-command entry point, dependencies, credentials, input/output contract and reproducible example. It is currently absent.
-- [ ] Resolve the Sunday contract described in section 11; add its input/output adapter once the schema is released. The existing evaluator expects a split directory containing `*/questions.jsonl`, not the PDF's standalone `questions.json` input.
-- [ ] Preserve complete selected route nodes and elements so structured route output can be generated if required by the Sunday schema.
-
-### Completed during the current storage update
-
-- [x] Persist closures in `navigation_state.closed` and reload them from edited snapshots.
-- [x] Create missing save directories and atomically replace JSON files while preserving custom data fields.
-- [x] Add per-floor spatial indexes and agent-facing radius queries for spaces, assets and openings.
-- [x] Add storage/spatial-query regression tests, including failed saves and index invalidation.
-
-### P1 — Finish the user-facing challenge workflow
-
-- [ ] Build a visual chat interface with floor selection, room/equipment highlights and the selected route, including floor changes and closure markers.
-- [ ] Exercise vague references (“the printer”), nonexistent rooms (“9.99”), repeated room names, changed destinations and changing accessibility constraints. Ask only for the information needed to continue.
-- [ ] Define explicit current-location and accessibility preferences. Apply them consistently across turns, and show the understood start, destination and constraints.
-- [ ] Give users a preview of proposed plan changes, with apply/cancel and undo; distinguish hypothetical questions from permanent edits.
-- [ ] Implement plan-image/PDF ingestion: establish scale and coordinates, extract rooms/openings, assign names/types/floors, connect stairs/lifts, validate IDs/polygons/connectivity, correct uncertain results conversationally and export/reload the common JSON format.
-- [ ] Add multi-building loading, building disambiguation and walkway connections to complete level 3 beyond a single building.
-- [ ] Define persistent state and output ownership so different buildings, users and evaluation questions cannot overwrite one another's `building_edited.json` or `route_<level>.png` files.
-- [ ] Prepare the demo video and short architecture/stack explanation. Demonstrate locate, constrained route, closure/re-route and an actual build/edit workflow; distinguish completed features from plans.
-- [ ] Preserve required source attribution and licence obligations in shared data and the product, including the OSM-derived database requirements.
-
-### P2 — Choose one optional extension
-
-Select one coherent extension and complete its full interaction: moving equipment with barcode/RFID or conversation; simultaneous users; forklift/material logistics; on-site phone capture; richer accessibility; voice and stacked/animated presentation; or AR with a workable position-estimation method. Voice also contributes to Interaction under the original rubric. The source lists every option in sections 1 and 13.
+P0/P1/P2 are project delivery priorities, not organizer weights. P1 includes required product work; it is not optional. Warm-up oracle success, standalone component code and an existing CSV writer do not by themselves establish a completed level or a scored submission.
 
 ## 11. Open decisions and source discrepancies
 
@@ -540,16 +517,18 @@ Select one coherent extension and complete its full interaction: moving equipmen
 | Public test output vs. Sunday output | Repository section 6 defines `question_id,answer` CSV. PDF page 3 specifies `questions.json` → `answers.json` with IDs, route node lists and lengths. | Use the implemented CSV contract for the public 145-question submission. Treat the Sunday JSON contract as provisional until the organizers release its schema; do not assume either format replaces the other. Preserve both specifications below. |
 | Sunday timing and schema | PDF literally contains “TODO: exact time” and a schema/example “(TODO)”. Repository section 1 says the exact release time and file format will be announced with the release. | Organizer-dependent open points. Record the announcement and implement/verify the actual adapter when available; no exact time or schema is established here. |
 | PDF data description has placeholders | “several buildings”, a “[FORMAT, e.g. JSON; the schema is in the kit.]” placeholder, and a general test-set description | Use the concrete repository data schema and split counts for current development. The public test has no answer labels; train/dev do. Keep the PDF wording as source material, not a claim that hidden answers are present. |
-| Project package | `final_agent` is an identical copy with starter imports; packaging excludes it | Decide the project entry point before implementing features so edits are exercised by the actual CLI, evaluator and installed package. |
-| Persistent changes vs. what-if analysis | Existing door tool always mutates; doors/closures now save snapshots; no preview/undo exists | Define explicit simulation, confirmed edit and operational closure behavior; isolate per-question evaluation state. |
+| Project package | Entry point and internal imports now use the final package; storage is local and the wheel includes it | Use the final CLI and explicit benchmark callable. Keep the starter as the baseline. |
+| Persistent changes vs. what-if analysis | Final closures/doors save snapshots and reload correctly; benchmark questions have isolated maps and temporary outputs | Add transactional edits, preview/undo and dedicated what-if analysis; isolate concurrent interactive outputs. |
 | New-building ingestion quality | Only JSON loading and one door edit exist; no image ingestion implementation | Decide extraction method and uncertainty handling; demonstrate geometry and connectivity validation on a genuinely new plan. |
-| Physical navigation vs. benchmark distances | Zero-cost outside node, anchor-to-door line segments and artificial stair/lift costs are prescribed | Keep scoring semantics exact; label physical distance/time claims appropriately and design any richer navigation model separately. |
+| Supplied kit vs. Synera automatic route check | The kit uses anchor-to-door segments, fixed per-floor costs and a zero-cost outside node. The [Synera clarification](#route-scoring-clarification-synera) specifies wall-respecting door-to-door paths with about 15 cm clearance, height-based costs, forklift restrictions, destination-only production bays and ordered-space validation. | Implement the clarified automatic-check rules and distinguish them from local kit scoring. Confirm schema, route endpoint details and outside handling with organizers; the clarification supplies no file format or outside-node rule. |
 | Optional extension scope | Source recommends picking one add-in | Choose based on the completed core workflow and available time; no optional extension is selected or finished by this document. |
 | Setup/reference drift | `.env.example` is referenced but absent; attribution references `config/furniture_catalog.yaml`, also absent from the supplied tree | Supply missing setup instructions/resources where needed. Preserve original reference wording and identify missing resources rather than inventing their contents. |
 
 ## 12. Consolidated agent reference
 
-The package READMEs shared the original agent reference. The starter README now also documents spatial search and storage; the final README adds a pointer to that shared API. The full starter reference appears once below, followed by the final README's unique storage note. Wording, commands and examples are retained; heading levels and moved README link targets are adjusted for this location. This reference describes the starter, not an independently wired final agent. Its benchmark/caching/model statements are original source claims; section 9 records what was actually verified.
+The following reference retains original starter commands and model/caching claims. The independently runnable project package is documented in [final_agent/README.md](final_agent/README.md); section 9 records current verification. Historical starter commands below continue to select the starter baseline.
+
+**API scope:** the storage/spatial examples below use `final_agent`, whose CLI, tools and evaluator now use the same implementation. The original starter map retains its original limitations. Run the documented test command to check the final package; see [final-agent commands](final_agent/README.md).
 
 ### Starter agent: an indoor "Google Maps" you can talk to
 
@@ -615,7 +594,7 @@ but are not used for proximity searches.
 
 ```python
 from pathlib import Path
-from starter_agent.building_map import BuildingMap
+from final_agent.building_map import BuildingMap
 
 building = BuildingMap.load(Path("data/dev/proc-factory-dev-003"))
 nearby = building.spatial_search(
@@ -668,7 +647,7 @@ The following unique note came from the final-agent README; its shared text and 
 
 ### Final-agent storage note
 
-JSON persistence and per-floor spatial searches are shared with the starter agent.
+JSON persistence and per-floor spatial searches are owned by `final_agent.storage`, with no starter imports.
 See [building storage and spatial indexes](#building-storage-and-spatial-indexes)
 for the Python API, save/reload behavior and tests.
 

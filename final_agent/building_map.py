@@ -1,4 +1,4 @@
-"""Deterministic core of the starter agent: load a building.json, search it, route through it, edit it.
+"""Deterministic core of the project agent: load a building.json, search it, route through it, edit it.
 
 The agent (agent.py) is only the conversation layer; every fact it states comes from this module.
 The route cost model matches the one used to compute the dataset's expected answers."""
@@ -12,7 +12,7 @@ import networkx as nx
 from shapely.geometry import Polygon
 from shapely.ops import nearest_points
 
-from starter_agent.storage import BuildingSpatialIndex, JsonBuildingStore
+from .storage import BuildingSpatialIndex, JsonBuildingStore
 
 OUTSIDE = "outside"
 DOOR_PREFIX = "door:"

@@ -1,7 +1,7 @@
-"""Score the agent on the dataset's questions.jsonl files.
+"""Score the agent on the dataset's warm-up questions_basic.jsonl files.
 
-  uv run python -m starter_agent.evaluate data/dev --oracle      # tools only, no API calls
-  uv run python -m starter_agent.evaluate data/dev --limit 10    # live agent (uses credits)
+  uv run python -m final_agent.evaluate data/dev --oracle      # tools only, no API calls
+  uv run python -m final_agent.evaluate data/dev --limit 10    # live agent (uses credits)
 
 Live scoring reads what the agent actually computed (its last route, the assets it located), not its prose,
 except for counts, where the number must appear in the answer."""
@@ -14,8 +14,8 @@ from pathlib import Path
 
 import anthropic
 
-from starter_agent.agent import BuildingAgent
-from starter_agent.building_map import BuildingMap, MapError
+from .agent import BuildingAgent
+from .building_map import BuildingMap, MapError
 
 QUESTIONS_FILENAME = "questions_basic.jsonl"
 ROUTE_TOLERANCE = 0.01
@@ -122,7 +122,7 @@ def report(results: Counter[tuple[str, bool]], usage: Counter[str]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="starter_agent.evaluate")
+    parser = argparse.ArgumentParser(prog="final_agent.evaluate")
     parser.add_argument("directory", type=Path, help="a split directory such as data/dev")
     parser.add_argument("--limit", type=int, default=None, help="only the first N questions")
     parser.add_argument("--oracle", action="store_true", help="answer with the tools directly (no API calls)")

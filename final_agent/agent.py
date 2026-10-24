@@ -1,6 +1,6 @@
 """Conversational building guide: Claude talks to the person, BuildingMap supplies every fact.
 
-Run:  uv run python -m starter_agent data/dev/<building_id>
+Run:  uv run python -m final_agent data/dev/<building_id>
 """
 
 import argparse
@@ -9,8 +9,8 @@ from pathlib import Path
 
 import anthropic
 
-from starter_agent.building_map import BuildingMap
-from starter_agent.tools import make_tools
+from .building_map import BuildingMap
+from .tools import make_tools
 
 MODEL = "claude-opus-5-5"
 MAX_TOKENS = 16000
@@ -126,7 +126,7 @@ def chat(building_directory: Path, output_directory: Path) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="starter_agent", description="Chat with an indoor building guide.")
+    parser = argparse.ArgumentParser(prog="final_agent", description="Chat with an indoor building guide.")
     parser.add_argument(
         "building", type=Path, help="building directory (with building.json) or a building.json file"
     )

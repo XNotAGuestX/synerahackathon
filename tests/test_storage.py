@@ -5,9 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from final_agent.building_map import BuildingMap as FinalBuildingMap, MapError as FinalMapError
-from starter_agent.building_map import BuildingMap, MapError
-from starter_agent.storage import JsonBuildingStore
+from final_agent.building_map import BuildingMap, MapError
+from final_agent.storage import JsonBuildingStore
 
 
 def example_building() -> dict:
@@ -39,32 +38,31 @@ def example_building() -> dict:
 
 class StorageTests(unittest.TestCase):
     def test_save_reload_preserves_building_edits_and_closures(self):
-        for map_class, error_class in ((BuildingMap, MapError), (FinalBuildingMap, FinalMapError)):
-            with self.subTest(map_class=map_class), tempfile.TemporaryDirectory() as temporary:
-                building = map_class(example_building())
-                with self.assertRaises(error_class):
-                    building.route("left", "right")
-                door = building.add_door("left", "right")
-                length = building.route("left", "right").length_m
-                building.set_closed(door["id"], True)
-                target = Path(temporary) / "nested" / "building.json"
-                building.save(target)
-                restored = map_class.load(target.parent)
-                self.assertEqual(restored.data["custom_metadata"], {"note": "Grüße"})
-                self.assertIn(door["id"], restored.closed)
-                with self.assertRaises(error_class):
-                    restored.route("left", "right")
-                restored.set_closed(door["id"], False)
-                self.assertEqual(restored.route("left", "right").length_m, length)
-                restored.save(target)
-                self.assertEqual(map_class.load(target).closed, set())
+        with tempfile.TemporaryDirectory() as temporary:
+            building = BuildingMap(example_building())
+            with self.assertRaises(MapError):
+                building.route("left", "right")
+            door = building.add_door("left", "right")
+            length = building.route("left", "right").length_m
+            building.set_closed(door["id"], True)
+            target = Path(temporary) / "nested" / "building.json"
+            building.save(target)
+            restored = BuildingMap.load(target.parent)
+            self.assertEqual(restored.data["custom_metadata"], {"note": "Grüße"})
+            self.assertIn(door["id"], restored.closed)
+            with self.assertRaises(MapError):
+                restored.route("left", "right")
+            restored.set_closed(door["id"], False)
+            self.assertEqual(restored.route("left", "right").length_m, length)
+            restored.save(target)
+            self.assertEqual(BuildingMap.load(target).closed, set())
 
     def test_failed_save_preserves_existing_json_and_cleans_temporary_file(self):
         with tempfile.TemporaryDirectory() as temporary:
             target = Path(temporary) / "building.json"
             original = example_building()
             JsonBuildingStore.save(target, original)
-            with patch("starter_agent.storage.os.replace", side_effect=OSError("disk error")):
+            with patch("final_agent.storage.os.replace", side_effect=OSError("disk error")):
                 with self.assertRaises(OSError):
                     JsonBuildingStore.save(target, {"changed": True})
             self.assertEqual(JsonBuildingStore.load(target), original)

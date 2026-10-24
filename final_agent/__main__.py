@@ -1,3 +1,4 @@
-from starter_agent.agent import main
+from .agent import main
 
-main()
+if __name__ == "__main__":
+    main()

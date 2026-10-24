@@ -10,7 +10,7 @@ import itertools
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon as PolygonPatch
 
-from starter_agent.building_map import BuildingMap
+from .building_map import BuildingMap
 
 ROOM_COLOUR = "#f3efe6"
 CLOSED_COLOUR = "#f4cccc"
