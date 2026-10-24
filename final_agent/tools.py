@@ -94,9 +94,13 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
     # ---------- reachability ----------
 
-    # ---------- areas ----------
+    # ---------- largest room ----------
 
-    # ---------- 3D geometry ----------
+    # ---------- floor area totals ----------
+
+    # ---------- straight-line 3D distance ----------
+
+    # ---------- stacked rooms ----------
 
     # ---------- shared walls ----------
 

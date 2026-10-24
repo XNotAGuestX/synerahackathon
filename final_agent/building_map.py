@@ -166,6 +166,10 @@ class BuildingMap:
         ]
         return sorted(matches, key=lambda space: (self.floor_level(space["floor_id"]), space["name"], space["id"]))
 
+    def room_types(self, floor_level: int | None = None) -> list[str]:
+        """Sorted distinct normalized room types, optionally on one floor; helps correct a wrong type name."""
+        return sorted({normalize_type(space["room_type"]) for space in self.filter_spaces(floor_level)})
+
     # ---------- search ----------
 
     def search(self, query: str, floor_level: int | None = None) -> list[dict]:
