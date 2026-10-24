@@ -89,6 +89,11 @@ def cost_dollars(usage: Counter[str], model: str) -> float:
     return sum(usage[key] * price / 1_000_000 for key, price in PRICE_PER_MILLION[model].items())
 
 
+def spent(usage: Counter[str], model: str) -> str:
+    """Running cost estimate for per-question progress lines, at list prices."""
+    return f"${cost_dollars(usage, model):.3f} so far"
+
+
 def write_submission_csv(path: Path, replies: list[tuple[str, str]]) -> None:
     """question_id,answer with the full replies: the file the judge app grades."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -111,6 +116,8 @@ def run(
     answer = load_agent(agent_reference)
     # Without a model the agent uses its own default (MODEL for the project agent).
     agent = partial(answer, model=model) if model else answer
+    # An agent may expose its accumulated token usage; it is then priced after every question.
+    usage = getattr(answer, "usage", None)
     results: Counter[tuple[str, bool]] = Counter()
     replies: list[tuple[str, str]] = []
     RESULTS_DIRECTORY.mkdir(parents=True, exist_ok=True)
@@ -143,12 +150,12 @@ def run(
                 + "\n"
             )
             outcome = {True: "OK ", False: "BAD", None: "saved"}[correct]
-            print(f"[benchmark] {question['id']:34s} {question['kind']:20s} {outcome}")
+            progress = f"  {spent(usage, model or MODEL)}" if usage is not None else ""
+            print(f"[benchmark] {question['id']:34s} {question['kind']:20s} {outcome}{progress}")
     if results:
         report(results)
     if submission_csv is not None:
         write_submission_csv(submission_csv, replies)
-    usage = getattr(answer, "usage", None)
     if usage:
         print(f"tokens: {dict(usage)}  cost: ${cost_dollars(usage, model or MODEL):.2f}")
     print(f"replies saved to {results_path}")

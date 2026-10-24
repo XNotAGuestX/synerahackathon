@@ -5,6 +5,7 @@ is the same agent without them, the baseline for an A/B comparison.
 """
 
 import logging
+from collections import Counter
 from functools import cache
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -16,6 +17,9 @@ from .run_library import RunIndex, load_runs
 
 RUN_LIBRARY_PATH = Path(__file__).with_name("run_library.jsonl")
 logger = logging.getLogger(__name__)
+# Tokens of every answer in this process, failed ones included; benchmark.evaluate reads
+# it as ``answer.usage`` to show the running cost.
+USAGE: Counter[str] = Counter()
 
 
 @cache
@@ -50,3 +54,9 @@ def _answer(building_directory: Path, question_text: str, examples: RunIndex | N
         except MissingCredentialsError as error:
             # Stop the whole run: every remaining question would fail the same way.
             raise SystemExit(str(error)) from error
+        finally:
+            USAGE.update(agent.usage)
+
+
+answer.usage = USAGE
+answer_without_examples.usage = USAGE

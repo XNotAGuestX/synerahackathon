@@ -6,7 +6,8 @@ Run from the repo root. Commands marked *paid* call Claude and need credentials
 ## Normal mode
 
 Every paid command takes `--model opus|sonnet|haiku` (default `haiku`, i.e.
-`claude-haiku-5-5`). Only the exact names are accepted.
+`claude-haiku-5-5`). Only the exact names are accepted. The benchmark and training
+print the money spent so far after every question (an estimate at list prices).
 
 **Chat** (*paid*): `uv run python -m final_agent data/dev/<building>`
 - `--output DIR`: where route images and edits go (default `agent_output`)

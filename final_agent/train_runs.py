@@ -16,7 +16,7 @@ from tempfile import TemporaryDirectory
 
 import anthropic
 
-from benchmark.evaluate import cost_dollars, load_questions, sample_per_kind
+from benchmark.evaluate import cost_dollars, load_questions, sample_per_kind, spent
 from benchmark.score import score_reply
 
 from .agent import MODELS, BuildingAgent, MissingCredentialsError, add_model_argument
@@ -113,7 +113,7 @@ def build(selected: list[Question], library: Path, model: str, full: bool) -> No
         try:
             tool_calls, reply = ask_agent(building_directory, question["question"], index, model, usage)
         except anthropic.APIError as error:
-            print(f"{question['id']:34s} {question['kind']:26s} skipped, API error: {error}")
+            print(f"{question['id']:34s} {question['kind']:26s} skipped  {spent(usage, model)}  API error: {error}")
             continue
         except MissingCredentialsError as error:
             raise SystemExit(str(error)) from error
@@ -123,7 +123,7 @@ def build(selected: list[Question], library: Path, model: str, full: bool) -> No
         save_runs(library, list(runs.values()))
         results[(run.kind, run.accepted)] += 1
         outcome = "ACCEPTED" if run.accepted else "rejected"
-        print(f"{run.question_id:34s} {run.kind:26s} {outcome:8s} declared {run.declared_kind}")
+        print(f"{run.question_id:34s} {run.kind:26s} {outcome:8s} {spent(usage, model)}  declared {run.declared_kind}")
     print_summary(results, usage, model)
 
 
