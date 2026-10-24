@@ -6,18 +6,21 @@ conversation. Read [AGENTS.md](AGENTS.md), the [README](README.md) and
 [BACKLOG.md](BACKLOG.md) first. The backlog owns completion status; this document
 defines the implementation contracts and agent handoffs for this feature set.
 
-**Status, 24 October 2026 (implemented within this handoff's scope):** F01–F15 were
-each implemented by a Claude Sonnet 5.5 agent (F15 in three phases) on an isolated
-worktree branch, then reviewed, merged and independently re-verified by the
-coordinator. By user decision, F14's local web UI was removed from scope: the
-team's separate frontend track owns the interactive surface, and F14 delivers the
-per-floor PNG renderer plus `show_location`, `show_route(landmark_ids)` and
-`describe_destination_context`. Verified without API credentials: 170
+**Status, 24 October 2026:** F01–F14 are implemented, each by a Claude Sonnet 5.5
+agent on an isolated worktree branch, then reviewed, merged and independently
+re-verified by the coordinator. By user decision, F14's local web UI was removed
+from scope: the team's separate frontend track owns the interactive surface, and
+F14 delivers the per-floor PNG renderer plus `show_location`,
+`show_route(landmark_ids)` and `describe_destination_context`. **F15 was
+implemented and then reverted at the user's request; it is pending again.**
+[F15_HANDOFF.md](F15_HANDOFF.md) records its scope, the reverted implementation
+(`git show 553e25f:<path>`) and everything learned. Because F15 owned the
+documentation update, README/BACKLOG/FEATURE_SHORTLIST currently describe the
+pre-implementation state. Verified without API credentials: 161
 unit/integration tests; 369/369 oracle warm-up; labelled component checks for all
 nine scored kinds, dev 138/138 and train 517/517; 45/45 `bench_analsysis`
-representatives. No live API evaluation was possible (no credentials), so live
-conversational accuracy, a live benchmark score and the public-test CSV remain
-unverified. The original specification below is unchanged.
+representatives. No live API evaluation was possible (no credentials). The
+original specification below is unchanged.
 
 ## 1. Coordinator instructions: Sonnet agents, then verification
 
@@ -647,10 +650,11 @@ release time; adapt only when the announced contract is available.
 
 - [x] Each F01–F15 implementation has a Sonnet agent report and reviewed diff,
   or is explicitly recorded as pending with its blocker. *(F14 web UI removed
-  from scope by user decision.)*
+  from scope by user decision; F15 reverted by user decision and pending, see
+  [F15_HANDOFF.md](F15_HANDOFF.md).)*
 - [x] Focused tool/geometry/state tests and integration suite pass; no starter
   imports, scorer changes, label leakage or unrelated working-tree edits.
-  *(170 tests; `benchmark/score.py` and `starter_agent/` byte-unchanged; only the
+  *(161 tests; `benchmark/score.py` and `starter_agent/` byte-unchanged; only the
   evaluation-only `final_agent/evaluate.py` reads warm-up labels.)*
 - [x] Existing kit oracle results remain compatible; new tool results identify
   their distance model and preserve all route constraints. *(369/369; selected
@@ -666,8 +670,9 @@ release time; adapt only when the announced contract is available.
 - [x] Pagination, complete inspection, reachability, what-if isolation and save
   failure behavior have been exercised through actual tool boundaries.
 - [ ] README/backlog/tool descriptions agree with what is implemented and what
-  was actually tested; demo/submission commands are reproducible. *(Docs updated
-  to the verified extent; the live submission command could not be run here.)*
+  was actually tested; demo/submission commands are reproducible. *(Pending with
+  F15: its documentation update was reverted with it; the live submission
+  command cannot be run here.)*
 
 Each implementation report states: feature/backlog IDs, changed files, tool
 contract, exact checks run with outcomes, actual user-flow evidence, remaining
