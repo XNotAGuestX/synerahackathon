@@ -390,6 +390,32 @@ class BuildingMap:
 
     # ---------- floor area totals ----------
 
+    MAX_AREA_ROOMS = 50  # keeps the JSON compact on large floors; count, total and ids stay complete
+
+    def sum_floor_area(self, room_type: str, floor_level: int) -> dict:
+        """Total polygon area of every space with exactly this room type on one floor.
+
+        A plain sum of room areas (not their geometric union); halls and every other broad space type
+        count when their room_type matches. An empty match is a normal result with area 0.
+        """
+        floor = self.floor_by_level(floor_level)
+        wanted = normalize_type(room_type)
+        matches = self.filter_spaces(floor_level, wanted)
+        areas = {space["id"]: self.space_area_m2(space["id"]) for space in matches}
+        result = {
+            "room_type": wanted, "floor_level": floor["level"], "floor": floor["name"],
+            "count": len(matches), "area_m2": round(sum(areas.values()), 2),
+            "space_ids": sorted(areas),
+            "rooms": [
+                {"id": space["id"], "name": space["name"], "area_m2": round(areas[space["id"]], 2)}
+                for space in matches[: self.MAX_AREA_ROOMS]
+            ],
+            "rooms_truncated": len(matches) > self.MAX_AREA_ROOMS,
+        }
+        if not matches:
+            result["available_room_types"] = self.room_types(floor_level)
+        return result
+
     # ---------- straight-line 3D distance ----------
 
     # ---------- stacked rooms ----------
