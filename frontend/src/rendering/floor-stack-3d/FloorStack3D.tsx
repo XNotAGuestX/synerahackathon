@@ -1,13 +1,15 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { FloorPlan, Route } from '../../domain/types'
 
 type FloorStack3DProps = {
   plans: FloorPlan[]
   route: Route | null
+  activeFloorId: string
 }
 
-export function FloorStack3D({ plans, route }: FloorStack3DProps) {
+export function FloorStack3D({ plans, route, activeFloorId }: FloorStack3DProps) {
   const host = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -36,6 +38,12 @@ export function FloorStack3D({ plans, route }: FloorStack3DProps) {
     const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, span * 20)
     camera.position.set(centerX + span * 0.2, Math.max(...elevations) + span * 0.8, centerY + span * 1.1)
     camera.lookAt(centerX, 0, centerY)
+    const controls = new OrbitControls(camera, renderer.domElement)
+    controls.enableDamping = true
+    controls.screenSpacePanning = true
+    controls.minDistance = span * 0.35
+    controls.maxDistance = span * 6
+    controls.target.set(centerX, 0, centerY)
     scene.add(new THREE.AmbientLight(0xffffff, 1))
 
     const elevationByFloor = new Map(plans.map((plan) => [plan.floor.id, plan.floor.elevation_m]))
@@ -49,7 +57,7 @@ export function FloorStack3D({ plans, route }: FloorStack3DProps) {
         })
         const mesh = new THREE.Mesh(
           new THREE.ShapeGeometry(shape),
-          new THREE.MeshBasicMaterial({ color: 0xc2f44b, transparent: true, opacity: 0.45, side: THREE.DoubleSide }),
+          new THREE.MeshBasicMaterial({ color: plan.floor.id === activeFloorId ? 0xc2f44b : 0x64717d, transparent: true, opacity: plan.floor.id === activeFloorId ? 0.72 : 0.28, side: THREE.DoubleSide }),
         )
         mesh.rotation.x = -Math.PI / 2
         mesh.position.y = plan.floor.elevation_m
@@ -63,8 +71,12 @@ export function FloorStack3D({ plans, route }: FloorStack3DProps) {
       )
       scene.add(new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0xff765b })))
     }
-    renderer.render(scene, camera)
+    let frame = 0
+    const animate = () => { frame = requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera) }
+    animate()
     return () => {
+      cancelAnimationFrame(frame)
+      controls.dispose()
       renderer.dispose()
       element.replaceChildren()
     }

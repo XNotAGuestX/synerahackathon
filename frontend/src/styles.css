@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 /* ==========================================================================
    Tokens. Components read only these variables.
@@ -1027,41 +1027,51 @@ button:disabled { cursor: default; }
   left: 0;
   top: 0;
   z-index: 4;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 42px;
+  color: var(--color-primary);
   pointer-events: none;
+  filter: drop-shadow(0 0 1px var(--color-surface)) drop-shadow(0 0 1px var(--color-surface));
 }
-.walk-token-body {
+.walk-token.blocked { color: var(--color-danger); }
+.stick-head {
   position: absolute;
-  inset: 8px 10px 8px 8px;
+  left: 11px;
+  top: 0;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
   border-radius: 50%;
-  background: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-surface);
+  background: var(--color-surface);
 }
-.walk-token-head {
+.stick-torso {
   position: absolute;
-  top: 10px;
-  right: 1px;
-  width: 12px;
+  left: 17px;
+  top: 14px;
+  width: 2px;
   height: 12px;
-  border-radius: 50%;
-  background: var(--color-on-primary);
-  box-shadow: 0 0 0 2px var(--color-primary);
+  border-radius: 1px;
+  background: currentColor;
 }
-.walk-token.blocked .walk-token-body { background: var(--color-danger); }
-.walk-token.blocked .walk-token-head { box-shadow: 0 0 0 2px var(--color-danger); }
-.walk-token-foot {
+.stick-limb {
   position: absolute;
-  left: 3px;
-  width: 6px;
-  height: 4px;
-  border-radius: var(--radius-pill);
-  background: var(--color-on-primary);
+  left: 18px;
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  transform-origin: 0 50%;
 }
-.walk-token-foot.left { top: 9px; }
-.walk-token-foot.right { top: 18px; }
-.walk-token.moving .walk-token-foot.left { animation: walk-step var(--duration-slow) var(--easing-standard) infinite alternate; }
-.walk-token.moving .walk-token-foot.right { animation: walk-step var(--duration-slow) var(--easing-standard) infinite alternate-reverse; }
+.stick-arm { top: 16px; }
+.stick-leg { top: 26px; width: 13px; }
+.stick-arm.front { transform: rotate(52deg); }
+.stick-arm.back { transform: rotate(128deg); }
+.stick-leg.front { transform: rotate(58deg); }
+.stick-leg.back { transform: rotate(122deg); }
+.walk-token.moving .stick-arm.front,
+.walk-token.moving .stick-leg.front { animation: stick-stride var(--duration-slow) var(--easing-standard) infinite alternate; }
+.walk-token.moving .stick-arm.back,
+.walk-token.moving .stick-leg.back { animation: stick-stride var(--duration-slow) var(--easing-standard) infinite alternate-reverse; }
 
 .walk-mark {
   position: absolute;
@@ -1791,7 +1801,10 @@ button.next-distance:focus-visible { outline-color: var(--color-bar-accent); }
 /* ==========================================================================
    Motion
    ========================================================================== */
-@keyframes walk-step { to { transform: translateX(-2px); } }
+@keyframes stick-stride {
+  from { transform: rotate(28deg); }
+  to { transform: rotate(152deg); }
+}
 @keyframes route-flow { to { stroke-dashoffset: -12; } }
 @keyframes pulse { 50% { opacity: 0.35; } }
 @keyframes reveal { from { opacity: 0; transform: translateY(-4px); } }
@@ -1932,3 +1945,14 @@ button.next-distance:focus-visible { outline-color: var(--color-bar-accent); }
 .map-legend .sample-opening { width: 10px; height: 10px; margin-inline: 4px; }
 .map-legend .sample-route { width: 18px; height: 3px; }
 @media (max-width: 650px) { .map-legend { width: auto; max-width: calc(100% - 32px); grid-template-columns: repeat(2, minmax(0, 1fr)); } .map-legend > span { white-space: normal; } }
+.map-display-mode { position: absolute; right: var(--space-4); bottom: var(--space-4); z-index: 2; display: flex; align-items: center; gap: var(--space-1); padding: var(--space-1); border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--color-surface) 94%, transparent); box-shadow: var(--shadow-float); }
+.map-display-mode span { padding: 0 var(--space-2); color: var(--color-text-tertiary); font-size: var(--font-size-caption); }
+.map-display-mode button { min-height: 28px; border: 0; border-radius: var(--radius-xs); background: transparent; color: var(--color-text-secondary); font-size: var(--font-size-caption); white-space: nowrap; }
+.map-display-mode button[aria-pressed='true'] { background: var(--color-primary); color: var(--color-on-primary); }
+@media (max-width: 650px) { .map-display-mode { left: auto; right: var(--space-3); bottom: var(--space-3); max-width: calc(100% - 32px); overflow-x: auto; } }
+.space.room-type-stair, .space.room-type-stairs, .space.room-type-emergency-exit, .space.room-type-emergency-corridor { fill: color-mix(in srgb, var(--color-danger) 24%, var(--map-space)); stroke: var(--color-danger); }
+.space.room-type-lift, .space.room-type-elevator { fill: color-mix(in srgb, var(--color-start) 22%, var(--map-space)); stroke: var(--color-start); }
+.space.room-type-corridor, .space.room-type-hallway { fill: color-mix(in srgb, var(--color-warning) 18%, var(--map-space)); stroke: var(--color-warning); }
+.space.room-type-restroom, .space.room-type-toilet { fill: color-mix(in srgb, #4db6d6 22%, var(--map-space)); stroke: #4db6d6; }
+.space.room-type-office { fill: color-mix(in srgb, var(--color-primary) 14%, var(--map-space)); }
+

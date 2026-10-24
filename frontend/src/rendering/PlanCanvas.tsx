@@ -125,6 +125,7 @@ function InteractivePlan({
   const [pan, setPan] = useState<Point>([0, 0])
   const [hovered, setHovered] = useState<Selection | null>(null)
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 })
+  const [displayMode, setDisplayMode] = useState<'rooms' | 'items' | 'labels'>('labels')
   const gesture = useRef({ pointerId: -1, x: 0, y: 0, panX: 0, panY: 0, moved: false })
   const pointers = useRef(new Map<number, { x: number; y: number }>())
   const pinch = useRef<{ startDistance: number; startZoom: number; anchorX: number; anchorY: number } | null>(null)
@@ -306,14 +307,15 @@ function InteractivePlan({
         <g transform="scale(1 -1)">
           {plan.spaces.map((space) => {
             const reason = reasons.get(space.id)
+            const roomType = (space.room_type || space.type || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-')
             const picked = selectionId === space.id
             const [cx, cy] = centroid(space.polygon)
-            const showLabel = polygonArea(space.polygon) >= 28
+            const showLabel = displayMode === 'rooms' && polygonArea(space.polygon) >= 28
             return (
               <g key={space.id}>
                 <polygon
                   points={space.polygon.map(([x, y]) => `${x},${y}`).join(' ')}
-                  className={['space', reason ? `reason-${reason}` : '', picked ? 'picked' : ''].filter(Boolean).join(' ')}
+                  className={['space', `room-type-${roomType}`, reason ? `reason-${reason}` : '', picked ? 'picked' : ''].filter(Boolean).join(' ')}
                   role="button"
                   tabIndex={0}
                   aria-label={space.name}
@@ -364,7 +366,7 @@ function InteractivePlan({
               <title>{`${opening.kind}, ${opening.width_m} m`}</title>
             </circle>
           ))}
-          {plan.assets.map((asset) => {
+          {displayMode === 'items' && plan.assets.map((asset) => {
             const landmark = landmarkIds(plan, stepPoint).includes(asset.id)
             const highlighted = assetIds.has(asset.id) || landmark
             const picked = selectionId === asset.id
@@ -447,6 +449,7 @@ function InteractivePlan({
       <WalkPad svgRef={svgRef} plan={plan} route={route} closedIds={closedIds} stepFree={stepFree} />
       {hovered && <div className="map-tooltip" role="status" style={{ left: hoverPosition.x, top: hoverPosition.y }}><strong>{hovered.name}</strong><dl><dt>Type</dt><dd>{hovered.kind === 'space' ? 'Room / area' : hovered.kind === 'asset' ? 'Equipment / item' : 'Opening / connector'}</dd><dt>Floor</dt><dd>{hovered.floorName}</dd><dt>Details</dt><dd>{hovered.note || 'No additional details'}</dd></dl></div>}
       <div className="map-legend" aria-label="Map legend"><strong>Map legend</strong><span><i className="legend-sample sample-room" /><b>Room</b></span><span><i className="legend-sample sample-equipment" /><b>Equipment</b></span><span><i className="legend-sample sample-opening" /><b>Door / connector</b></span><span><i className="legend-sample sample-route" /><b>Current route</b></span><span><i className="legend-sample sample-closed" /><b>Closed / blocked</b></span><small>Shapes and colors match the map.</small></div>
+      <div className="map-display-mode" role="group" aria-label="Map detail level"><button type="button" aria-pressed={displayMode === 'labels'} onClick={() => setDisplayMode('labels')}>Rooms</button><button type="button" aria-pressed={displayMode === 'items'} onClick={() => setDisplayMode('items')}>Rooms + items</button><button type="button" aria-pressed={displayMode === 'rooms'} onClick={() => setDisplayMode('rooms')}>Rooms + numbers</button></div>
       <div
         className="map-controls"
         role="group"
@@ -465,5 +468,9 @@ function InteractivePlan({
     </div>
   )
 }
+
+
+
+
 
 
