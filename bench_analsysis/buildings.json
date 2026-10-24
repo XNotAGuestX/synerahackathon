@@ -1,0 +1,410 @@
+[
+  {
+    "building_id": "osm-way22744230",
+    "path": "data/dev/osm-way22744230",
+    "family": "osm",
+    "source": "osm_indoor",
+    "floors": 8,
+    "levels": [
+      -1,
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "spaces": 325,
+    "rooms": 243,
+    "assets": 890,
+    "openings": 386,
+    "connectors": 7,
+    "scored_questions": 9,
+    "warmup_questions": 10,
+    "selection_reason": "8 floors including basement; stacked rooms and lift outage"
+  },
+  {
+    "building_id": "osm-way27326387",
+    "path": "data/dev/osm-way27326387",
+    "family": "osm",
+    "source": "osm_indoor",
+    "floors": 3,
+    "levels": [
+      -2,
+      0,
+      1
+    ],
+    "spaces": 61,
+    "rooms": 52,
+    "assets": 184,
+    "openings": 68,
+    "connectors": 1,
+    "scored_questions": 8,
+    "warmup_questions": 7,
+    "selection_reason": "nonconsecutive levels -2, 0, 1; stacked above/below"
+  },
+  {
+    "building_id": "osm-way27917482",
+    "path": "data/dev/osm-way27917482",
+    "family": "osm",
+    "source": "osm_indoor",
+    "floors": 5,
+    "levels": [
+      -1,
+      0,
+      1,
+      2,
+      3
+    ],
+    "spaces": 1623,
+    "rooms": 1305,
+    "assets": 5250,
+    "openings": 1799,
+    "connectors": 32,
+    "scored_questions": 9,
+    "warmup_questions": 10,
+    "selection_reason": "largest OSM map; what-if door cases; repeated names"
+  },
+  {
+    "building_id": "osm-way360544293",
+    "path": "data/dev/osm-way360544293",
+    "family": "osm",
+    "source": "osm_indoor",
+    "floors": 3,
+    "levels": [
+      0,
+      1,
+      2
+    ],
+    "spaces": 46,
+    "rooms": 22,
+    "assets": 217,
+    "openings": 61,
+    "connectors": 8,
+    "scored_questions": 4,
+    "warmup_questions": 9,
+    "selection_reason": "small OSM map; equipment errand"
+  },
+  {
+    "building_id": "proc-campus-dev-000",
+    "path": "data/dev/proc-campus-dev-000",
+    "family": "proc-campus",
+    "source": "procedural",
+    "floors": 5,
+    "levels": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "spaces": 152,
+    "rooms": 116,
+    "assets": 944,
+    "openings": 149,
+    "connectors": 6,
+    "scored_questions": 5,
+    "warmup_questions": 10,
+    "selection_reason": "5-floor campus; wide-load delivery"
+  },
+  {
+    "building_id": "proc-campus-dev-001",
+    "path": "data/dev/proc-campus-dev-001",
+    "family": "proc-campus",
+    "source": "procedural",
+    "floors": 4,
+    "levels": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "spaces": 97,
+    "rooms": 76,
+    "assets": 582,
+    "openings": 95,
+    "connectors": 4,
+    "scored_questions": 5,
+    "warmup_questions": 10,
+    "selection_reason": "4-floor campus; wide-load delivery"
+  },
+  {
+    "building_id": "proc-campus-dev-009",
+    "path": "data/dev/proc-campus-dev-009",
+    "family": "proc-campus",
+    "source": "procedural",
+    "floors": 6,
+    "levels": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "spaces": 207,
+    "rooms": 164,
+    "assets": 1330,
+    "openings": 203,
+    "connectors": 6,
+    "scored_questions": 5,
+    "warmup_questions": 10,
+    "selection_reason": "largest procedural campus; 6 floors"
+  },
+  {
+    "building_id": "proc-campus-dev-013",
+    "path": "data/dev/proc-campus-dev-013",
+    "family": "proc-campus",
+    "source": "procedural",
+    "floors": 3,
+    "levels": [
+      0,
+      1,
+      2
+    ],
+    "spaces": 63,
+    "rooms": 47,
+    "assets": 423,
+    "openings": 62,
+    "connectors": 4,
+    "scored_questions": 3,
+    "warmup_questions": 10,
+    "selection_reason": "smallest selected campus; 3 floors"
+  },
+  {
+    "building_id": "proc-factory-dev-003",
+    "path": "data/dev/proc-factory-dev-003",
+    "family": "proc-factory",
+    "source": "procedural",
+    "floors": 2,
+    "levels": [
+      0,
+      1
+    ],
+    "spaces": 79,
+    "rooms": 56,
+    "assets": 505,
+    "openings": 85,
+    "connectors": 2,
+    "scored_questions": 5,
+    "warmup_questions": 10,
+    "selection_reason": "2-floor factory; 8 m ground floor; industrial bays"
+  },
+  {
+    "building_id": "proc-factory-dev-005",
+    "path": "data/dev/proc-factory-dev-005",
+    "family": "proc-factory",
+    "source": "procedural",
+    "floors": 3,
+    "levels": [
+      0,
+      1,
+      2
+    ],
+    "spaces": 132,
+    "rooms": 103,
+    "assets": 844,
+    "openings": 137,
+    "connectors": 2,
+    "scored_questions": 6,
+    "warmup_questions": 10,
+    "selection_reason": "3-floor factory; geometry and 3D distance"
+  },
+  {
+    "building_id": "proc-factory-dev-007",
+    "path": "data/dev/proc-factory-dev-007",
+    "family": "proc-factory",
+    "source": "procedural",
+    "floors": 2,
+    "levels": [
+      0,
+      1
+    ],
+    "spaces": 45,
+    "rooms": 28,
+    "assets": 259,
+    "openings": 49,
+    "connectors": 2,
+    "scored_questions": 5,
+    "warmup_questions": 10,
+    "selection_reason": "small factory; 45 spaces"
+  },
+  {
+    "building_id": "proc-factory-dev-011",
+    "path": "data/dev/proc-factory-dev-011",
+    "family": "proc-factory",
+    "source": "procedural",
+    "floors": 3,
+    "levels": [
+      0,
+      1,
+      2
+    ],
+    "spaces": 140,
+    "rooms": 109,
+    "assets": 914,
+    "openings": 152,
+    "connectors": 2,
+    "scored_questions": 6,
+    "warmup_questions": 10,
+    "selection_reason": "largest factory; 140 spaces and 914 assets"
+  },
+  {
+    "building_id": "swiss-450",
+    "path": "data/dev/swiss-450",
+    "family": "swiss",
+    "source": "swiss_dwellings",
+    "floors": 4,
+    "levels": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "spaces": 60,
+    "rooms": 41,
+    "assets": 171,
+    "openings": 62,
+    "connectors": 2,
+    "scored_questions": 4,
+    "warmup_questions": 10,
+    "selection_reason": "small multi-floor housing; shared walls"
+  },
+  {
+    "building_id": "swiss-460",
+    "path": "data/dev/swiss-460",
+    "family": "swiss",
+    "source": "swiss_dwellings",
+    "floors": 4,
+    "levels": [
+      0,
+      2,
+      3,
+      4
+    ],
+    "spaces": 69,
+    "rooms": 49,
+    "assets": 144,
+    "openings": 79,
+    "connectors": 1,
+    "scored_questions": 3,
+    "warmup_questions": 10,
+    "selection_reason": "missing floor level 1; levels 0, 2, 3, 4"
+  },
+  {
+    "building_id": "swiss-5097",
+    "path": "data/dev/swiss-5097",
+    "family": "swiss",
+    "source": "swiss_dwellings",
+    "floors": 4,
+    "levels": [
+      -1,
+      0,
+      1,
+      2
+    ],
+    "spaces": 302,
+    "rooms": 202,
+    "assets": 927,
+    "openings": 310,
+    "connectors": 20,
+    "scored_questions": 4,
+    "warmup_questions": 8,
+    "selection_reason": "large housing with basement"
+  },
+  {
+    "building_id": "swiss-1689",
+    "path": "data/dev/swiss-1689",
+    "family": "swiss",
+    "source": "swiss_dwellings",
+    "floors": 5,
+    "levels": [
+      -1,
+      0,
+      1,
+      2,
+      3
+    ],
+    "spaces": 362,
+    "rooms": 237,
+    "assets": 940,
+    "openings": 381,
+    "connectors": 13,
+    "scored_questions": 1,
+    "warmup_questions": 7,
+    "selection_reason": "largest selected Swiss housing; basement"
+  },
+  {
+    "building_id": "resplan-8269",
+    "path": "data/dev/resplan-8269",
+    "family": "resplan",
+    "source": "resplan",
+    "floors": 1,
+    "levels": [
+      0
+    ],
+    "spaces": 5,
+    "rooms": 5,
+    "assets": 20,
+    "openings": 5,
+    "connectors": 0,
+    "scored_questions": 2,
+    "warmup_questions": 9,
+    "selection_reason": "smallest selected dwelling; 5 spaces"
+  },
+  {
+    "building_id": "resplan-14509",
+    "path": "data/dev/resplan-14509",
+    "family": "resplan",
+    "source": "resplan",
+    "floors": 1,
+    "levels": [
+      0
+    ],
+    "spaces": 6,
+    "rooms": 6,
+    "assets": 22,
+    "openings": 7,
+    "connectors": 0,
+    "scored_questions": 2,
+    "warmup_questions": 9,
+    "selection_reason": "small dwelling; width-constrained delivery"
+  },
+  {
+    "building_id": "resplan-15179",
+    "path": "data/dev/resplan-15179",
+    "family": "resplan",
+    "source": "resplan",
+    "floors": 1,
+    "levels": [
+      0
+    ],
+    "spaces": 12,
+    "rooms": 9,
+    "assets": 35,
+    "openings": 12,
+    "connectors": 0,
+    "scored_questions": 3,
+    "warmup_questions": 9,
+    "selection_reason": "largest selected dwelling; area, width and walls"
+  },
+  {
+    "building_id": "resplan-1677",
+    "path": "data/dev/resplan-1677",
+    "family": "resplan",
+    "source": "resplan",
+    "floors": 1,
+    "levels": [
+      0
+    ],
+    "spaces": 10,
+    "rooms": 8,
+    "assets": 40,
+    "openings": 10,
+    "connectors": 0,
+    "scored_questions": 4,
+    "warmup_questions": 9,
+    "selection_reason": "single-floor dwelling with largest-room and errand requests"
+  }
+]

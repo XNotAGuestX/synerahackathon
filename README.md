@@ -19,6 +19,10 @@
 
 [FEATURE_SHORTLIST.md](FEATURE_SHORTLIST.md) records proposed features, prompt-related implementation gaps and the future switch to automatic mobile location updates; these capabilities remain unimplemented.
 
+[IMPLEMENTATION_HANDOFF.md](IMPLEMENTATION_HANDOFF.md) specifies the requested paginated search, room inspection, reachability, all nine analysis kinds, optimal tours, navigation landmarks and map highlights. It assigns one Sonnet implementation agent per feature and requires independent verification afterwards; it is an implementation specification, not a claim that these features are complete.
+
+[Benchmark request analysis](bench_analsysis/README.md) reviews 280 questions across 20 varied dev buildings, with implementation/missing-tool tables, underdocumented expected results and 45 runnable representatives in three difficulty tiers. Its offline evidence distinguishes passing component checks from missing capabilities; it does not claim live benchmark accuracy.
+
 The original kit reference follows. References such as “section 6” below retain their original numbering. The repository tree and setup instructions are source reference material; section 9 covers implementation additions, and section 11 identifies missing referenced setup resources.
 
 **Industrial Agents Hackathon 2026**, in cooperation with UVC Partners and Anthropic. This is the student kit for Track 01.
