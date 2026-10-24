@@ -13,7 +13,7 @@ from pathlib import Path
 
 import networkx as nx
 from shapely.geometry import LineString, Point, Polygon
-from shapely.ops import linemerge, nearest_points
+from shapely.ops import nearest_points
 
 from .storage import BuildingSpatialIndex, JsonBuildingStore
 
@@ -874,6 +874,136 @@ class BuildingMap:
 
     # ---------- shared walls ----------
 
+    MIN_SHARED_WALL_M = 1.0
+    SHARED_WALL_TYPES = ("room", "hall")
+    SHARED_WALL_MAX_ANGLE_SIN = math.sin(math.radians(15))
+    SHARED_WALL_ELIGIBILITY = (
+        "Counts same-floor spaces of type room or hall (hall bays and lobbies included) with at least 1 m "
+        "of wall running parallel within 0.35 m of this room's outline; corridors, stairwells, lifts and "
+        "outdoor spaces never count, and doors are irrelevant."
+    )
+
+    @staticmethod
+    def wall_contact_runs(first: Polygon, second: Polygon, tolerance_m: float) -> list[list[tuple]]:
+        """Stretches of the first outline that run along the second outline, each a list of points.
+
+        A stretch only counts where an edge of the first outline is nearly parallel (within 15 degrees)
+        to an edge of the second, lies within tolerance_m of that edge's line and faces it, meaning the
+        two edges overlap when projected onto each other. Outline pieces that merely continue past the
+        wall end (the buffer's "corner caps") project to zero overlap, so they are not counted. Runs
+        are chained across polygon vertices; longest first is left to the caller.
+        """
+        first_points = list(first.exterior.coords)
+        second_points = list(second.exterior.coords)
+        limit = tolerance_m + GEOMETRY_EPSILON
+        pieces = []  # (edge index, start offset, end offset, edge length), in outline order
+        for index in range(len(first_points) - 1):
+            start, end = first_points[index], first_points[index + 1]
+            length = math.dist(start, end)
+            if length <= GEOMETRY_EPSILON:
+                continue
+            ux, uy = (end[0] - start[0]) / length, (end[1] - start[1]) / length
+            intervals = []
+            for other in range(len(second_points) - 1):
+                r, s = second_points[other], second_points[other + 1]
+                other_length = math.dist(r, s)
+                if other_length <= GEOMETRY_EPSILON:
+                    continue
+                vx, vy = (s[0] - r[0]) / other_length, (s[1] - r[1]) / other_length
+                slope = vx * uy - vy * ux  # sine of the angle between the edges
+                if abs(slope) > BuildingMap.SHARED_WALL_MAX_ANGLE_SIN:
+                    continue
+                offset = vx * (start[1] - r[1]) - vy * (start[0] - r[0])  # signed distance at the start
+                low, high = 0.0, length
+                if abs(slope) > 1e-12:
+                    bounds = sorted(((-limit - offset) / slope, (limit - offset) / slope))
+                    low, high = max(low, bounds[0]), min(high, bounds[1])
+                elif abs(offset) > limit:
+                    continue
+                along = sorted(((r[0] - start[0]) * ux + (r[1] - start[1]) * uy,
+                                (s[0] - start[0]) * ux + (s[1] - start[1]) * uy))
+                low, high = max(low, along[0]), min(high, along[1])
+                if high - low > GEOMETRY_EPSILON:
+                    intervals.append((low, high))
+            for low, high in sorted(intervals):
+                if pieces and pieces[-1][0] == index and low <= pieces[-1][2] + GEOMETRY_EPSILON:
+                    pieces[-1] = (index, pieces[-1][1], max(high, pieces[-1][2]), length)
+                else:
+                    pieces.append((index, low, high, length))
+        runs: list[list[tuple]] = []
+        joined_to_previous = []
+        for index, low, high, length in pieces:
+            start, end = first_points[index], first_points[index + 1]
+            direction = ((end[0] - start[0]) / length, (end[1] - start[1]) / length)
+            low_point = (start[0] + direction[0] * low, start[1] + direction[1] * low)
+            high_point = (start[0] + direction[0] * high, start[1] + direction[1] * high)
+            if runs and joined_to_previous[-1] == index - 1 and low <= GEOMETRY_EPSILON:
+                runs[-1].append(high_point)
+            else:
+                runs.append([low_point, high_point])
+            # The run can continue onto the next edge only if this piece reaches the end of its edge.
+            joined_to_previous.append(index if length - high <= GEOMETRY_EPSILON else None)
+        # A run that crosses the ring's closing vertex was split into the last and the first run.
+        if len(runs) > 1 and pieces[0][0] == 0 and pieces[0][1] <= GEOMETRY_EPSILON and (
+            pieces[-1][0] == len(first_points) - 2 and pieces[-1][3] - pieces[-1][2] <= GEOMETRY_EPSILON
+        ):
+            runs[-1].extend(runs.pop(0)[1:])
+        return runs
+
+    @staticmethod
+    def run_length(run: list[tuple]) -> float:
+        return sum(math.dist(first, second) for first, second in zip(run, run[1:]))
+
+    def space_wall_contact(self, source_id: str, other_id: str, tolerance_m: float) -> dict:
+        """Wall contact of the source outline against another same-floor space (see wall_contact_runs)."""
+        source, other = self.valid_polygon(source_id), self.valid_polygon(other_id)
+        runs = sorted(
+            self.wall_contact_runs(source, other, tolerance_m),
+            key=lambda run: (-self.run_length(run), run[0]),
+        )
+        return {"runs": runs, "total_length_m": sum(self.run_length(run) for run in runs)}
+
+    def count_shared_walls(self, reference: str) -> dict:
+        """Eligible same-floor rooms with at least MIN_SHARED_WALL_M of wall within the wall tolerance.
+
+        Eligibility is this operation's own rule (type room or hall; see SHARED_WALL_ELIGIBILITY), not
+        the delivery-count rule. Lengths are measured along the source outline; unrounded.
+        """
+        source_id = self.resolve_space(reference)
+        source = self.valid_polygon(source_id)
+        floor_id = self.spaces[source_id]["floor_id"]
+        min_x, min_y, max_x, max_y = source.bounds
+        reach = SHARED_WALL_TOLERANCE_M
+        neighbours, excluded = [], []
+        for other_id, other in sorted(self.spaces.items()):
+            if other_id == source_id or other["floor_id"] != floor_id:
+                continue
+            other_min_x, other_min_y, other_max_x, other_max_y = self.valid_polygon(other_id).bounds
+            if (other_min_x > max_x + reach or other_max_x < min_x - reach
+                    or other_min_y > max_y + reach or other_max_y < min_y - reach):
+                continue
+            length = self.space_wall_contact(source_id, other_id, SHARED_WALL_TOLERANCE_M)["total_length_m"]
+            if length <= 0.01:
+                continue
+            entry = {**self.space_summary(other_id), "shared_length_m": length}
+            for key in ("floor_level", "floor"):
+                del entry[key]
+            if normalize_type(other["type"]) not in self.SHARED_WALL_TYPES:
+                excluded.append({**entry, "reason": f"{other['type']} spaces are never counted"})
+            elif length < self.MIN_SHARED_WALL_M - GEOMETRY_EPSILON:
+                excluded.append({**entry, "reason": f"shared wall below {self.MIN_SHARED_WALL_M:g} m"})
+            else:
+                neighbours.append(entry)
+        return {
+            "space": self.space_summary(source_id),
+            "count": len(neighbours),
+            "neighbours": neighbours,
+            "excluded": excluded,
+            "min_shared_length_m": self.MIN_SHARED_WALL_M,
+            "wall_tolerance_m": SHARED_WALL_TOLERANCE_M,
+            "eligibility": self.SHARED_WALL_ELIGIBILITY,
+        }
+
     # ---------- errands ----------
 
     # ---------- tours ----------
@@ -1059,37 +1189,32 @@ class BuildingMap:
     def shared_wall(
         self, first_id: str, second_id: str, tolerance_m: float = SHARED_WALL_TOLERANCE_M
     ) -> dict:
-        """The part of the first space's outline that lies within tolerance_m of the second space.
+        """The part of the first space's outline that runs along the second space within tolerance_m.
 
         Walls have thickness, so rooms that share a wall have outlines up to about tolerance_m apart.
-        Returns total_length_m, runs (contiguous stretches with length_m, start and end, longest first)
-        and midpoint: the middle of the longest run, halfway between both polygons (None if no contact).
-        Corner-only contact gives only short runs. Both spaces must be on the same floor.
+        Only stretches parallel to the other outline count (see wall_contact_runs): a corner-only
+        contact has length 0. Returns total_length_m, runs (contiguous stretches with length_m, start
+        and end, longest first) and midpoint: the middle of the longest run, halfway between both
+        polygons (None if no contact). Both spaces must be on the same floor.
         """
         tolerance_m = check_number("tolerance_m", tolerance_m, 0)
         if first_id == second_id:
             raise MapError("A space does not share a wall with itself.")
         if self.spaces[first_id]["floor_id"] != self.spaces[second_id]["floor_id"]:
             raise MapError("Spaces on different floors cannot share a wall or a door.")
-        first, second = self.valid_polygon(first_id), self.valid_polygon(second_id)
-        near = first.exterior.intersection(second.buffer(tolerance_m))
-        parts = getattr(near, "geoms", [near])
-        lines = [part for part in parts if isinstance(part, LineString) and part.length > 0]
-        merged = linemerge(lines) if lines else None
-        pieces = list(getattr(merged, "geoms", [merged])) if merged is not None else []
-        pieces.sort(key=lambda piece: (-piece.length, piece.coords[0]))
+        contact = self.space_wall_contact(first_id, second_id, tolerance_m)
         runs = [
-            {"length_m": piece.length, "start": list(piece.coords[0]), "end": list(piece.coords[-1])}
-            for piece in pieces
+            {"length_m": self.run_length(run), "start": list(run[0]), "end": list(run[-1])}
+            for run in contact["runs"]
         ]
         midpoint = None
-        if pieces:
-            on_first = pieces[0].interpolate(0.5, normalized=True)
-            on_second = nearest_points(second, on_first)[0]
+        if runs:
+            on_first = LineString(contact["runs"][0]).interpolate(0.5, normalized=True)
+            on_second = nearest_points(self.valid_polygon(second_id), on_first)[0]
             midpoint = [(on_first.x + on_second.x) / 2, (on_first.y + on_second.y) / 2]
         return {
             "first_space_id": first_id, "second_space_id": second_id, "tolerance_m": tolerance_m,
-            "total_length_m": sum(run["length_m"] for run in runs), "runs": runs, "midpoint": midpoint,
+            "total_length_m": contact["total_length_m"], "runs": runs, "midpoint": midpoint,
         }
 
     def add_door(

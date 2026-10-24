@@ -160,8 +160,8 @@ class DoorPlacementTests(unittest.TestCase):
     def test_shared_wall_reports_runs_and_midpoint(self):
         building = make_map()
         wall = building.shared_wall("left", "right")
-        # The 0.35 m tolerance also catches the outline stretches beside the wall ends: 4 + 2 * 0.35.
-        self.assertAlmostEqual(wall["total_length_m"], 4.7, places=3)
+        # Outline stretches beside the wall ends (within 0.35 m) are not wall: exactly the 4 m wall.
+        self.assertAlmostEqual(wall["total_length_m"], 4.0, places=3)
         self.assertEqual(len(wall["runs"]), 1)
         self.assertAlmostEqual(wall["midpoint"][0], 0)
         self.assertAlmostEqual(wall["midpoint"][1], 0)

@@ -276,6 +276,23 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
     # ---------- shared walls ----------
 
+    @register
+    def count_shared_walls(space: str) -> str:
+        """Count the other rooms on the same floor that share a wall with a room (soundproofing, noise).
+
+        A room counts when at least 1 m of its wall runs along the source room's outline within 0.35 m
+        (walls have thickness), with or without a door. Corridors, stairwells, lifts and outdoor spaces
+        never count; hall bays do. For a scored "Answer:" line give exactly one integer: `count`.
+        `excluded` lists adjacent spaces that were not counted, with the reason.
+
+        Args:
+            space: Space id, asset id, or exact room number/name of the room whose walls are examined.
+        """
+        try:
+            return as_json(round_numbers(building_map.count_shared_walls(space), 3))
+        except MapError as error:
+            raise ToolError(str(error)) from error
+
     # ---------- errands ----------
 
     # ---------- tours ----------
