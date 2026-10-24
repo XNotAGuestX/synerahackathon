@@ -48,6 +48,45 @@ root README for inherited geometry limitations. Current regressions: **176 run,
 173 passed, 3 credential-dependent skips**; four sampled dev errands and all four
 labelled what-if doors also pass with the corrected answers.
 
+## Run library (retrieved worked examples)
+
+A **run** is one answered benchmark question, kept in `final_agent/run_library.jsonl`
+(committed, keyed by `question_id`): skill, kind, the agent's declared kind and
+building-agnostic semantic translation, the full question, its tool calls (names and
+arguments only, no results) and the reply. Runs never store the `answer`/`inputs` labels.
+A run is **accepted** only if `benchmark.score.score_reply` marks the reply correct
+**and** the agent's first `recall_examples` call declared the question's real kind.
+
+`final_agent.benchmark:answer` gives the agent a `recall_examples(kind,
+semantic_translation)` tool that it calls first. That call declares the kind and returns
+up to three accepted runs of that kind, nearest by translation similarity: FastEmbed
+`BAAI/bge-small-en-v1.5` vectors, cached in `~/.cache/fastembed`, in an in-memory Qdrant
+collection that is rebuilt from the JSONL once per process. Chat has no recall tool.
+`final_agent/embedding.py` is the adapter: to use a dedicated embedding server, add a
+class implementing `Embedder` and return it from `default_embedder()`.
+
+```bash
+# Build (paid; the only code that reads answer labels). Only questions without an
+# accepted run are pending, so a rerun retries rejected ones.
+uv run python -m final_agent.train_runs                 # small: 1 train question per kind
+uv run python -m final_agent.train_runs --all           # small sample from train + dev
+uv run python -m final_agent.train_runs --full          # every pending question, after typing 'yes'
+uv run python -m final_agent.train_runs --model claude-opus-5-5   # default claude-sonnet-5-5
+
+# A/B on the same dev sample (keep the library train-only for this comparison)
+uv run python -m benchmark.evaluate data/dev --agent final_agent.benchmark:answer_without_examples --per-kind 2 --name dev-runs-baseline
+uv run python -m benchmark.evaluate data/dev --agent final_agent.benchmark:answer --per-kind 2 --name dev-runs-examples
+```
+
+Measured 24 October 2026. The committed library came from the small build on
+claude-sonnet-5-5: all 9 train runs (one per kind) were accepted, estimated at $0.81. That
+estimate uses the claude-opus-5-5 price table in `benchmark/evaluate.py`. The A/B ran on the same 17-question dev sample (2 per
+kind, 1 `step_free_reachable_count`): the baseline scored **17/17** and the run with
+examples **17/17**. This is a small sample, not a scored result. The baseline is already
+perfect on it, so it shows no measurable effect of the examples. The evaluate log keeps
+replies only, so it does not show whether `recall_examples` was called in each A/B
+answer.
+
 - [Complete challenge and implementation reference](../README.md)
 - [Remaining implementation work](../BACKLOG.md)
 - [Grading and submission](../README.md#1-the-challenge)
