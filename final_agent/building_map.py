@@ -1570,6 +1570,119 @@ class BuildingMap:
             )
         return result
 
+    # ---------- map selection and context ----------
+
+    # Set only by select() (a locate action); search, landmarks, previews and analyses never touch it.
+    selection: dict | None = None
+    CONTEXT_EXCLUDED_TYPES = ("corridor", "stair", "lift", "outdoor")
+    CONTEXT_EXCLUDED_ROOM_TYPES = ("corridor", "stairwell", "lift")
+    MAX_CONTEXT_ROOMS = 5
+
+    def select(self, reference: str) -> dict:
+        """Make a space or asset the map selection and return its identity.
+
+        An asset id or exact asset name selects the asset and keeps its containing room; an ambiguous or
+        unknown reference raises MapError (with candidate ids) and leaves the previous selection unchanged.
+        """
+        space_id = self.resolve_space(reference)
+        asset = self.asset_behind_reference(reference, space_id)
+        self.selection = {
+            "kind": "asset" if asset else "space",
+            "id": asset["id"] if asset else space_id,
+            "space_id": space_id,
+            "floor_id": self.spaces[space_id]["floor_id"],
+        }
+        if asset:
+            self.located_asset_ids = [asset["id"]]
+        return self.selection_identity()
+
+    def place_record(self, space_id: str) -> dict:
+        """Id, name and floor of a space, for listing route stops next to their map markers."""
+        floor_id = self.spaces[space_id]["floor_id"]
+        return {
+            "id": space_id, "name": self.spaces[space_id]["name"],
+            "floor_level": self.floor_level(floor_id), "floor": self.floor_name(floor_id),
+        }
+
+    def selection_identity(self) -> dict | None:
+        """Name, containing room, floor and position of the current selection; None when nothing is selected."""
+        if self.selection is None:
+            return None
+        space_id = self.selection["space_id"]
+        room = self.space_summary(space_id)
+        if self.selection["kind"] == "asset":
+            asset = self.assets[self.selection["id"]]
+            return {
+                "kind": "asset", "id": asset["id"], "name": asset["name"], "type": asset["type"],
+                "position": list(asset["position"]), "room": room,
+                "floor_level": room["floor_level"], "floor": room["floor"],
+            }
+        point = self.anchor(space_id)
+        return {
+            **room, "kind": "space", "area_m2": round(self.space_area_m2(space_id), 3),
+            "position": [round(point[0], 3), round(point[1], 3)],
+        }
+
+    def destination_context(self, reference: str, radius_m: float = 15.0, min_area_m2: float = 40.0) -> dict:
+        """Named, sizable rooms around a destination room, for 'the destination is next to the canteen'.
+
+        Uses find_navigation_landmarks(kind="space", min_size=min_area_m2) from the room's representative point,
+        widened by the room's own extent so radius_m is measured from the room outline. relation is "adjacent"
+        only when a same-floor wall of at least MIN_SHARED_WALL_M lies within SHARED_WALL_TOLERANCE_M (adjacency
+        says nothing about a connecting door or access); otherwise "near" with the outline-to-outline distance.
+        Corridors, stairs, lifts and outdoor spaces and the destination itself are left out. For an asset the
+        context describes its containing room, not the asset's own position.
+        """
+        radius_m = check_number("radius_m", radius_m, 0)
+        min_area_m2 = check_number("min_area_m2", min_area_m2, 0)
+        space_id = self.resolve_space(reference)
+        asset = self.asset_behind_reference(reference, space_id)
+        polygon = self.valid_polygon(space_id)
+        x, y = self.anchor(space_id)
+        extent = max(math.dist((x, y), corner) for corner in polygon.exterior.coords)
+        found = self.find_navigation_landmarks(
+            x, y, self.floor_level(self.spaces[space_id]["floor_id"]), radius_m + extent, radius_m + extent,
+            min_area_m2, "space",
+        )
+        rooms = []
+        for candidate in found["candidates"]:
+            other = self.spaces[candidate["id"]]
+            if (
+                candidate["id"] == space_id
+                or normalize_type(other.get("type") or "") in self.CONTEXT_EXCLUDED_TYPES
+                or normalize_type(other.get("room_type") or "") in self.CONTEXT_EXCLUDED_ROOM_TYPES
+            ):
+                continue
+            distance = polygon.distance(self.valid_polygon(candidate["id"]))
+            wall = self.space_wall_contact(space_id, candidate["id"], SHARED_WALL_TOLERANCE_M)["total_length_m"]
+            adjacent = wall >= self.MIN_SHARED_WALL_M - GEOMETRY_EPSILON
+            if distance > radius_m and not adjacent:
+                continue
+            room = {
+                "id": candidate["id"], "name": other["name"], "ref": other.get("ref"), "type": other["type"],
+                "room_type": other["room_type"], "area_m2": candidate["size_m2"],
+                "relation": "adjacent" if adjacent else "near", "distance_m": round(distance, 3),
+                "is_unambiguous": candidate["is_unambiguous"], "similar_count_outer": candidate["similar_count_outer"],
+                "representative_point": candidate["representative_point"],
+            }
+            if adjacent:
+                room["shared_wall_m"] = round(wall, 3)
+            rooms.append(room)
+        rooms.sort(key=lambda item: (
+            item["relation"] != "adjacent", not item["is_unambiguous"], -item["area_m2"], item["distance_m"], item["id"],
+        ))
+        result = {
+            "destination": {**self.space_summary(space_id), "area_m2": round(polygon.area, 3)},
+            "query": {"radius_m": radius_m, "min_area_m2": min_area_m2, "from_outline": True},
+            "context": rooms[: self.MAX_CONTEXT_ROOMS],
+            "candidate_count": len(rooms),
+        }
+        if asset:
+            result["asset"] = {"id": asset["id"], "name": asset["name"], "position": list(asset["position"])}
+        if not rooms:
+            result["hint"] = "No named room of at least min_area_m2 within radius_m: omit landmark context."
+        return result
+
     # ---------- changes ----------
 
     def find_element(self, reference: str) -> str:
