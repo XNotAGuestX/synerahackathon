@@ -307,6 +307,7 @@ class BuildingMap:
             return False
         lowered = text.lower()
         return all(word in lowered for word in words)
+
     def resolve_space(self, reference: str) -> str:
         """Accept a space id, asset id, exact room ref/name or asset name; return a space id."""
         if reference in self.spaces:
@@ -618,20 +619,14 @@ class BuildingMap:
             ) from error
         centroid = self.space_polygon(space_id).centroid
         summary = self.space_summary(space_id)
-        if reference != space_id and not self.is_exact_space_reference(reference):
-            summary["resolved_from_asset"] = reference
+        asset = self.asset_behind_reference(reference, space_id)
+        if asset:
+            summary["resolved_from_asset"] = {"id": asset["id"], "name": asset["name"]}
             summary["note"] = f"'{reference}' is an asset; its containing room {space_id} was used."
         return {
             **summary, "centroid": [centroid.x, centroid.y],
             "elevation_m": elevation, "point": [centroid.x, centroid.y, elevation],
         }
-
-    def is_exact_space_reference(self, reference: str) -> bool:
-        lowered = reference.strip().lower()
-        return reference in self.spaces or any(
-            lowered in ((space.get("ref") or "").lower(), space["name"].lower())
-            for space in self.spaces.values()
-        )
 
     def straight_line_distance_3d(self, first: str, second: str) -> dict:
         """Euclidean XYZ distance between two spaces' polygon centroids at their floors' elevation_m.

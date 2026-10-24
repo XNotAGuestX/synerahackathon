@@ -134,6 +134,7 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
             return page_json(results, page, page_size, "Nothing within that radius. Try a larger radius_m.")
         except MapError as error:
             raise ToolError(str(error)) from error
+
     # ---------- inspection ----------
 
     @register

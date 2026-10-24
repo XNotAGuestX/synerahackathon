@@ -45,13 +45,19 @@ def floor_level(building: BuildingMap, floor_id: str) -> int:
     return building.floors[floor_id]["level"]
 
 
+def room_label(room: dict) -> str:
+    """Room name, plus its ref when the name lacks it: some names repeat (e.g. "Büro"), refs do not."""
+    ref = room.get("ref")
+    return f"{room['name']} ({ref})" if ref and ref not in room["name"] else room["name"]
+
+
 # Agreed tool contracts from IMPLEMENTATION_HANDOFF.md (F04-F12): kind -> (tool name,
 # arguments built from the labelled resolved inputs, final reply built from the tool JSON).
 COMPONENT_CALLS = {
     "largest_room": (
         "find_largest_room",
         lambda b, i: {"room_type": i["room_type"], "floor_level": floor_level(b, i["floor_id"])},
-        lambda r: f"Answer: {r['room']['name']}, {r['area_m2']:.2f} m²",
+        lambda r: f"Answer: {room_label(r['room'])}, {r['area_m2']:.2f} m²",
     ),
     "floor_area_total": (
         "sum_floor_area",
@@ -66,7 +72,7 @@ COMPONENT_CALLS = {
     "room_stacked": (
         "find_stacked_room",
         lambda b, i: {"space": i["start"], "direction": i["direction"]},
-        lambda r: f"Answer: {r['room']['name']}",
+        lambda r: f"Answer: {room_label(r['room'])}",
     ),
     "shared_walls_count": (
         "count_shared_walls",

@@ -79,7 +79,7 @@ class StraightLineDistance3dTests(unittest.TestCase):
     def test_asset_resolves_to_containing_room_and_says_so(self):
         result = self.distance("printer", "a")
         self.assertEqual(result["first"]["id"], "top")
-        self.assertEqual(result["first"]["resolved_from_asset"], "printer")
+        self.assertEqual(result["first"]["resolved_from_asset"], {"id": "printer", "name": "Printer"})
         self.assertNotIn("resolved_from_asset", result["second"])
 
     def test_missing_or_nonfinite_elevation_is_an_error(self):
