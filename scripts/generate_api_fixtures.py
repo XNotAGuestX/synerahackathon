@@ -173,6 +173,37 @@ def copy_connector(connector: dict) -> dict:
     }
 
 
+def build_floor_plan(
+    building_map: BuildingMap,
+    floor: dict,
+    *,
+    revision: int = 1,
+    closed_ids: list[str] | None = None,
+) -> dict:
+    floor_id = floor["id"]
+    spaces = [copy_space(space) for space in building_map.spaces.values() if space["floor_id"] == floor_id]
+    openings = [copy_opening(opening) for opening in building_map.openings.values() if opening["floor_id"] == floor_id]
+    assets = [copy_asset(asset) for asset in building_map.assets.values() if asset["floor_id"] == floor_id]
+    connectors = [
+        copy_connector(connector)
+        for connector in building_map.connectors.values()
+        if floor_id in connector["floor_ids"]
+    ]
+    return {
+        "schema_version": 1,
+        "session_id": SESSION_ID,
+        "revision": revision,
+        "floor": floor_item(building_map, floor),
+        "included": ["spaces", "openings", "assets", "connectors"],
+        "spaces": spaces,
+        "openings": openings,
+        "assets": assets,
+        "connectors": connectors,
+        "closed_ids": list(closed_ids or []),
+        "bounds": bounds_for(spaces, openings, assets),
+    }
+
+
 def bounds_for(spaces: list[dict], openings: list[dict], assets: list[dict]) -> dict:
     points: list[list[float]] = []
     for space in spaces:
@@ -488,30 +519,15 @@ def main() -> None:
     write_json("floor-index.json", floor_index)
 
     ground = next(floor for floor in building_map.floors.values() if floor["level"] == 0)
-    floor_id = ground["id"]
-    spaces = [copy_space(space) for space in building_map.spaces.values() if space["floor_id"] == floor_id]
-    openings = [copy_opening(opening) for opening in building_map.openings.values() if opening["floor_id"] == floor_id]
-    assets = [copy_asset(asset) for asset in building_map.assets.values() if asset["floor_id"] == floor_id]
-    connectors = [
-        copy_connector(connector)
-        for connector in building_map.connectors.values()
-        if floor_id in connector["floor_ids"]
-    ]
-    plan = {
-        "schema_version": 1,
-        "session_id": SESSION_ID,
-        "revision": 1,
-        "floor": floor_item(building_map, ground),
-        "included": ["spaces", "openings", "assets", "connectors"],
-        "spaces": spaces,
-        "openings": openings,
-        "assets": assets,
-        "connectors": connectors,
-        "closed_ids": [],
-        "bounds": bounds_for(spaces, openings, assets),
-    }
+    plan = build_floor_plan(building_map, ground)
     check_floor_plan(plan)
     write_json("floor-plan.json", plan)
+    for floor in sorted(building_map.floors.values(), key=lambda item: item["level"]):
+        if floor["id"] == ground["id"]:
+            continue
+        extra = build_floor_plan(building_map, floor)
+        check_floor_plan(extra)
+        write_json(f"floor-plan-f{floor['level']}.json", extra)
 
     hits = building_map.search("cnc", 0)[:PLACE_LIMIT]
     places = {

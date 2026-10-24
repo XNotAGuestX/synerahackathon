@@ -25,7 +25,8 @@ Standardgebäude: `data/dev/proc-factory-dev-003` (Fertigung Ost 27).
 | `POST /api/v1/sessions` und `GET /api/v1/sessions/{id}` | `examples/session.json` |
 | `GET /api/v1/sessions/{id}/floors` | `examples/floor-index.json` |
 | `GET .../floors/proc-factory-dev-003-F0/plan` | `examples/floor-plan.json` |
-| Dieselbe Etage nach bestätigtem Schließen | `examples/floor-plan-closed.json` |
+| `GET .../floors/proc-factory-dev-003-F1/plan` | `examples/floor-plan-f1.json` |
+| Dieselbe Erdgeschoss-Etage nach bestätigtem Schließen | `examples/floor-plan-closed.json` |
 | `GET /api/v1/health` | `examples/health.json` |
 | `GET .../places?q=cnc` | `examples/places-page.json` |
 | `POST .../routes`, erreichbar | `examples/route.json` |

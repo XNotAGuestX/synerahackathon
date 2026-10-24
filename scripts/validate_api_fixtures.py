@@ -24,6 +24,7 @@ MAPPING = {
     "session.json": "Session",
     "floor-index.json": "FloorIndex",
     "floor-plan.json": "FloorPlan",
+    "floor-plan-f1.json": "FloorPlan",
     "floor-plan-closed.json": "FloorPlan",
     "places-page.json": "PlacePage",
     "route.json": "Route",

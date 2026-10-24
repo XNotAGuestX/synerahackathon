@@ -2,6 +2,10 @@
 
 Versionen des Andockvertrags.
 
+## Unreleased
+
+- Beispielgrundriss für Etage 1: `docs/api/examples/floor-plan-f1.json`. Der v1-Vertrag bleibt unverändert.
+
 ## 1.0.0 — 2026-10-24
 
 - `/api/v1` eingefroren (`docs/api/openapi.yaml`). Teamdokumente sind Deutsch.
