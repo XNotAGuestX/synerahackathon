@@ -73,6 +73,111 @@ When roles exist:
   alert and confirm their own safety.
 - Add a test that a non-admin cannot trigger the roll call or see anyone's location.
 
+## Could this run on real smartphones?
+
+**Short answer: yes as an alert-and-confirm system; no as a silent "pull everyone's
+location" button.** Commercial products already do the first:
+
+- Everbridge sends push alerts that override silent mode and Do Not Disturb.
+- AlertMedia offers two-way check-ins with opt-in location sharing.
+- Genetec Security Center has badge "mustering" at assembly-point readers.
+
+The mock's model (alert, tap "I'm safe", badge fallback, manual correction) matches
+what is realistic. The hard parts are reaching every phone, getting a location and
+the law. Status as researched in October 2026:
+
+**1. Getting the alert through silent mode and Do Not Disturb is possible, but not
+guaranteed.**
+
+- *iOS Critical Alerts* sound even when the phone is muted or in a Focus mode.
+  They need an Apple entitlement that Apple grants "extremely rare[ly]", mostly to
+  public agencies and health or home apps. Everbridge has it, but a company app
+  should not count on getting it.
+- *iOS time-sensitive notifications* need no approval and break through Focus, but
+  not through the mute switch.
+- *Android* high-priority FCM (Firebase Cloud Messaging) wakes the phone even in
+  battery-saving Doze mode. Getting past Do Not Disturb needs the user to grant
+  that access, or to turn on "Override Do Not Disturb" for the alert channel.
+  Full-screen alerts on Android 14+ also need a user grant. So onboarding must ask
+  for these settings up front.
+
+**2. Pulling a location without the person's help is unreliable, especially on
+iOS.**
+
+- On iOS, silent pushes are throttled, are "not guaranteed", and never reach an app
+  the user has force-quit.
+- Apple's Location Push Service Extension can answer a location request while the
+  app is closed. It needs "Always" location permission plus an entitlement meant
+  for location-sharing apps, and in 2026 the way to request that entitlement was
+  unclear.
+- On Android 14+, a high-priority message can start a foreground service, but
+  location from it effectively needs "Allow all the time" permission. Google Play
+  also requires a background-location declaration; "physical safety" is an
+  accepted reason.
+- Practical design: **record the location when the person opens the alert and taps
+  "I'm safe"** (the app is then in the foreground). For people who don't respond,
+  use the last badge reader or last known fix, which is exactly what the mock shows.
+
+**3. Indoor positions are coarse.**
+
+- GPS is about 5 m under open sky and much worse inside.
+- Wi-Fi round-trip-time ranging reaches 1–2 m, but only with compatible access
+  points.
+- The floor level is the weak spot: even the US 911 rule allows ±3 m, about one
+  storey.
+- An RFID badge only knows the last reader it passed. Show "last seen near",
+  never a live dot.
+
+**4. Delivery is best-effort, so the app can never be the only channel.**
+
+- APNs (Apple's push service) is "a best-effort service" and keeps only one pending
+  notification per app while the phone is offline. FCM gives no delivery guarantee
+  either.
+- Phones can be dead, left behind or without network, which is the mock's "left
+  the phone inside" case.
+- Keep sirens or the public-address system, SMS or voice fallback, badge readers
+  at the muster point, and the warden's headcount at the assembly point.
+  DGUV 205-033, a German workplace-safety guideline, requires that headcount,
+  including visitors.
+- Cell Broadcast (DE-Alert) is reserved for authorities under §164a TKG; companies
+  cannot use it.
+
+**5. Law in Germany allows it only narrowly.**
+
+- Employee location is personal data. Consent is weak in employment. The sounder
+  legal basis is the employer's evacuation duty (§10 ArbSchG, ASR A2.3) under Art.
+  6(1)(c)/(f) GDPR. §26(1) BDSG is largely displaced since CJEU C-34/21.
+- A location-capable app is a technical monitoring device, so the works council
+  has co-determination rights (§87(1) Nr. 6 BetrVG). Expect a works agreement
+  that permits collection **only while an alarm is active**, restricts who can see
+  it (admins) and deletes the data afterwards.
+- Installing the app on private phones should be voluntary. The Thuringia state
+  labour court (2018) ruled that employees generally need not hand over their
+  private number.
+
+**Verdict:** a real version is feasible for a company app (Android, and iOS with
+time-sensitive alerts or a Critical Alerts approval). It must be built as
+alert, plus "I'm safe" with the location captured at that moment, plus badge
+mustering and warden fallback. Admin-only access is a legal requirement, not just
+a product choice, which makes the missing user roles (above) a blocker for any
+real deployment.
+
+Main sources: Apple docs on
+[Critical Alerts](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.usernotifications.critical-alerts),
+[background pushes](https://developer.apple.com/documentation/usernotifications/pushing-background-updates-to-your-app),
+[location push](https://developer.apple.com/documentation/corelocation/creating-a-location-push-service-extension) and
+[APNs](https://developer.apple.com/documentation/usernotifications/sending-notification-requests-to-apns);
+Android docs on [FCM priority](https://firebase.google.com/docs/cloud-messaging/android-message-priority),
+[background location](https://developer.android.com/develop/sensors-and-location/location/permissions/background),
+[Android 14 changes](https://developer.android.com/about/versions/14/behavior-changes-14) and
+[Wi-Fi RTT](https://developer.android.com/develop/connectivity/wifi/wifi-rtt);
+[Genetec mustering](https://techdocs.genetec.com/r/en-US/Mustering-Task-Guide-3.1/Using-the-Mustering-task-to-move-cardholders-to-mustering-areas-by-badging);
+[§164a TKG](https://www.gesetze-im-internet.de/tkg_2021/__164a.html),
+[§10 ArbSchG](https://www.gesetze-im-internet.de/arbschg/__10.html),
+[§87 BetrVG](https://www.gesetze-im-internet.de/betrvg/__87.html),
+[§26 BDSG](https://www.gesetze-im-internet.de/bdsg_2018/__26.html).
+These are platform and legal summaries, not legal advice.
+
 ## Other limitations
 
 - Positions are the **last known** fix or badge reader, not live tracking.
