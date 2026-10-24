@@ -327,6 +327,46 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
     # ---------- errands ----------
 
+    @register
+    def plan_errand(
+        start: str, asset_type: str, destination_room_type: str, destination_floor_level: int,
+        step_free: bool = False, min_width_m: float = 0.0, activate: bool = False,
+    ) -> str:
+        """Plan "grab X from the room that has one closest to me, then carry it to the largest Y on floor N".
+
+        The pickup is the room with the exact asset type that is nearest to the start by walking route
+        distance (several assets in one room are one candidate; balconies and other outdoor rooms count);
+        the destination is the largest room of the requested type on that floor. A shorter combined trip via
+        another pickup is NOT chosen, and if the second leg is impossible an error is returned instead of a
+        different pickup or room. This is not find_best_tour. "I can carry it on the stairs" means
+        step_free=False; carrying an item implies no width limit unless one is stated. The scored answer
+        line is exactly one number: `length_m`, the total metres (both legs). Nothing is changed unless
+        activate=True, which makes the errand the route show_route draws.
+
+        Args:
+            start: Space id, asset id, or exact room number/name where the person starts.
+            asset_type: Exact asset type to fetch, e.g. "printer", "wheelchair", "chair".
+            destination_room_type: Exact room type of the destination, e.g. "meeting_room", "office".
+            destination_floor_level: Floor of the destination (0 = ground floor, -1 = basement).
+            step_free: True only if the person cannot use stairs or steps.
+            min_width_m: Only use doors at least this wide in metres. 0 = any.
+            activate: True to make the errand the active route for the map; default False only computes.
+        """
+        try:
+            result = building_map.plan_errand(
+                start, asset_type, destination_room_type, destination_floor_level, step_free, min_width_m, activate
+            )
+        except MapError as error:
+            raise ToolError(str(error)) from error
+        legs = [route_json(leg) for leg in result.pop("leg_routes")]
+        full_route = result.pop("route")
+        result["legs"] = legs
+        result["pickup"]["distance_m"] = round(result["pickup"]["distance_m"], 2)
+        result["length_m"] = round(result["length_m"], 2)
+        if full_route is not None:
+            result["route"] = route_json(full_route)
+        return as_json(result)
+
     # ---------- tours ----------
 
     @register
