@@ -99,7 +99,7 @@ Results below were run on 24 October 2026 without credentials (coordinator-verif
 
 | Check | Command | Result |
 |---|---|---|
-| Unit/integration tests | `python -m unittest discover -s tests` | all pass (165 at F15 phase 2) |
+| Unit/integration tests | `python -m unittest discover -s tests` | all pass (170 at F15 final review) |
 | Warm-up oracle (dev) | `python -m final_agent.evaluate data/dev --oracle` | 369/369 |
 | Components, dev | `bench_analsysis/run_tests.py --mode components --split data/dev` | 138/138 |
 | Components, train | `bench_analsysis/run_tests.py --mode components --split data/train` | 517/517 |

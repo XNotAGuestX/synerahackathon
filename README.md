@@ -15,11 +15,11 @@
 | Complete challenge PDF text, including its grading table | [13. Challenge PDF reference](#13-challenge-pdf-reference) |
 | Full data attribution | [8. Licences](#8-licences), [14. Data sources and licences](#14-data-sources-and-licences) |
 
-**Current status (24 October 2026):** `final_agent` is independently wired and packaged and registers 19 tools, with a dedicated deterministic tool for each of the nine scored question kinds plus exact inventory, inspection, constrained routing, best tours, what-if doors, landmarks, closures and door edits. Checks run without API credentials: all unit/integration tests pass (165 at the F15 phase 2 review), the dev warm-up oracle passes 369/369, the component runner passes 138/138 dev and 517/517 train scored questions, and the 45 offline representatives pass. The component runner calls the tools with labelled, resolved inputs, so these are not a live benchmark score; **no live run, model-interpretation result or generated test answer file is claimed**. The scored runner selects the project agent with `--agent final_agent.benchmark:answer` (fresh state and temporary outputs per question); [BENCHMARK.md](BENCHMARK.md) has the commands and the submission validator. Map highlights and destination context (F14) are pending at the time of writing; the visual chat/web surface belongs to the team's separate frontend track. Sunday output format and release time remain organizer-dependent. See [final-agent commands](final_agent/README.md), [BACKLOG.md](BACKLOG.md) and sections 9–11.
+**Current status (24 October 2026):** `final_agent` is independently wired and packaged and registers 21 tools, with a dedicated deterministic tool for each of the nine scored question kinds plus exact inventory, inspection, constrained routing, best tours, what-if doors, landmarks, closures, door edits and map images (selected room/asset, route, landmarks, destination context). Checks run without API credentials: all unit/integration tests pass (170 at the F15 final review), the dev warm-up oracle passes 369/369, the component runner passes 138/138 dev and 517/517 train scored questions, and the 45 offline representatives pass. The component runner calls the tools with labelled, resolved inputs, so these are not a live benchmark score; **no live run, model-interpretation result or generated test answer file is claimed**. The scored runner selects the project agent with `--agent final_agent.benchmark:answer` (fresh state and temporary outputs per question); [BENCHMARK.md](BENCHMARK.md) has the commands and the submission validator. The maps are per-floor PNG images; an interactive chat/map surface belongs to the team's separate frontend track. Sunday output format and release time remain organizer-dependent. See [final-agent commands](final_agent/README.md), [BACKLOG.md](BACKLOG.md) and sections 9–11.
 
 [FEATURE_SHORTLIST.md](FEATURE_SHORTLIST.md) records proposed features, prompt-related implementation gaps and the future switch to automatic mobile location updates. It marks the capabilities that are now implemented; mobile location, layout editing, furniture changes, multiple buildings, plan ingestion and the Synera route model remain unimplemented.
 
-[IMPLEMENTATION_HANDOFF.md](IMPLEMENTATION_HANDOFF.md) specifies the paginated search, room inspection, reachability, all nine analysis kinds, optimal tours, navigation landmarks and map highlights, with one Sonnet implementation agent per feature and independent verification afterwards. Those features are now implemented, except that F14 (map display and destination context) is pending at the time of writing and the web UI is out of scope (owned by the team's frontend track). The document remains the contract reference; the verified status is in section 9 and [BACKLOG.md](BACKLOG.md).
+[IMPLEMENTATION_HANDOFF.md](IMPLEMENTATION_HANDOFF.md) specifies the paginated search, room inspection, reachability, all nine analysis kinds, optimal tours, navigation landmarks and map highlights, with one Sonnet implementation agent per feature and independent verification afterwards. Those features are now implemented as tools and per-floor PNG images; an interactive surface is out of scope here (owned by the team's frontend track). The document remains the contract reference; the verified status is in section 9 and [BACKLOG.md](BACKLOG.md).
 
 [Benchmark request analysis](bench_analsysis/README.md) reviews 280 questions across 20 varied dev buildings, with implementation/missing-tool tables, underdocumented expected results and 45 runnable representatives in three difficulty tiers. Its offline evidence distinguishes passing component checks from missing capabilities; it does not claim live benchmark accuracy. An update after the implementation records the new offline and component results.
 
@@ -436,7 +436,7 @@ This section is a code assessment as of 24 October 2026, not an organizer specif
 ```text
 Terminal conversation
   → final_agent.agent.BuildingAgent (Claude + conversation history)
-  → 19 typed tools in final_agent/tools.py (see section 12)
+  → 21 typed tools in final_agent/tools.py (see section 12)
   → BuildingMap (JSON data + Shapely geometry + NetworkX MultiGraph)
   → route result / edited JSON / Matplotlib PNGs
 
@@ -459,7 +459,7 @@ benchmark.evaluate → agent(building_directory, question_text) → reply
 | Closures | Final tools close/reopen rooms, openings, stairs and lifts; snapshots serialize closures and reload restores them; after an edit the active route is recomputed with its constraints (`active_route` / `active_route_error`) and stale routes are cleared; a failed save rolls the edit back | No event history or preview/undo |
 | Edits | `add_door` validates the pair (rejects self, cross-floor and non-adjacent rooms), places the door at the shared-wall midpoint with an optional width and exports edited building JSON; `analyze_what_if_door` simulates a door without saving | No layout editing (room boundaries, names, types), furniture moves, preview/cancel/undo |
 | Directions | Room/floor transitions and distance from the computed route; `find_navigation_landmarks` returns nearby cues with an ambiguity check (`is_unambiguous`) | No geometric left/right turns or live positioning; using the cues in directions is prompt-driven |
-| Visualization | Static PNG per crossed floor, space polygons, the route line drawn through the selected doors and connectors, and closed-room shading | Locate highlights, asset markers and destination context (F14) are pending; no interactive map, animation or stacked 3D floors; a visual chat/web surface belongs to the team's frontend track |
+| Visualization | Per-floor PNG renderer: the selected room/asset (`show_location`), the route drawn from the selected doors with start and destination, numbered stops, stair/lift handoff labels, closures, landmarks and destination context (`show_route(landmark_ids)`), and a fitted view | No interactive surface, animation or stacked 3D floors; the interactive chat/map surface belongs to the team's frontend track |
 | Evaluation | Project warm-up evaluator, isolated benchmark callable, official scorer/runner, CSV export, submission validator (`python -m final_agent.benchmark --check`), focused unit/integration tests (all pass; 165 at the F15 phase 2 review) and the component runner | No measured live benchmark baseline or Sunday adapter; component runs use labelled resolved inputs |
 | Assets | Reads/searches equipment supplied in building JSON | No movement/update API, barcode/RFID ingestion or asset history |
 
@@ -467,8 +467,8 @@ benchmark.evaluate → agent(building_directory, question_text) → reply
 
 | Level | Current status | Completion work |
 |---|---|---|
-| 1 — Locate | Search, inventory, room inspection and conversation exist | Show and highlight the selected room/equipment on a usable map (F14 pending; the visual chat surface belongs to the frontend track); live check of ambiguous/nonexistent references |
-| 2 — Route | Constrained routing (step-free, door width, entrance), closures with rerouting and persistence, ordered tours, best tours and PNG route maps exist | Live check of the interaction script (locate → route → no stairs → closure → reroute → reopen, tour, invalid room); map markers (F14) |
+| 1 — Locate | Search, inventory, room inspection and conversation exist | Show and highlight the selected room/equipment on a usable map: PNG highlights exist (`show_location`); the interactive chat/map surface belongs to the frontend track; live check of ambiguous/nonexistent references |
+| 2 — Route | Constrained routing (step-free, door width, entrance), closures with rerouting and persistence, ordered tours, best tours and PNG route maps exist | Live check of the interaction script (locate → route → no stairs → closure → reroute → reopen, tour, invalid room); the interactive route surface (frontend track) |
 | 3 — Scale | Multiple floors within one building work | Multiple buildings, building disambiguation and walkway connections |
 | 4 — Build | A validated door edit with rollback and a what-if door simulation exist | Floor-plan ingestion, calibrated geometry, generated rooms/openings/connectors, validation, conversational correction and dependable export/reload |
 | 5 — Extend | No complete optional extension is demonstrated | Select and finish one extension after the core workflow works |
@@ -493,7 +493,7 @@ The free dev warm-up command was rerun during the backlog audit:
 
 This is an oracle-assisted warm-up result, not a conversational-agent benchmark score. The oracle supplies destinations, constraints and closures from expected answers; for locate questions it directly assigns the expected asset ID. The warm-up scorer is also permissive: route checks primarily compare distance, and an unreachable case can pass when no route was computed. It does not establish correct natural-language interpretation, correct final answer formatting or a valid full submission.
 
-`.venv/bin/python -m unittest discover -s tests -v` passes (**165 tests** at the F15 phase 2 review; the number grows with later features). Storage tests target the canonical final map/store. Integration tests block starter imports, check the CLI and class/error identities, exercise spatial queries, door/closure snapshots and actual PNG generation, and verify benchmark state/output isolation. `tests/test_agent_integration.py` also checks every tool's schema, that the system prompt and the registered tools agree, one real call per tool, scored answer-line formats against the unchanged scorer and the submission validator. The built wheel loads the CLI, evaluator and benchmark adapter with `starter_agent` removed.
+`.venv/bin/python -m unittest discover -s tests -v` passes (**170 tests** at the F15 final review; the number grows with later features). Storage tests target the canonical final map/store. Integration tests block starter imports, check the CLI and class/error identities, exercise spatial queries, door/closure snapshots and actual PNG generation, and verify benchmark state/output isolation. `tests/test_agent_integration.py` also checks every tool's schema, that the system prompt and the registered tools agree, one real call per tool, scored answer-line formats against the unchanged scorer and the submission validator. The built wheel loads the CLI, evaluator and benchmark adapter with `starter_agent` removed.
 
 **Component results (24 October 2026, no credentials).** The nine scored kinds are checked per question by `bench_analsysis/run_tests.py --mode components`, which calls the registered tools with the labelled, **resolved** inputs and compares the tool result with the label. It tests the tools, not question interpretation, prompt behaviour or the model's answer formatting, so it is **not a live benchmark score**.
 
@@ -585,7 +585,7 @@ Route images and edited buildings go to `agent_output/`.
 
 #### Tools
 
-The starter agent keeps its original seven tools: `building_overview`, `search_building`, `spatial_search`, `find_route`, `set_closed`, `add_door` and `show_route`. The project agent registers the 19 tools below (arguments and example calls: [final_agent/README.md](final_agent/README.md#tools)); every fact, count, area, distance and path comes from them.
+The starter agent keeps its original seven tools: `building_overview`, `search_building`, `spatial_search`, `find_route`, `set_closed`, `add_door` and `show_route`. The project agent registers the 21 tools below (arguments and example calls: [final_agent/README.md](final_agent/README.md#tools)); every fact, count, area, distance and path comes from them.
 
 | Tool | One-line usage |
 |---|---|
@@ -607,9 +607,9 @@ The starter agent keeps its original seven tools: `building_overview`, `search_b
 | `find_navigation_landmarks` | Cues near a route step with an ambiguity check |
 | `set_closed` | Close or reopen a lift, stair, door or room (saved); recomputes the active route |
 | `add_door` | Add a door in the middle of the wall two rooms share (saved) |
-| `show_route` | Draw the active route on each floor it crosses |
-
-`show_location`, `describe_destination_context` and a `landmark_ids` argument for `show_route` are planned in F14 and are not registered yet.
+| `show_location` | Select and highlight one room or asset on its floor plan (the only tool that selects) |
+| `describe_destination_context` | Large named rooms around a destination; "next to" only for a shared wall of at least 1 m, otherwise "near" |
+| `show_route` | Draw the active route on each floor it crosses, with numbered stops, handoffs, closures and optional `landmark_ids` |
 
 Route costs match the dataset's expected answers: walking distance through door positions, 12 m per floor of stairs, and a 15 m wait plus 6 m per floor for a lift.
 
