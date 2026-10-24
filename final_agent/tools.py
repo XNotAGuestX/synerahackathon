@@ -10,7 +10,8 @@ from anthropic.lib.tools import BetaFunctionTool, ToolError
 from pydantic import ValidationError
 
 from .building_map import MAX_SEARCH_RESULTS, NEW_DOOR_WIDTH_M, BuildingMap, MapError, RouteResult
-from .viewer import draw_location, draw_route, landmark_targets, route_floor_ids, route_handoffs
+from .emergency import EmergencyError, EmergencyRollCall
+from .viewer import draw_emergency, draw_location, draw_route, landmark_targets, route_floor_ids, route_handoffs
 
 JSON_INDENT = 1
 
@@ -667,3 +668,74 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
             raise ToolError(str(error)) from error
 
     return tools
+
+
+def make_emergency_tools(building_map: BuildingMap, output_directory: Path) -> list:
+    """Mock emergency roll-call tools for an interactive session; benchmark answers never get them.
+
+    No user roles exist yet, so every chat user acts as an admin and may use all four tools.
+    """
+    roll_call = EmergencyRollCall(building_map)
+
+    def with_maps(action: Callable[[], dict]) -> str:
+        """Run a roll-call action and redraw everyone's last known position, while the roll call is running."""
+        try:
+            result = action()
+            if roll_call.started_at is not None:
+                images = draw_emergency(building_map, roll_call.markers(), output_directory)
+                result["images"] = [str(path) for path in images]
+        except (EmergencyError, MapError) as error:
+            raise ToolError(str(error)) from error
+        return as_json(result)
+
+    def trigger_emergency_roll_call(reason: str) -> str:
+        """Trigger an emergency roll call: alert every employee and share their locations.
+
+        MOCK: the people, their smartphone/RFID-badge locations and their replies are simulated; say so once.
+        Call this only when the user explicitly asks to trigger/start an emergency alarm or roll call, never for
+        a hypothetical question. Everyone must confirm "I'm safe" within 120 s (tap in the phone app, or badge
+        scan at the assembly point); anyone unconfirmed after that is marked unsafe. Returns the alert texts,
+        counts, each person's status and last known room (last_seen with space id and floor) and one map image
+        per floor.
+
+        Args:
+            reason: Short description of the emergency shown in the alert, e.g. "Fire alarm in hall B".
+        """
+        return with_maps(lambda: roll_call.trigger(reason))
+
+    def emergency_roll_call_status(fast_forward_s: float = 0.0) -> str:
+        """Current emergency roll call: time left, counts and each person's status and last known location.
+
+        status is "safe" (confirmed by the person or an admin), "pending" (no reply, deadline not reached) or
+        "unsafe" (no confirmation within 120 s). Name every unsafe and pending person with last_seen room and
+        floor. To send a responder to someone, pass last_seen.id to find_route. Redraws the map images.
+
+        Args:
+            fast_forward_s: Demo only: first move the simulated clock ahead by this many seconds. Use it only
+                when the user asks to skip ahead (e.g. "skip to the deadline"); otherwise leave 0.
+        """
+        def advance_and_report() -> dict:
+            if fast_forward_s:
+                roll_call.fast_forward(fast_forward_s)
+            return roll_call.report()
+        return with_maps(advance_and_report)
+
+    def mark_person_safe(person: str, note: str) -> str:
+        """Mark a person safe by hand, e.g. seen at the assembly point but their phone was left inside.
+
+        Use only when the user says the person is safe; never guess. Their last known location is kept.
+
+        Args:
+            person: Person id (e.g. "P03") or exact full name from the roll call.
+            note: Why they count as safe, e.g. "seen at the assembly point, phone left in office".
+        """
+        return with_maps(lambda: roll_call.mark_safe(person, note))
+
+    def end_emergency_roll_call() -> str:
+        """End the emergency roll call and return the final report; the simulated data is discarded."""
+        return with_maps(roll_call.end)
+
+    return [
+        ArgumentCheckedTool(function) for function in
+        (trigger_emergency_roll_call, emergency_roll_call_status, mark_person_safe, end_emergency_roll_call)
+    ]

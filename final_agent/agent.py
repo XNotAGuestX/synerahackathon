@@ -10,7 +10,7 @@ from pathlib import Path
 import anthropic
 
 from .building_map import BuildingMap
-from .tools import make_tools
+from .tools import make_emergency_tools, make_tools
 
 MODEL = "claude-sonnet-5-5"
 MAX_TOKENS = 16000
@@ -198,6 +198,18 @@ Initial building overview:
 {overview}
 """
 
+# Appended only for interactive sessions, which also get the emergency tools.
+EMERGENCY_PROMPT = """
+# Emergency roll call (mock)
+- The emergency tools simulate the people, their smartphone/badge locations and
+  their replies. Say once that the data is simulated.
+- Trigger a roll call only when the user explicitly asks to start one. Report the
+  time left, the counts and every unsafe or pending person with their last known
+  room and floor, exactly as the tool returns them; never invent people or places.
+- Mark someone safe only when the user says they are safe. Fast-forward the clock
+  only when the user asks to skip ahead.
+"""
+
 
 class MissingCredentialsError(RuntimeError):
     """The Anthropic client has no usable credentials."""
@@ -207,17 +219,21 @@ class BuildingAgent:
     """Keeps the conversation history and runs Claude's tool loop for each user turn."""
 
     def __init__(
-        self, building_map: BuildingMap, output_directory: Path, client: anthropic.Anthropic | None = None
+        self, building_map: BuildingMap, output_directory: Path, client: anthropic.Anthropic | None = None,
+        emergency: bool = False,
     ) -> None:
+        """`emergency` adds the mock emergency roll call (interactive chat only, never benchmark answers)."""
         self.map = building_map
         self.client = client or anthropic.Anthropic()
         self.tools = make_tools(building_map, output_directory)
+        system_text = SYSTEM_PROMPT.format(overview=json.dumps(building_map.overview(), ensure_ascii=False))
+        if emergency:
+            self.tools += make_emergency_tools(building_map, output_directory)
+            system_text += EMERGENCY_PROMPT
         self.system = [
             {
                 "type": "text",
-                "text": SYSTEM_PROMPT.format(
-                    overview=json.dumps(building_map.overview(), ensure_ascii=False)
-                ),
+                "text": system_text,
                 "cache_control": {"type": "ephemeral"},
             }
         ]
@@ -280,7 +296,7 @@ def chat(building_directory: Path, output_directory: Path) -> None:
         building_map = BuildingMap.load(building_directory)
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise SystemExit(f"Cannot load building {building_directory}: {error}") from error
-    agent = BuildingAgent(building_map, output_directory)
+    agent = BuildingAgent(building_map, output_directory, emergency=True)
     print(f"Guide for {agent.map.data['building']['name']}. Ask me anything (type 'exit' to stop).")
     while True:
         try:
