@@ -3,6 +3,7 @@ import type { FormEvent, RefObject } from 'react'
 import { catalog, labelFor } from '../../api/fixtures'
 import { assumptionLines, formatMetres } from '../../domain/presentation'
 import type { Presentation } from '../../domain/presentation'
+import type { AskOption } from '../../domain/types'
 import { copy } from '../../i18n/en'
 
 type GuidePanelProps = {
@@ -11,7 +12,7 @@ type GuidePanelProps = {
   directionIndex: number
   onQuery: (value: string) => void
   onSubmit: (event: FormEvent) => void
-  onChoose: (label: string) => void
+  onChoose: (option: AskOption) => void
   onConfirm: () => void
   onCancel: () => void
   onReplay: () => void
@@ -158,7 +159,7 @@ export function GuidePanel({
             </div>
             <div className="choice-list">
               {ask.options.map((option) => (
-                <button type="button" key={option.id} onClick={() => onChoose(option.label)}>
+                <button type="button" key={option.id} onClick={() => onChoose(option)}>
                   {option.label}
                   <span>→</span>
                 </button>

@@ -6,11 +6,12 @@ import { catalog, labelFor, matchUserText } from '../api/fixtures'
 import { currentLocation, setCurrentLocation } from '../api/interpret'
 import { connectComputedApi, gateway } from '../api/gateway'
 import type { BuildingSummary, InputMode, Session } from '../api/gateway'
-import { readRecovery, writeRecovery } from '../api/recovery'
+import { clearRecovery, readRecovery, writeRecovery } from '../api/recovery'
+import { choiceMessage, choiceRole, nameInPlans, optionName, placeById, withStartOptions } from '../domain/clarify'
 import type { DiscoveryPlace } from '../domain/discovery'
 import { buildPresentation, formatMetres } from '../domain/presentation'
 import type { Decision } from '../domain/presentation'
-import type { FloorPlan, FloorSummary, Reply, ReplyId, Selection } from '../domain/types'
+import type { AskOption, FloorPlan, FloorSummary, Reply, ReplyId, Selection } from '../domain/types'
 import { DebugPanel } from '../features/debug/DebugPanel'
 import { PlaceDiscovery } from '../features/discovery/PlaceDiscovery'
 import { GuidePanel } from '../features/guide/GuidePanel'
@@ -31,6 +32,7 @@ function initialThemeMode(): ThemeMode {
 
 export function App() {
   const inputRef = useRef<HTMLInputElement>(null)
+  const sessionRef = useRef('')
   const [query, setQuery] = useState('')
   const [replyId, setReplyId] = useState<ReplyId | 'miss'>('accepted')
   const [liveReply, setLiveReply] = useState<Reply | null>(null)
@@ -59,6 +61,8 @@ export function App() {
   const [routingId, setRoutingId] = useState<string | null>(null)
   const [hereId, setHereId] = useState<string | null>(null)
   const [appliedClosed, setAppliedClosed] = useState<string[] | null>(null)
+  // Destination picked from a guide question while the start was still unknown.
+  const [pendingDestination, setPendingDestination] = useState<string | null>(null)
 
   useEffect(() => {
     const root = document.documentElement
@@ -81,6 +85,7 @@ export function App() {
     window.localStorage.setItem('wayfinder-building', buildingId)
     setSessionId('')
     setHereId(null)
+    setPendingDestination(null)
     setCurrentLocation(null)
     setLiveReply(null)
     setSelection(null)
@@ -125,6 +130,33 @@ export function App() {
     }).finally(() => { if (!cancelled) setBooting(false) })
     return () => { cancelled = true }
   }, [buildingId])
+
+  sessionRef.current = sessionId
+
+  const openFreshSession = async (): Promise<string> => {
+    clearRecovery()
+    const created = await gateway.createSession(buildingId)
+    const stored = window.localStorage.getItem('wayfinder-step-free')
+    const wanted = stored === 'true' || stored === 'false' ? stored === 'true' : created.preferences.step_free
+    const session = wanted === created.preferences.step_free ? created : await gateway.updatePreferences(created.id, { step_free: wanted })
+    setSessionId(session.id)
+    setRevision(session.revision)
+    setStepFree(session.preferences.step_free)
+    sessionRef.current = session.id
+    writeRecovery({ id: session.id, buildingId: session.building_id, revision: session.revision, stepFree: session.preferences.step_free, lastRouteId: session.last_route_id ?? null, pendingActionId: session.pending_action_id ?? null })
+    return session.id
+  }
+
+  const withLiveSession = async <T,>(run: (id: string) => Promise<T>): Promise<T> => {
+    const current = sessionRef.current
+    if (!current) return run(await openFreshSession())
+    try {
+      return await run(current)
+    } catch (error: unknown) {
+      if (toUiError(error).code !== '30002_session_not_found') throw error
+      return run(await openFreshSession())
+    }
+  }
 
   const reply = replyId === 'miss' ? null : liveReply ?? catalog.replies[replyId]
   const presentation = useMemo(() => {
@@ -175,22 +207,23 @@ export function App() {
     }
   }
 
-  const routeToPlace = async (place: DiscoveryPlace) => {
-    if (!sessionId || loading) return
-    const start = hereId ?? (selection?.kind === 'space' ? selection.id : null) ?? currentLocation() ?? catalog.replies.accepted.routes[0]?.start_space_id
+  const routeToPlace = async (place: DiscoveryPlace, knownStart?: string) => {
+    const liveSessionId = sessionRef.current || sessionId
+    if (!liveSessionId || (loading && !knownStart)) return
+    const start = knownStart ?? hereId ?? (selection?.kind === 'space' ? selection.id : null) ?? currentLocation() ?? catalog.replies.accepted.routes[0]?.start_space_id
     if (!start) return
     setRoutingId(place.id)
     setLoading(true)
     setLoadError(null)
     try {
-      const route = await gateway.createRoute(sessionId, { start_space_id: start, destination_space_id: place.id, step_free: stepFree })
+      const route = await gateway.createRoute(liveSessionId, { start_space_id: start, destination_space_id: place.id, step_free: stepFree })
       setLiveReply({
         id: route.reachable ? 'accepted' : 'unreachable',
         userText: null,
         guideText: route.reachable ? `Route is ${formatMetres(route.length_m)}. Follow the tape on the plan.` : 'No route to that place with the current preference.',
         understood: {
           intent: 'route',
-          summary: `${labelFor(start)} to ${place.name}`,
+          summary: `${placeName(start)} to ${place.name}`,
           constraints: { step_free: route.step_free, via: route.via, closed_ids: route.closed_ids },
           resolved: {
             start_space_id: route.start_space_id,
@@ -224,26 +257,61 @@ export function App() {
     }
   }
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!query.trim() || loading) return
+  const placeName = (id: string) => nameInPlans([...plans.values()], id) ?? labelFor(id)
+
+  const sendText = async (text: string, destination: string | null = pendingDestination) => {
+    if (!text.trim() || loading) return
     setLoading(true); setLoadError(null); setMissed(false)
+    let routeFrom: string | null = null
     try {
-      const next = await gateway.sendMessage(sessionId, query, inputMode)
+      const next = withStartOptions(await withLiveSession((id) => gateway.sendMessage(id, text, inputMode)), [...plans.values()])
       setLiveReply(next); setReplyId(next.id); setDecision(next.pending ? 'pending' : null); setDirectionIndex(0); setFloorPinned(false)
-      if (next.understood?.resolved.start_space_id && next.understood.intent === 'context') {
-        setHereId(next.understood.resolved.start_space_id)
-        setCurrentLocation(next.understood.resolved.start_space_id)
+      const start = next.understood?.resolved.start_space_id
+      if (start && next.understood?.intent === 'context') {
+        setHereId(start)
+        setCurrentLocation(start)
+        if (destination) routeFrom = start
       }
+      // Keep the picked destination only while the guide still waits for a start.
+      if (!next.understood?.missing.includes('start')) setPendingDestination(null)
       if (next.understood && next.understood.constraints.step_free !== stepFree) {
         setStepFree(next.understood.constraints.step_free)
         window.localStorage.setItem('wayfinder-step-free', String(next.understood.constraints.step_free))
       }
     } catch (error: unknown) {
-      const match = matchUserText(query)
+      const match = matchUserText(text)
       if (gateway.mode === 'fixture' && match) loadReply(match)
       else setLoadError(toUiError(error))
     } finally { setLoading(false) }
+    // The guide only records the start. Finish the route that was asked for.
+    const place = routeFrom && destination ? placeById([...plans.values()], floors, destination) : null
+    if (routeFrom && place) await routeToPlace(place, routeFrom)
+  }
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    await sendText(query)
+  }
+
+  // A picked option becomes a sentence the guide understands. Known start: route at once.
+  const chooseOption = async (option: AskOption) => {
+    if (loading) return
+    const name = optionName(option.label)
+    const role = choiceRole(reply)
+    if (role === 'destination') {
+      const start = hereId ?? currentLocation()
+      const place = placeById([...plans.values()], floors, option.id)
+      if (start && place) {
+        setQuery(choiceMessage(role, name))
+        setPendingDestination(null)
+        await routeToPlace(place, start)
+        return
+      }
+      setPendingDestination(option.id)
+    }
+    const text = choiceMessage(role, name)
+    setQuery(text)
+    await sendText(text, role === 'destination' ? option.id : pendingDestination)
   }
 
   useEffect(() => {
@@ -295,7 +363,7 @@ export function App() {
           <button type="button" role="tab" aria-selected={activePanel === 'guide'} className={activePanel === 'guide' ? 'active' : undefined} onClick={() => { setActivePanel('guide') }}>Your Guide</button>
           <button type="button" role="tab" aria-selected={activePanel === 'debug'} className={activePanel === 'debug' ? 'active' : undefined} onClick={() => { setActivePanel('debug') }}>Debug</button>
         </div>}
-        {!mapFocusActive || activePanel === 'guide' ? <GuidePanel query={query} presentation={presentation} directionIndex={directionIndex} onQuery={setQuery} onSubmit={submit} onChoose={(label) => { setQuery(label); inputRef.current?.focus() }} onConfirm={confirm} onCancel={cancel} onReplay={() => { setDirectionIndex(0); setPlaying(true) }} onReopen={() => { void gateway.sendMessage(sessionId, 'Reopen the closed connector').then((next) => { setLiveReply(next); setReplyId(next.id); setDecision(next.pending ? 'pending' : null) }) }} onShowFloor={(nextFloor) => { setFloorId(nextFloor); setFloorPinned(true) }} hereName={hereId ? labelFor(hereId) : null} inputMode={inputMode} onInputMode={setInputMode} inputRef={inputRef} /> : <DebugPanel selection={selection} presentation={presentation} effects={visibleEffects} onLoad={loadReply} />}
+        {!mapFocusActive || activePanel === 'guide' ? <GuidePanel query={query} presentation={presentation} directionIndex={directionIndex} onQuery={setQuery} onSubmit={submit} onChoose={(option) => { void chooseOption(option) }} onConfirm={confirm} onCancel={cancel} onReplay={() => { setDirectionIndex(0); setPlaying(true) }} onReopen={() => { void withLiveSession((id) => gateway.sendMessage(id, 'Reopen the closed connector')).then((next) => { setLiveReply(next); setReplyId(next.id); setDecision(next.pending ? 'pending' : null) }) }} onShowFloor={(nextFloor) => { setFloorId(nextFloor); setFloorPinned(true) }} hereName={hereId ? placeName(hereId) : null} inputMode={inputMode} onInputMode={setInputMode} inputRef={inputRef} /> : <DebugPanel selection={selection} presentation={presentation} effects={visibleEffects} onLoad={loadReply} />}
       </div>
     </section>
     <footer className="next-bar"><div><span className="eyebrow">{copy.nextStep}</span><strong>{loading ? 'Working…' : nextText}</strong></div><button type="button" className="next-distance" onClick={() => setPlaying((value) => !value)} disabled={!presentation.route?.reachable} aria-pressed={playing}>{playing ? copy.pause : copy.play}</button><button type="button" className="next-distance" onClick={advance} disabled={!presentation.route?.reachable}>{presentation.route?.reachable ? `${formatMetres(presentation.route.length_m)} ->` : `${copy.noRoute} ->`}</button></footer>
