@@ -1132,6 +1132,102 @@ class BuildingMap:
 
     # ---------- errands ----------
 
+    ERRAND_SELECTION_RULE = (
+        "Nearest pickup room by route distance from the start first, then the largest destination room of the "
+        "requested type on the target floor; this is not a combined-trip optimisation."
+    )
+
+    def similar_asset_types(self, asset_type: str, limit: int = 8) -> list[str]:
+        """Existing asset types containing every word of the requested one, to correct a wrong type name."""
+        words = normalize_type(asset_type).split("_")
+        types = {normalize_type(asset["type"]) for asset in self.assets.values()}
+        return sorted(name for name in types if all(word in name for word in words))[:limit]
+
+    def plan_errand(
+        self, start: str, asset_type: str, destination_room_type: str, destination_floor_level: int,
+        step_free: bool = False, min_width_m: float = 0.0, activate: bool = False,
+    ) -> dict:
+        """Fetch an asset from the nearest room that has one, then carry it to the largest room of a type on a floor.
+
+        The nearest pickup is chosen by constrained route distance from the start (one Dijkstra over the graph
+        compute_route uses); the destination is then the largest matching room. A shorter combined trip via
+        another pickup is deliberately not chosen. Assets in one room are one pickup candidate; any space type,
+        including outdoor balconies, can be a pickup. Ties go to the lowest space id. If leg 2 fails, the error
+        names the selected rooms; no farther pickup or smaller destination is substituted.
+        activate=False is read-only; activate=True makes start -> pickup -> destination the active route.
+        """
+        if activate:
+            self.last_route = None
+            self.active_request = None
+        min_width_m = check_number("min_width_m", min_width_m, 0)
+        if not isinstance(step_free, bool):
+            raise MapError(f"step_free must be true or false, got {step_free!r}.")
+        start_id = self.resolve_space(start)
+        constraints = self.constraints_text(step_free, min_width_m, None)
+        if start_id in self.closed:
+            raise MapError(f"{self.describe_space(start_id)} is closed. {constraints}")
+
+        wanted = normalize_type(asset_type)
+        assets_by_space: dict[str, list[str]] = {}
+        for asset in self.assets.values():
+            if normalize_type(asset["type"]) == wanted:
+                assets_by_space.setdefault(asset["space_id"], []).append(asset["id"])
+        if not assets_by_space:
+            similar = self.similar_asset_types(asset_type)
+            raise MapError(
+                f"No asset of type '{asset_type}' exists in this building. "
+                + (f"Asset types containing those words: {similar}." if similar else "No similar asset type exists.")
+            )
+
+        destination = self.find_largest_room(destination_room_type, destination_floor_level)
+        if destination["room"] is None:
+            raise MapError(
+                f"No room of type '{destination_room_type}' on floor level {destination_floor_level}. "
+                f"Room types on that floor: {destination['available_room_types']}."
+            )
+        destination_id = destination["room"]["id"]
+
+        distances = nx.single_source_dijkstra_path_length(self.graph(step_free, min_width_m), start_id, weight="weight")
+        reachable = sorted((distances[space_id], space_id) for space_id in assets_by_space if space_id in distances)
+        unreachable = len(assets_by_space) - len(reachable)
+        if not reachable:
+            raise MapError(
+                f"None of the {len(assets_by_space)} rooms with a '{wanted}' can be reached from "
+                f"{self.describe_space(start_id)}. {constraints}"
+            )
+        pickup_distance, pickup_id = reachable[0]
+
+        first = self.compute_route(start_id, pickup_id, step_free, None, min_width_m)
+        try:
+            second = self.compute_route(pickup_id, destination_id, step_free, None, min_width_m)
+        except MapError as error:
+            reason = "it is closed" if destination_id in self.closed else "no route exists"
+            raise MapError(
+                f"Errand leg 2 of 2 is impossible: the selected pickup {self.describe_space(pickup_id)} cannot "
+                f"reach the selected destination {self.describe_space(destination_id)} ({reason}). The nearest "
+                f"pickup and the largest destination are fixed by the question; no other pickup or smaller "
+                f"destination is substituted. {constraints}"
+            ) from error
+        route = None
+        if activate:
+            route = self.route(start_id, destination_id, step_free, [pickup_id], min_width_m)
+        return {
+            "pickup": {
+                **self.space_summary(pickup_id), "asset_ids": sorted(assets_by_space[pickup_id]),
+                "distance_m": pickup_distance,
+            },
+            "pickup_candidates": len(assets_by_space),
+            "unreachable_candidates": unreachable,
+            "destination": {**self.space_summary(destination_id), "area_m2": destination["area_m2"]},
+            "leg_routes": [first, second],
+            "route": route,
+            "length_m": first.length_m + second.length_m,
+            "constraints": {"step_free": step_free, "min_width_m": min_width_m, "closed": sorted(self.closed)},
+            "selection_rule": self.ERRAND_SELECTION_RULE,
+            "distance_model": KIT_DISTANCE_MODEL,
+            "activated": activate,
+        }
+
     # ---------- tours ----------
 
     MAX_TOUR_STOPS = 10
