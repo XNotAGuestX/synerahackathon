@@ -75,8 +75,9 @@ When roles exist:
 
 ## Could this run on real smartphones?
 
-**Short answer: yes as an alert-and-confirm system; no as a silent "pull everyone's
-location" button.** Commercial products already do the first:
+**Short answer: yes as an alert-and-confirm system. A silent "pull everyone's
+location" works only from the building's Wi-Fi network (see 2b), never through the
+phone app.** Commercial products already do the first:
 
 - Everbridge sends push alerts that override silent mode and Do Not Disturb.
 - AlertMedia offers two-way check-ins with opt-in location sharing.
@@ -118,6 +119,33 @@ iOS.**
   "I'm safe"** (the app is then in the foreground). For people who don't respond,
   use the last badge reader or last known fix, which is exactly what the mock shows.
 
+**2b. Locating phones from the Wi-Fi network needs no app, but finds devices, not
+people.**
+
+- *From the phone:* Android apps can measure distance to compatible access points
+  (Wi-Fi round-trip time, about 1–2 m) or match signal strengths. That still needs
+  the app running with location permission, and Android throttles Wi-Fi scans.
+  iOS gives ordinary apps no Wi-Fi scanning at all. So this adds nothing over
+  question 2.
+- *From the network:* enterprise Wi-Fi systems can estimate where every connected
+  device is from the signal strength several access points measure. Examples are
+  Cisco Spaces, HPE Aruba and Juniper Mist. Nothing runs on the phone, so the
+  iOS/Android background limits don't apply. This is the realistic way to see
+  everyone's position at the moment of the alarm.
+- *Limits:*
+  - Accuracy is usually several metres and depends on access-point density;
+    floors and walls cause errors.
+  - Phones randomise their Wi-Fi hardware (MAC) address, so identifying the person
+    needs the company Wi-Fi login (802.1X/RADIUS), not the address.
+  - The phone must have Wi-Fi on. The access points need backup power, or they go
+    dark with the building.
+  - A phone left on a desk still shows up "inside". The mock's manual "mark safe"
+    exists for exactly that case.
+- It is covert tracking with no app opt-in, so the works-council and data-protection
+  limits in point 5 apply even more strictly.
+- Unlike the other points, the network-side Wi-Fi claims here are general knowledge
+  and were not checked against sources. Verify vendor accuracy before relying on it.
+
 **3. Indoor positions are coarse.**
 
 - GPS is about 5 m under open sky and much worse inside.
@@ -158,7 +186,8 @@ iOS.**
 **Verdict:** a real version is feasible for a company app (Android, and iOS with
 time-sensitive alerts or a Critical Alerts approval). It must be built as
 alert, plus "I'm safe" with the location captured at that moment, plus badge
-mustering and warden fallback. Admin-only access is a legal requirement, not just
+mustering and warden fallback. Network-side Wi-Fi location can fill in non-responders'
+positions where the company Wi-Fi supports it. Admin-only access is a legal requirement, not just
 a product choice, which makes the missing user roles (above) a blocker for any
 real deployment.
 
