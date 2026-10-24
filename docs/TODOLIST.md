@@ -100,6 +100,24 @@ Diese Punkte entsprechen den Frontend-Anteilen von L1-01, L1-03, L1-04, L2-02, L
 - [x] **CTX-06 Kalibrierung:** Bild und PDF zeichnen keine Räume. Die Oberfläche verlangt Breite und Höhenlage, bevor Geometrie entstehen kann.
   - Dateien: `frontend/src/features/building-ingestion/PlanImport.tsx`
 
+## P1 – BACKLOG-Folge für die Oberfläche
+
+- [x] **L1-04 Folge:** Standort, Zielwechsel und Step-free bleiben über die nächste Frage erhalten. Spätere Routen nutzen diese Präferenz.
+- [x] **L2-02 Folge:** ein benanntes Element kann geschlossen und wieder geöffnet werden. Eine gekreuzte Route wird nicht durch eine erfundene Ersatzroute ersetzt.
+- [x] **L2-03 Folge:** eine Tour behält die genannte Reihenfolge. Ohne gespeicherte Mehrpunktroute wird keine Distanz angezeigt.
+- [x] **L3-02 Folge:** die gewählte Gebäude-ID bleibt lokal erhalten. Ortsoptionen nennen das Gebäude.
+- [x] **L4-01 Folge:** ein Bild zeigt die Prüfrechnung „1 m = N px“. Es entstehen daraus keine Räume.
+  - Dateien: `frontend/src/api/interpret.ts`, `frontend/src/app/App.tsx`, `frontend/src/features/building-ingestion/PlanImport.tsx`, `docs/INTERACTION_SCRIPT.md`
+
+## P1 – Route as a story
+
+Entspricht dem genehmigten Erlebnis in `docs/WEB_PRODUCT_PLAN.md`: die Route wird schrittweise erzählt, nicht nur als fertige Linie gezeichnet.
+
+- [x] **STORY-01 Schrittweise Route:** die Tape zeigt nur den Abschnitt bis zur aktuellen Anweisung. Play/Pause läuft die Schritte ab; reduzierte Bewegung startet kein automatisches Weiterschalten.
+  - Dateien: `frontend/src/app/App.tsx`, `frontend/src/rendering/PlanCanvas.tsx`
+- [x] **STORY-02 Etagenübergang:** endet der sichtbare Abschnitt vor einem Wechsel, liegt ein Verbindungs-Marker auf dem Plan. Die nächste Etage öffnet sich mit dem Schritt.
+  - Dateien: `frontend/src/rendering/PlanCanvas.tsx`, `frontend/src/features/guide/GuidePanel.tsx`
+
 ## Backend- und Benchmark-Spur
 
 Diese Aufgaben sind nicht durch die React-Oberfläche erledigt und müssen parallel verfolgt werden.

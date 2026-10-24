@@ -74,6 +74,7 @@ export type Route = {
   closed_ids: string[]
   start_space_id: string | null
   destination_space_id: string | null
+  space_path?: string[]
   directions: Direction[]
   legs: { floor_id: string; floor_level: number; points: Point[] }[]
 }

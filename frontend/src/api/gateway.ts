@@ -1,5 +1,5 @@
 import { catalog, labelFor, planFor } from './fixtures'
-import { interpretMessage } from './interpret'
+import { currentLocation, interpretMessage } from './interpret'
 import { ApiError } from './errors'
 import type { FloorPlan, FloorSummary, Reply, ReplyId, Route } from '../domain/types'
 
@@ -35,6 +35,7 @@ let fixtureStepFree = true
 let fixtureRevision = 2
 let fixtureLastRouteId: string | null = null
 let fixturePendingActionId: string | null = null
+let fixturePendingElement: string | null = null
 let fixtureClosedIds: string[] = []
 
 function fixtureSession(buildingId = fixtureBuilding.id): Session & { closed_ids: string[]; last_route_id: string | null; pending_action_id: string | null } {
@@ -116,19 +117,32 @@ export const fixtureGateway: BuildingGateway = {
       fixturePendingActionId = catalog.replies.pending.pending?.id ?? null
       return catalog.replies.pending
     }
-    const reply = interpretMessage(text, fixtureClosedIds)
-    if (reply.pending) fixturePendingActionId = reply.pending.id
+    const reply = interpretMessage(text, {
+      hereId: currentLocation(),
+      destinationId: null,
+      stepFree: fixtureStepFree,
+      closedIds: fixtureClosedIds,
+      buildingName: catalog.buildingName,
+    })
+    if (reply.pending) {
+      fixturePendingActionId = reply.pending.id
+      fixturePendingElement = reply.pending.proposal.element_ref ?? null
+    }
     return reply
   },
   async confirmAction() {
-    const reopening = fixturePendingActionId === '55555555-5555-4555-8555-555555555556'
-    fixtureClosedIds = reopening ? [] : catalog.confirmedClosedIds
+    const pending = fixturePendingActionId
+    const reopening = pending === '55555555-5555-4555-8555-555555555556'
+    if (reopening) fixtureClosedIds = []
+    else if (pending === '55555555-5555-4555-8555-555555555557' && fixturePendingElement) fixtureClosedIds = [...new Set([...fixtureClosedIds, fixturePendingElement])]
+    else fixtureClosedIds = catalog.confirmedClosedIds
     fixturePendingActionId = null
+    fixturePendingElement = null
     fixtureRevision += 1
     return {
-      summary: reopening ? 'Office lift is open.' : catalog.confirmedText,
+      summary: reopening ? 'The closed place is open.' : 'The place is closed. No replacement route is saved.',
       closed_ids: fixtureClosedIds,
-      id: reopening ? '55555555-5555-4555-8555-555555555556' : '55555555-5555-4555-8555-555555555555',
+      id: pending ?? '55555555-5555-4555-8555-555555555555',
       status: 'confirmed',
     }
   },

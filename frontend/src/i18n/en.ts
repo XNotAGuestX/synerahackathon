@@ -55,4 +55,6 @@ export const copy = {
   knownWidth: 'Known width in metres',
   floorElevation: 'Floor elevation in metres',
   otherBuilding: 'This building is not loaded. Room numbers here are not the previous building.',
+  play: 'Play',
+  pause: 'Pause',
 }

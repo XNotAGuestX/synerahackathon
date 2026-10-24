@@ -12,6 +12,7 @@ type PlanCanvasProps = {
   closedIds: string[]
   focusPoint: Point | null
   stepPoint: Point | null
+  storyIndex: number
   selectionId: string | null
   onSelect: (selection: Selection) => void
   onFocusSelection: (selection: Selection | null) => void
@@ -25,6 +26,20 @@ function polygonArea(polygon: Point[]): number {
     sum += x1 * y2 - x2 * y1
   }
   return Math.abs(sum) / 2
+}
+
+function prefixTo(points: Point[], target: Point | null): Point[] {
+  if (!target || points.length < 2) return points
+  let best = 0
+  let bestDistance = Number.POSITIVE_INFINITY
+  points.forEach((point, index) => {
+    const distance = (point[0] - target[0]) ** 2 + (point[1] - target[1]) ** 2
+    if (distance < bestDistance) {
+      best = index
+      bestDistance = distance
+    }
+  })
+  return points.slice(0, Math.max(2, best + 1))
 }
 
 function centroid(polygon: Point[]): Point {
@@ -91,6 +106,7 @@ function InteractivePlan({
   closedIds,
   focusPoint,
   stepPoint,
+  storyIndex,
   selectionId,
   onSelect,
   onFocusSelection,
@@ -351,9 +367,29 @@ function InteractivePlan({
               </g>
             )
           })}
-          {legs.map((leg) => (
-            <polyline key={`${leg.floor_id}-${leg.points.length}`} points={leg.points.map(([x, y]) => `${x},${y}`).join(' ')} className="route" />
-          ))}
+          {legs.map((leg) => {
+            const told = route?.directions[storyIndex]
+            const revealed = told?.floor_id === plan.floor.id ? prefixTo(leg.points, told.at) : leg.points
+            const laterFloor = route?.directions.slice(storyIndex + 1).find((direction) => direction.floor_id !== plan.floor.id)
+            const handoff = laterFloor && revealed.length > 0 ? revealed.at(-1)! : null
+            const connector = handoff
+              ? plan.connectors.find((item) => item.space_ids.some((spaceId) => {
+                const space = plan.spaces.find((candidate) => candidate.id === spaceId)
+                return space ? containsPoint(space.polygon, handoff) : false
+              }))
+              : null
+            return (
+              <g key={`${leg.floor_id}-${leg.points.length}`}>
+                <polyline points={revealed.map(([x, y]) => `${x},${y}`).join(' ')} className="route" />
+                {handoff && (
+                  <g className="handoff" transform={`translate(${handoff[0]} ${handoff[1]})`}>
+                    <circle r={1.15} />
+                    <title>{connector?.name ?? 'Change floor'}</title>
+                  </g>
+                )}
+              </g>
+            )
+          })}
           {firstLeg && firstLeg.floor_id === plan.floor.id && firstLeg.points.length > 0 && (
             <circle className="start" cx={firstLeg.points[0][0]} cy={firstLeg.points[0][1]} r={0.72} />
           )}

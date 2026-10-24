@@ -13,6 +13,8 @@ export function PlanImport({ onApply }: PlanImportProps) {
   const [draft, setDraft] = useState<FloorPlan | null>(null)
   const [name, setName] = useState('')
   const [needsScale, setNeedsScale] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [pixelWidth, setPixelWidth] = useState<number | null>(null)
   const [width, setWidth] = useState('')
   const [elevation, setElevation] = useState('')
 
@@ -23,6 +25,13 @@ export function PlanImport({ onApply }: PlanImportProps) {
       setDraft(null)
       setIssues([copy.calibrate])
       setNeedsScale(true)
+      if (file.type.startsWith('image/')) {
+        const url = URL.createObjectURL(file)
+        setPreviewUrl(url)
+        const image = new Image()
+        image.onload = () => setPixelWidth(image.naturalWidth)
+        image.src = url
+      }
       return
     }
     const text = await file.text()
@@ -54,6 +63,8 @@ export function PlanImport({ onApply }: PlanImportProps) {
         <div className="calibrate">
           <label>{copy.knownWidth}<input value={width} onChange={(event) => setWidth(event.target.value)} inputMode="decimal" /></label>
           <label>{copy.floorElevation}<input value={elevation} onChange={(event) => setElevation(event.target.value)} inputMode="decimal" /></label>
+          {previewUrl && <img src={previewUrl} alt="Plan to calibrate" className="plan-preview" />}
+          {previewUrl && pixelWidth && Number(width) > 0 && <p>Check: 1 m = {(pixelWidth / Number(width)).toFixed(1)} px across this image.</p>}
         </div>
       )}
       {name && <p>{name}</p>}

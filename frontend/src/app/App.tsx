@@ -43,10 +43,11 @@ export function App() {
   const [activePanel, setActivePanel] = useState<'guide' | 'debug'>('guide')
   const [mapFocusActive, setMapFocusActive] = useState(false)
   const [directionIndex, setDirectionIndex] = useState(0)
+  const [playing, setPlaying] = useState(false)
   const [missed, setMissed] = useState(false)
   const [sessionId, setSessionId] = useState('')
   const [buildings, setBuildings] = useState<BuildingSummary[]>([])
-  const [buildingId, setBuildingId] = useState('proc-factory-dev-003')
+  const [buildingId, setBuildingId] = useState(() => window.localStorage.getItem('wayfinder-building') ?? 'proc-factory-dev-003')
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<UiError | null>(null)
   const [booting, setBooting] = useState(true)
@@ -78,6 +79,10 @@ export function App() {
     let cancelled = false
     gateway.listBuildings().then((items) => { if (!cancelled) setBuildings(items) }).catch(() => {})
     setBooting(true)
+    window.localStorage.setItem('wayfinder-building', buildingId)
+    setSessionId('')
+    setHereId(null)
+    setCurrentLocation(null)
     setLiveReply(null)
     setSelection(null)
     setReplyId('miss')
@@ -224,9 +229,13 @@ export function App() {
     try {
       const next = await gateway.sendMessage(sessionId, query, inputMode)
       setLiveReply(next); setReplyId(next.id); setDecision(next.pending ? 'pending' : null); setDirectionIndex(0); setFloorPinned(false)
-      if (next.understood?.intent === 'context' && next.understood.resolved.start_space_id) {
+      if (next.understood?.resolved.start_space_id && next.understood.intent === 'context') {
         setHereId(next.understood.resolved.start_space_id)
         setCurrentLocation(next.understood.resolved.start_space_id)
+      }
+      if (next.understood && next.understood.constraints.step_free !== stepFree) {
+        setStepFree(next.understood.constraints.step_free)
+        window.localStorage.setItem('wayfinder-step-free', String(next.understood.constraints.step_free))
       }
     } catch (error: unknown) {
       const match = matchUserText(query)
@@ -234,6 +243,25 @@ export function App() {
       else setLoadError(toUiError(error))
     } finally { setLoading(false) }
   }
+
+  useEffect(() => {
+    if (!playing) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const timer = window.setInterval(() => {
+      setDirectionIndex((index) => {
+        const directions = presentation.route?.directions ?? []
+        if (!presentation.route?.reachable || directions.length === 0) return index
+        const nextIndex = (index + 1) % directions.length
+        const nextFloor = directions[nextIndex]?.floor_id
+        if (nextFloor) {
+          setFloorId(nextFloor)
+          setFloorPinned(true)
+        }
+        return nextIndex
+      })
+    }, 2200)
+    return () => window.clearInterval(timer)
+  }, [playing, presentation.route])
 
   const advance = () => {
     const directions = presentation.route?.directions ?? []
@@ -259,15 +287,15 @@ export function App() {
     {booting && <p className="app-status" role="status">{copy.loadingPlan}</p>}
     {loadError && <div className="app-alert" role="alert"><strong>{loadError.code ?? copy.apiUnavailable}</strong><span>{loadError.message}</span>{loadError.traceId && <span>trace {loadError.traceId}</span>}{loadError.requestId && <span>request {loadError.requestId}</span>}</div>}
     <PlaceDiscovery plans={[...plans.values()]} floors={floors} stepFree={stepFree} busyId={routingId} onToggleStepFree={toggleStepFree} onFocus={focusDiscoveryPlace} onRoute={routeToPlace} />
-    <section className="workspace"><div className="map-column"><div className="map-toolbar"><div><span className="eyebrow">{copy.planEyebrow}</span><h1>{floor.name}</h1></div><div className="floor-rail" role="toolbar" aria-label="Floors">{floors.map((item) => <button type="button" key={item.id} className={item.id === floor.id ? 'active' : undefined} aria-pressed={item.id === floor.id} aria-label={`${copy.showFloor} ${item.name}`} onClick={() => { setFloorId(item.id); setFloorPinned(true) }}>{item.level}</button>)}<button type="button" aria-pressed={stackOpen} onClick={() => setStackOpen((open) => !open)}>{stackOpen ? copy.flatPlan : copy.stackFloors}</button></div></div><div className="plan-stage"><PlanCanvas plan={plan} floorName={floor.name} route={presentation.route} spaceReasons={presentation.spaceReasons} assetIds={presentation.assetIds} closedIds={presentation.closedIds} focusPoint={presentation.focusFloorId === floor.id ? presentation.focusPoint : null} stepPoint={step?.floor_id === floor.id ? step.at : null} selectionId={selection?.id ?? null} onSelect={setSelection} onFocusSelection={(focused) => { setMapFocusActive(Boolean(focused)); setActivePanel(focused ? 'debug' : 'guide') }} /><div className="map-caption" role="status">{selection ? <><strong>{selection.name}</strong><span>{selection.floorName}</span></> : <><span className="legend-dot route-dot" /> {copy.routeTape}<span className="legend-dot focus-dot" /> {copy.destinationFocus}</>}</div></div>{stackOpen && <FloorStack3D plans={[...plans.values()]} route={presentation.route} />}<PlanImport onApply={(imported) => setPlans((current) => new Map(current).set(imported.floor.id, imported))} /><p className="revision-note">Revision {revision}</p></div>
+    <section className="workspace"><div className="map-column"><div className="map-toolbar"><div><span className="eyebrow">{copy.planEyebrow}</span><h1>{floor.name}</h1></div><div className="floor-rail" role="toolbar" aria-label="Floors">{floors.map((item) => <button type="button" key={item.id} className={item.id === floor.id ? 'active' : undefined} aria-pressed={item.id === floor.id} aria-label={`${copy.showFloor} ${item.name}`} onClick={() => { setFloorId(item.id); setFloorPinned(true) }}>{item.level}</button>)}<button type="button" aria-pressed={stackOpen} onClick={() => setStackOpen((open) => !open)}>{stackOpen ? copy.flatPlan : copy.stackFloors}</button></div></div><div className="plan-stage"><PlanCanvas plan={plan} floorName={floor.name} route={presentation.route} spaceReasons={presentation.spaceReasons} assetIds={presentation.assetIds} closedIds={presentation.closedIds} focusPoint={presentation.focusFloorId === floor.id ? presentation.focusPoint : null} stepPoint={step?.floor_id === floor.id ? step.at : null} storyIndex={directionIndex} selectionId={selection?.id ?? null} onSelect={setSelection} onFocusSelection={(focused) => { setMapFocusActive(Boolean(focused)); setActivePanel(focused ? 'debug' : 'guide') }} /><div className="map-caption" role="status">{selection ? <><strong>{selection.name}</strong><span>{selection.floorName}</span></> : <><span className="legend-dot route-dot" /> {copy.routeTape}<span className="legend-dot focus-dot" /> {copy.destinationFocus}</>}</div></div>{stackOpen && <FloorStack3D plans={[...plans.values()]} route={presentation.route} />}<PlanImport onApply={(imported) => setPlans((current) => new Map(current).set(imported.floor.id, imported))} /><p className="revision-note">Revision {revision}</p></div>
       <div className="guide-region">
         {mapFocusActive && <div className="panel-tabs" role="tablist" aria-label="Guide views">
           <button type="button" role="tab" aria-selected={activePanel === 'guide'} className={activePanel === 'guide' ? 'active' : undefined} onClick={() => { setActivePanel('guide') }}>Your Guide</button>
           <button type="button" role="tab" aria-selected={activePanel === 'debug'} className={activePanel === 'debug' ? 'active' : undefined} onClick={() => { setActivePanel('debug') }}>Debug</button>
         </div>}
-        {!mapFocusActive || activePanel === 'guide' ? <GuidePanel query={query} presentation={presentation} directionIndex={directionIndex} onQuery={setQuery} onSubmit={submit} onChoose={(label) => { setQuery(label); inputRef.current?.focus() }} onConfirm={confirm} onCancel={cancel} onReplay={() => { setDirectionIndex(0) }} onReopen={() => { void gateway.sendMessage(sessionId, 'Reopen the closed connector').then((next) => { setLiveReply(next); setReplyId(next.id); setDecision(next.pending ? 'pending' : null) }) }} onShowFloor={(nextFloor) => { setFloorId(nextFloor); setFloorPinned(true) }} hereName={hereId ? labelFor(hereId) : null} inputMode={inputMode} onInputMode={setInputMode} inputRef={inputRef} /> : <DebugPanel selection={selection} presentation={presentation} effects={visibleEffects} onLoad={loadReply} />}
+        {!mapFocusActive || activePanel === 'guide' ? <GuidePanel query={query} presentation={presentation} directionIndex={directionIndex} onQuery={setQuery} onSubmit={submit} onChoose={(label) => { setQuery(label); inputRef.current?.focus() }} onConfirm={confirm} onCancel={cancel} onReplay={() => { setDirectionIndex(0); setPlaying(true) }} onReopen={() => { void gateway.sendMessage(sessionId, 'Reopen the closed connector').then((next) => { setLiveReply(next); setReplyId(next.id); setDecision(next.pending ? 'pending' : null) }) }} onShowFloor={(nextFloor) => { setFloorId(nextFloor); setFloorPinned(true) }} hereName={hereId ? labelFor(hereId) : null} inputMode={inputMode} onInputMode={setInputMode} inputRef={inputRef} /> : <DebugPanel selection={selection} presentation={presentation} effects={visibleEffects} onLoad={loadReply} />}
       </div>
     </section>
-    <footer className="next-bar"><div><span className="eyebrow">{copy.nextStep}</span><strong>{loading ? 'Working…' : nextText}</strong></div><button type="button" className="next-distance" onClick={advance} disabled={!presentation.route?.reachable}>{presentation.route?.reachable ? `${formatMetres(presentation.route.length_m)} ->` : `${copy.noRoute} ->`}</button></footer>
+    <footer className="next-bar"><div><span className="eyebrow">{copy.nextStep}</span><strong>{loading ? 'Working…' : nextText}</strong></div><button type="button" className="next-distance" onClick={() => setPlaying((value) => !value)} disabled={!presentation.route?.reachable} aria-pressed={playing}>{playing ? copy.pause : copy.play}</button><button type="button" className="next-distance" onClick={advance} disabled={!presentation.route?.reachable}>{presentation.route?.reachable ? `${formatMetres(presentation.route.length_m)} ->` : `${copy.noRoute} ->`}</button></footer>
   </main>
 }

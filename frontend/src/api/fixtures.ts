@@ -95,6 +95,7 @@ function readRoute(value: unknown): Route {
     closed_ids: (route.closed_ids as string[]) ?? [],
     start_space_id: typeof route.start_space_id === 'string' ? route.start_space_id : null,
     destination_space_id: typeof route.destination_space_id === 'string' ? route.destination_space_id : null,
+    space_path: Array.isArray(route.space_path) ? route.space_path.filter((id): id is string => typeof id === 'string') : [],
     directions: (route.directions as Route['directions']) ?? [],
     legs: (route.legs as Route['legs']) ?? [],
   }
