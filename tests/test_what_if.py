@@ -26,15 +26,15 @@ def opening(opening_id, spaces, x, y, kind="door"):
 def make_map(far_y: float | None = 1.5, closed=()) -> BuildingMap:
     """Ground X(-4..0) | Y(0..4) with the entrance at (4, 0); a detour door X-Y at (0, far_y) when given.
 
-    X's anchor is (-2, 0) and Y's (2, 0), so the midpoint door (0, 0) shortens X's exit by
-    2*sqrt(4 + far_y^2) - 4: exactly 1.0 m for far_y = 1.5. U above X (stairs), Z isolated, C touches X's corner.
+    X's anchor is (-2, 0) and Y's (2, 0). The kit 1.1.0 midpoint door bypasses
+    a detour, including the door landing costs. U is above X (stairs), Z isolated, C touches X's corner.
     """
     openings = [opening("E", ["Y", "outside"], 4, 0, "entrance")]
     if far_y is not None:
         openings.append(opening("far", ["X", "Y"], 0, far_y))
     return BuildingMap({
         "building": {"id": "test", "name": "Test", "units": "m"},
-        "floors": [{"id": "F0", "level": 0, "name": "Ground"}, {"id": "F1", "level": 1, "name": "First"}],
+        "floors": [{"id": "F0", "level": 0, "name": "Ground", "elevation_m": 0.0}, {"id": "F1", "level": 1, "name": "First", "elevation_m": 3.0}],
         "spaces": [
             space("X", "F0", -4, -2), space("Y", "F0", 0, -2), space("U", "F1", -4, -2),
             space("Z", "F0", 20, 0), space("C", "F0", -8, 2),
@@ -58,18 +58,20 @@ def snapshot(building: BuildingMap) -> tuple:
 
 class WhatIfCountTests(unittest.TestCase):
     def test_only_improvements_strictly_above_the_threshold_count(self):
-        for gain, expected in ((0.99, 0), (1.0, 0), (1.01, 1)):
-            with self.subTest(gain=gain):
-                result = make_map(far_y_for_gain(gain)).analyze_what_if_door("X", "Y", floor_level=1)
+        # With the 30 cm landing, the hand-calculated exit saving for far_y=1.5
+        # is round(hypot(1.7, 1.5)+.3, 3) + round(hypot(3.4, 1.5)+.6, 3) - 6 = .883.
+        for threshold, expected in ((0.882, 1), (0.883, 0), (0.884, 0)):
+            with self.subTest(threshold=threshold):
+                result = make_map(1.5).analyze_what_if_door("X", "Y", 1, threshold)
                 self.assertEqual(result["count"], expected)
-        exact = make_map(1.5).analyze_what_if_door("X", "Y", floor_level=1, improvement_threshold_m=0.5)
-        self.assertEqual([r["improvement_m"] for r in exact["improved_rooms"]], [1.0])
+        exact = make_map(1.5).analyze_what_if_door("X", "Y", 1, 0.5)
+        self.assertEqual([r["improvement_m"] for r in exact["improved_rooms"]], [0.88])
 
     def test_door_floor_may_differ_from_target_floor(self):
         building = make_map(far_y_for_gain(3.0))
         upper = building.analyze_what_if_door("X", "Y", floor_level=1)
         self.assertEqual((upper["door_floor_level"], upper["target_floor_level"]), (0, 1))
-        self.assertEqual([(r["id"], r["improvement_m"]) for r in upper["improved_rooms"]], [("U", 3.0)])
+        self.assertEqual([(r["id"], r["improvement_m"]) for r in upper["improved_rooms"]], [("U", 2.93)])
         ground = building.analyze_what_if_door("X", "Y", floor_level=0)
         self.assertEqual([r["id"] for r in ground["improved_rooms"]], ["X"])
         self.assertEqual(ground["eligible_rooms"], 4)  # X, Y, Z, C: the hall is not a room

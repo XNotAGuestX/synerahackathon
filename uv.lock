@@ -928,12 +928,13 @@ wheels = [
 
 [[package]]
 name = "track01-student-kit"
-version = "1.0.0"
+version = "1.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "matplotlib" },
     { name = "networkx" },
+    { name = "numpy" },
     { name = "shapely" },
 ]
 
@@ -942,6 +943,7 @@ requires-dist = [
     { name = "anthropic", specifier = ">=2.1.0" },
     { name = "matplotlib", specifier = ">=3.11.2" },
     { name = "networkx", specifier = ">=3.7" },
+    { name = "numpy", specifier = ">=2.0" },
     { name = "shapely", specifier = ">=2.2.0" },
 ]
 

@@ -15,7 +15,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from matplotlib.patches import Polygon as PolygonPatch
 
-from .building_map import DOOR_PREFIX, OUTSIDE, BuildingMap, MapError, RouteResult, normalize_type
+from .building_map import DOOR_PREFIX, OUTSIDE, BuildingMap, MapError, RouteResult, door_landing, normalize_type, outline, walking_path
 
 ROOM_COLOURS = {"hall": "#ece6d6", "corridor": "#faf8f2", "stair": "#dce6f2", "lift": "#dce6f2"}
 ROOM_COLOUR = "#f3efe6"
@@ -57,22 +57,33 @@ def node_location(building_map: BuildingMap, node: str) -> tuple[str, tuple[floa
 def route_polylines(
     building_map: BuildingMap, route: RouteResult
 ) -> list[tuple[str, list[tuple[float, float]]]]:
-    """The route's recorded nodes (room anchors and the doors actually used) as one polyline per floor run.
+    """Draw the selected door-to-door walks around corners, splitting at vertical connectors.
 
-    A new polyline starts at every floor change, outside transition or revisit of a floor, so no line is
-    drawn across stairs, lifts or the outside.
+    A heuristic kit fallback has no validated geometry and is left as a gap.
     """
     polylines: list[tuple[str, list[tuple[float, float]]]] = []
+    if not route.edge_path:
+        location = node_location(building_map, route.node_path[0])
+        return [(location[0], [location[1]])] if location else []
     previous_floor = None
-    for node in route.node_path:
-        location = node_location(building_map, node)
-        if location is None:
+    for first, second, element in zip(route.node_path, route.node_path[1:], route.edge_path):
+        if element in building_map.connectors:
             previous_floor = None
             continue
-        floor_id, point = location
+        floor_id = building_map.spaces[element]["floor_id"]
+        polygon = outline(building_map.spaces[element]["polygon"])
+        start, end = node_location(building_map, first)[1], node_location(building_map, second)[1]
+        landing_start = door_landing(polygon, start) if first.startswith(DOOR_PREFIX) else start
+        landing_end = door_landing(polygon, end) if second.startswith(DOOR_PREFIX) else end
+        walk = walking_path(polygon, landing_start, landing_end)
+        if not walk:
+            previous_floor = None
+            continue
         if floor_id != previous_floor:
             polylines.append((floor_id, []))
-        polylines[-1][1].append(point)
+        for point in [start, *walk, end]:
+            if not polylines[-1][1] or polylines[-1][1][-1] != point:
+                polylines[-1][1].append(point)
         previous_floor = floor_id
     return polylines
 
@@ -81,7 +92,7 @@ def route_handoffs(building_map: BuildingMap, route: RouteResult) -> list[tuple[
     """(floor id, position, label) where the route changes floor by stairs/lift or passes through the outside."""
     handoffs = []
     nodes = route.node_path
-    for index, element in enumerate(route.element_path):
+    for index, element in enumerate(route.edge_path):
         connector = building_map.connectors.get(element)
         if connector is None:
             continue

@@ -48,7 +48,7 @@ def make_map(extra_openings=(), connectors=(), width=1.2) -> BuildingMap:
     ]
     return BuildingMap({
         "building": {"id": "test", "name": "Test", "units": "m"},
-        "floors": [{"id": "F0", "level": 0, "name": "Ground"}, {"id": "F1", "level": 1, "name": "First"}],
+        "floors": [{"id": "F0", "level": 0, "name": "Ground", "elevation_m": 0.0}, {"id": "F1", "level": 1, "name": "First", "elevation_m": 3.0}],
         "spaces": spaces, "assets": [], "openings": openings, "vertical_connectors": list(connectors),
     })
 

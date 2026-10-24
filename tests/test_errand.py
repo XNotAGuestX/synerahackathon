@@ -59,7 +59,7 @@ class ErrandTests(unittest.TestCase):
         self.assertEqual(result["pickup"]["id"], "b")
         self.assertAlmostEqual(result["pickup"]["distance_m"], 5.0)
         self.assertEqual(result["destination"]["id"], "d")
-        self.assertAlmostEqual(result["length_m"], 5 + 5 + 10 + 10)
+        self.assertAlmostEqual(result["length_m"], 29.59)
 
     def test_total_is_the_sum_of_two_legs(self):
         result = errand_map(ASSETS).plan_errand("s", "printer", "meeting_room", 0)
@@ -132,9 +132,9 @@ class ErrandTests(unittest.TestCase):
                 {"start": "s", "asset_type": "printer", "destination_room_type": "meeting_room",
                  "destination_floor_level": 0}
             ))
-            self.assertEqual(data["length_m"], 30.0)
-            self.assertEqual([leg["length_m"] for leg in data["legs"]], [5.0, 25.0])
-            self.assertEqual(data["distance_model"], "kit")
+            self.assertEqual(data["length_m"], 29.59)
+            self.assertEqual([leg["length_m"] for leg in data["legs"]], [5.0, 24.59])
+            self.assertEqual(data["distance_model"], "kit-1.1.0")
             self.assertEqual(data["pickup"]["distance_m"], 5.0)
             with self.assertRaises(ToolError):
                 tools["plan_errand"].call(

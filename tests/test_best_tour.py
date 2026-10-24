@@ -15,7 +15,7 @@ from final_agent.tools import make_tools
 
 
 def graph_map(points: dict[str, tuple[float, float]], edges: list[tuple], blocked=()) -> BuildingMap:
-    """Rooms are small squares around points; each edge is a door at the midpoint, so its cost is the distance.
+    """Rooms are small squares around points; midpoint doors include kit 1.1.0 landing costs.
 
     Edges listed in blocked get a step (not step-free).
     """
@@ -71,25 +71,25 @@ class BestTourTests(unittest.TestCase):
         building = line_map({"p": -1, "q": 2, "start": 0, "end": -10})
         result = building.find_best_tour("start", ["p", "q"], "end")
         self.assertEqual(result["stop_sequence"], ["start", "q", "p", "end"])
-        self.assertAlmostEqual(result["length_m"], 14.0)
-        self.assertAlmostEqual(result["given_order_length_m"], 16.0)
-        self.assertAlmostEqual(result["saving_m"], 2.0)
+        self.assertAlmostEqual(result["length_m"], 14.6)
+        self.assertAlmostEqual(result["given_order_length_m"], 16.9)
+        self.assertAlmostEqual(result["saving_m"], 2.3)
 
     def test_equal_cost_orders_use_stop_id_order_whatever_the_input_order(self):
         building = line_map({"b": -1, "s": 0, "a": 1})
         for stops in (["a", "b"], ["b", "a"]):
             result = building.find_best_tour("s", stops, "s", activate=False)
             self.assertEqual(result["stop_sequence"], ["s", "a", "b", "s"])
-            self.assertAlmostEqual(result["length_m"], 4.0)
+            self.assertAlmostEqual(result["length_m"], 4.6)
 
     def test_round_trip_and_fixed_endpoints(self):
         building = line_map({"s": 0, "a": 3, "b": 5, "z": -4})
         trip = building.find_best_tour("s", ["a", "b"], "s")
         self.assertEqual((trip["stop_sequence"][0], trip["stop_sequence"][-1]), ("s", "s"))
-        self.assertAlmostEqual(trip["length_m"], 10.0)
+        self.assertAlmostEqual(trip["length_m"], 10.6)
         open_end = building.find_best_tour("s", ["a", "b"], "z", activate=False)
         self.assertEqual(open_end["stop_sequence"], ["s", "a", "b", "z"])
-        self.assertAlmostEqual(open_end["length_m"], 5 + 9)
+        self.assertAlmostEqual(open_end["length_m"], 14.75)
 
     def test_repeated_stops_are_distinct_visits_with_zero_length_leg(self):
         building = line_map({"s": 0, "a": 3, "b": 5})
@@ -98,7 +98,7 @@ class BestTourTests(unittest.TestCase):
         self.assertEqual(len(sequence), 5)
         self.assertEqual(sorted(sequence[1:4]), ["a", "a", "b"])
         self.assertEqual([leg["length_m"] for leg in result["route"].legs].count(0.0), 1)
-        self.assertAlmostEqual(result["length_m"], 10.0)
+        self.assertAlmostEqual(result["length_m"], 10.6)
 
     def test_no_stops_is_a_normal_route(self):
         building = line_map({"s": 0, "a": 3})
@@ -113,7 +113,7 @@ class BestTourTests(unittest.TestCase):
         ten = [f"r{i:02d}" for i in range(10, 0, -1)]
         result = building.find_best_tour("r00", ten, "r12", activate=False)
         self.assertEqual(result["stop_sequence"][1:-1], sorted(ten))
-        self.assertAlmostEqual(result["length_m"], 12.0)
+        self.assertAlmostEqual(result["length_m"], 13.8)
         building.last_route = building.compute_route("r00", "r01")
         with self.assertRaisesRegex(MapError, "11 stops is too many.*at most 10"):
             building.find_best_tour("r00", [f"r{i:02d}" for i in range(1, 12)], "r12")
@@ -127,7 +127,7 @@ class BestTourTests(unittest.TestCase):
 
     def test_unreachable_stop_is_named_with_constraints_and_never_dropped(self):
         building = line_map({"s": 0, "a": 3, "b": 5}, blocked={("a", "b")})
-        self.assertAlmostEqual(building.find_best_tour("s", ["a", "b"], "s")["length_m"], 10.0)
+        self.assertAlmostEqual(building.find_best_tour("s", ["a", "b"], "s")["length_m"], 10.6)
         with self.assertRaisesRegex(MapError, r"B \[b\] on Ground cannot be reached.*step_free=True"):
             building.find_best_tour("s", ["a", "b"], "s", step_free=True)
         building.set_closed("a-b", True)
@@ -170,11 +170,11 @@ class BestTourTests(unittest.TestCase):
             ))
             self.assertEqual(
                 (result["optimal"], result["distance_model"], result["activated"], result["length_m"]),
-                (True, "kit", False, 14.0),
+                (True, "kit-1.1.0", False, 14.6),
             )
             self.assertEqual([leg["to"] for leg in result["legs"]], ["q", "p", "end"])
             self.assertTrue(all("space_path" in leg and "element_path" in leg for leg in result["legs"]))
-            self.assertEqual(result["route"]["length_m"], 14.0)
+            self.assertEqual(result["route"]["length_m"], 14.6)
             self.assertEqual(result["constraints"]["step_free"], False)
             with self.assertRaisesRegex(ToolError, "too many"):
                 tools["find_best_tour"].call(
