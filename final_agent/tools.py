@@ -10,7 +10,7 @@ from anthropic import beta_tool
 from anthropic.lib.tools import ToolError
 
 from .building_map import MAX_SEARCH_RESULTS, NEW_DOOR_WIDTH_M, BuildingMap, MapError, RouteResult
-from .viewer import draw_route
+from .viewer import draw_location, draw_route, landmark_targets, route_floor_ids, route_handoffs
 
 JSON_INDENT = 1
 
@@ -477,10 +477,99 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
     # ---------- map display ----------
 
     @register
-    def show_route() -> str:
-        """Draw the most recent route on the floor plans and save the images; returns the file paths."""
-        if building_map.last_route is None:
-            raise ToolError("No route yet. Call find_route first.")
-        return as_json({"images": [str(path) for path in draw_route(building_map, output_directory)]})
+    def show_location(element: str) -> str:
+        """Locate a room or an object on the map: select it, highlight it on its floor plan and save the image.
+
+        This is the only action that changes the map selection (searching never does). The result gives the
+        selected thing's name, its containing room, floor and position, plus the image path. For an asset
+        say "the <name> is in <room> on <floor>"; the room is highlighted too.
+
+        Args:
+            element: Space id, asset id, or exact room number/name or asset name. An ambiguous name returns
+                candidate ids: pick one, do not guess.
+        """
+        try:
+            identity = building_map.select(element)
+            image = draw_location(building_map, output_directory)
+        except MapError as error:
+            raise ToolError(str(error)) from error
+        return as_json({"selected": identity, "floor_level": identity["floor_level"], "image": str(image)})
+
+    @register
+    def show_route(landmark_ids: list[str] | None = None) -> str:
+        """Draw the active route (find_route or an activated find_best_tour) on every floor it crosses.
+
+        The images show the start, the destination, numbered intermediate stops in route order, the doors
+        actually used, stair/lift handoffs and closed elements. `landmark_ids` are space or asset ids (for
+        example from describe_destination_context or find_navigation_landmarks) drawn as landmarks, so the
+        text and the map name the same ones. The result lists the stops in drawn order, floors, handoffs and
+        which landmarks were drawn. With no active route (none computed yet, the last request was unreachable
+        or a closure broke it) this is an error: say there is no route, never describe an older one.
+
+        Args:
+            landmark_ids: Optional space/asset ids to mark as landmarks; one on a floor the route does not cross
+                is reported with drawn=false.
+        """
+        route = building_map.last_route
+        if route is None:
+            reason = (
+                "The last route request is unreachable or was cancelled by a closure."
+                if building_map.active_request is not None else "No route has been computed yet."
+            )
+            raise ToolError(f"No active route to draw. {reason} Call find_route again.")
+        try:
+            images = draw_route(building_map, output_directory, landmark_ids)
+            floors = [building_map.floor_level(floor_id) for floor_id in route_floor_ids(building_map, route)]
+        except MapError as error:
+            raise ToolError(str(error)) from error
+        last = len(route.stops) - 1
+        stops = [
+            {
+                "order": index, "role": "start" if index == 0 else "destination" if index == last else "stop",
+                **building_map.place_record(space_id),
+            }
+            for index, space_id in enumerate(route.stops)
+        ]
+        landmarks = []
+        for kind, landmark_id in landmark_targets(building_map, landmark_ids or []):
+            record = building_map.spaces[landmark_id] if kind == "space" else building_map.assets[landmark_id]
+            level = building_map.floor_level(record["floor_id"])
+            landmarks.append(
+                {"id": landmark_id, "name": record["name"], "kind": kind, "floor_level": level, "drawn": level in floors}
+            )
+        return as_json({
+            "images": [str(path) for path in images],
+            "floor_levels": floors,
+            "length_m": round(route.length_m, 2),
+            "stops": stops,
+            "handoffs": [
+                {"floor_level": building_map.floor_level(floor_id), "label": label}
+                for floor_id, _, label in route_handoffs(building_map, route)
+            ],
+            "landmarks": landmarks,
+            "closed_shown": sorted(building_map.closed),
+        })
+
+    @register
+    def describe_destination_context(space: str, radius_m: float = 15.0, min_area_m2: float = 40.0) -> str:
+        """Large named rooms around a destination (canteen, lobby, big hall), to say where it is.
+
+        Each `context` entry has an id, name, room_type, area_m2, `relation` and distance_m measured between
+        room outlines. Say "next to <room>" ONLY for relation "adjacent" (a shared wall of at least 1 m on the
+        same floor); that does not mean a door joins them or that the public can pass. For relation "near" say
+        "near <room>" and give distance_m. For an asset, the context describes its containing room (`asset`
+        is returned): never imply the asset itself is next to that neighbour. Corridors, stairs, lifts and
+        outdoor spaces are never listed. If `context` is empty omit landmark context from the answer. Pass the
+        entries' ids to show_route(landmark_ids=...) to see the same rooms on the map. Nothing is changed.
+
+        Args:
+            space: Destination space id, asset id, or exact room number/name.
+            radius_m: Only rooms whose outline is at most this many metres from the destination outline.
+            min_area_m2: Only rooms with at least this floor area in m2 (default 40; larger = more prominent).
+        """
+        try:
+            return as_json(building_map.destination_context(space, radius_m, min_area_m2))
+        except MapError as error:
+            raise ToolError(str(error)) from error
 
     return tools
