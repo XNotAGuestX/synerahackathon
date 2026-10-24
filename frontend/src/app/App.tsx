@@ -12,6 +12,14 @@ import { copy } from '../i18n/en'
 import { PlanCanvas } from '../rendering/PlanCanvas'
 
 const emptyPresentation = buildPresentation({ guideText: '', understood: null, effects: [], routes: [], pendingSummary: null, decision: null, confirmedEffects: [], confirmedClosedIds: [], confirmedText: catalog.confirmedText, cancelledText: copy.cancelled })
+type ThemeMode = 'system' | 'light' | 'dark'
+
+const themeModes: ThemeMode[] = ['system', 'light', 'dark']
+
+function initialThemeMode(): ThemeMode {
+  const stored = window.localStorage.getItem('talk-building-theme')
+  return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system'
+}
 
 export function App() {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -34,6 +42,22 @@ export function App() {
   const [places, setPlaces] = useState<Place[]>([])
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [themeMode, setThemeMode] = useState<ThemeMode>(initialThemeMode)
+
+  useEffect(() => {
+    const root = document.documentElement
+    const applyTheme = (mode: ThemeMode) => {
+      root.dataset.theme = mode
+      window.localStorage.setItem('talk-building-theme', mode)
+    }
+    applyTheme(themeMode)
+    if (themeMode !== 'system') return
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const handleChange = () => { root.dataset.systemTheme = media.matches ? 'dark' : 'light' }
+    handleChange()
+    media.addEventListener('change', handleChange)
+    return () => media.removeEventListener('change', handleChange)
+  }, [themeMode])
 
   useEffect(() => {
     let cancelled = false
@@ -112,7 +136,7 @@ export function App() {
   }
 
   return <main className="app-shell" data-scenario={replyId} data-decision={decision ?? 'none'}>
-    <header className="topbar"><div className="brand"><span className="brand-mark">W</span><span>{copy.title}</span></div><div className="building-meta"><span className="eyebrow">{copy.buildingEyebrow}</span><select className="building-picker" value={buildingId} onChange={(event) => setBuildingId(event.target.value)} aria-label="Choose building">{(buildings.length ? buildings : [{ id: buildingId, name: catalog.buildingName } as BuildingSummary]).map((building) => <option key={building.id} value={building.id}>{building.name}</option>)}</select><span className="status-pill"><span />{gateway.mode === 'fixture' ? copy.fixtures : 'API connected'}</span></div><button type="button" className="icon-button" aria-label={copy.debug} aria-pressed={debugOpen} onClick={() => setDebugOpen((open) => !open)}><span className="menu-dots" aria-hidden="true"><span /><span /><span /></span></button></header>
+    <header className="topbar"><div className="brand"><span className="brand-mark">W</span><span>{copy.title}</span></div><div className="building-meta"><span className="eyebrow">{copy.buildingEyebrow}</span><select className="building-picker" value={buildingId} onChange={(event) => setBuildingId(event.target.value)} aria-label="Choose building">{(buildings.length ? buildings : [{ id: buildingId, name: catalog.buildingName } as BuildingSummary]).map((building) => <option key={building.id} value={building.id}>{building.name}</option>)}</select><span className="status-pill"><span />{gateway.mode === 'fixture' ? copy.fixtures : 'API connected'}</span><div className="theme-switcher" role="group" aria-label="Theme"><span className="sr-only">Theme</span>{themeModes.map((mode) => <button key={mode} type="button" className={themeMode === mode ? 'active' : undefined} aria-pressed={themeMode === mode} onClick={() => setThemeMode(mode)}>{mode === 'system' ? 'Auto' : mode === 'light' ? 'Light' : 'Dark'}</button>)}</div></div><button type="button" className="icon-button" aria-label={copy.debug} aria-pressed={debugOpen} onClick={() => setDebugOpen((open) => !open)}><span className="menu-dots" aria-hidden="true"><span /><span /><span /></span></button></header>
     {loadError && <div className="app-alert" role="alert">{loadError}</div>}
     <section className="place-search"><form onSubmit={searchPlaces}><input value={placeQuery} onChange={(event) => setPlaceQuery(event.target.value)} placeholder="Search rooms or equipment" aria-label="Search rooms or equipment"/><button type="submit">Search</button></form>{places.length > 0 && <div className="place-results">{places.map((place) => <button type="button" key={place.id} onClick={() => focusPlace(place)}><strong>{place.name}</strong><span>{place.kind} · Floor {place.floor_level}</span></button>)}</div>}</section>
     <section className="workspace"><div className="map-column"><div className="map-toolbar"><div><span className="eyebrow">{copy.planEyebrow}</span><h1>{floor.name}</h1></div><div className="floor-rail" role="toolbar" aria-label="Floors">{floors.map((item) => <button type="button" key={item.id} className={item.id === floor.id ? 'active' : undefined} aria-pressed={item.id === floor.id} aria-label={`${copy.showFloor} ${item.name}`} onClick={() => { setFloorId(item.id); setFloorPinned(true) }}>{item.level}</button>)}</div></div><div className="plan-stage"><PlanCanvas plan={plan} floorName={floor.name} route={presentation.route} spaceReasons={presentation.spaceReasons} assetIds={presentation.assetIds} closedIds={presentation.closedIds} focusPoint={presentation.focusFloorId === floor.id ? presentation.focusPoint : null} stepPoint={step?.floor_id === floor.id ? step.at : null} selectionId={selection?.id ?? null} onSelect={setSelection} /><div className="map-caption" role="status">{selection ? <><strong>{selection.name}</strong><span>{selection.floorName}</span></> : <><span className="legend-dot route-dot" /> {copy.routeTape}<span className="legend-dot focus-dot" /> {copy.destinationFocus}</>}</div>{debugOpen && <DebugPanel selection={selection} presentation={presentation} effects={visibleEffects} onLoad={loadReply} />}</div></div>

@@ -30,6 +30,18 @@ function centroid(polygon: Point[]): Point {
   return [total[0] / polygon.length, total[1] / polygon.length]
 }
 
+function containsPoint(polygon: Point[], point: Point): boolean {
+  let inside = false
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+    const [x, y] = polygon[index]
+    const [previousX, previousY] = polygon[previous]
+    const intersects = ((y > point[1]) !== (previousY > point[1]))
+      && point[0] < ((previousX - x) * (point[1] - y)) / (previousY - y) + x
+    if (intersects) inside = !inside
+  }
+  return inside
+}
+
 function closedSpaceIds(closedIds: string[], connectors: Connector[]): Set<string> {
   const closed = new Set(closedIds)
   const spaces = new Set<string>()
@@ -86,6 +98,7 @@ export function PlanCanvas({
   const legs = route?.reachable ? route.legs.filter((leg) => leg.floor_id === plan.floor.id && leg.points.length > 1) : []
   const firstLeg = route?.legs[0]
   const lastLeg = route?.legs.at(-1)
+  const focusedSpaceId = focusPoint ? plan.spaces.find((space) => containsPoint(space.polygon, focusPoint))?.id ?? null : null
 
   const selectSpace = (space: FloorPlan['spaces'][number]) => {
     onSelect({
@@ -193,7 +206,6 @@ export function PlanCanvas({
               >
                 <title>{asset.name}</title>
                 <rect x={-width / 2} y={-depth / 2} width={Math.max(width, 0.35)} height={Math.max(depth, 0.35)} />
-                <circle r={Math.max(0.55, Math.hypot(width, depth) / 2)} className="asset-hit" />
               </g>
             )
           })}
@@ -206,7 +218,6 @@ export function PlanCanvas({
           {lastLeg && lastLeg.floor_id === plan.floor.id && lastLeg.points.length > 0 && (
             <circle className="destination" cx={lastLeg.points.at(-1)![0]} cy={lastLeg.points.at(-1)![1]} r={0.9} />
           )}
-          {focusPoint && <circle className="focus-ring" cx={focusPoint[0]} cy={focusPoint[1]} r={1.15} />}
           {stepPoint && <circle className="step-marker" cx={stepPoint[0]} cy={stepPoint[1]} r={1.05} />}
         </g>
       </svg>
