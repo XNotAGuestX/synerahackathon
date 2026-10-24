@@ -4,7 +4,7 @@ import { toUiError } from '../api/errors'
 import type { UiError } from '../api/errors'
 import { catalog, labelFor, matchUserText } from '../api/fixtures'
 import { currentLocation, setCurrentLocation } from '../api/interpret'
-import { gateway } from '../api/gateway'
+import { connectComputedApi, gateway } from '../api/gateway'
 import type { BuildingSummary, InputMode, Session } from '../api/gateway'
 import { readRecovery, writeRecovery } from '../api/recovery'
 import type { DiscoveryPlace } from '../domain/discovery'
@@ -77,7 +77,6 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false
-    gateway.listBuildings().then((items) => { if (!cancelled) setBuildings(items) }).catch(() => {})
     setBooting(true)
     window.localStorage.setItem('wayfinder-building', buildingId)
     setSessionId('')
@@ -90,6 +89,9 @@ export function App() {
     setFloors([])
     setLoadError(null)
     const openSession = async (): Promise<Session> => {
+      await connectComputedApi()
+      const items = await gateway.listBuildings().catch(() => [])
+      if (!cancelled && items.length) setBuildings(items)
       const recovered = readRecovery(buildingId)
       if (recovered) {
         try { return await gateway.getSession(recovered.id) } catch { /* create a new session below */ }

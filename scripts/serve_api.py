@@ -10,6 +10,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from final_agent.guide_session import GuideSession, available_buildings, validate_plan
+
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = ROOT / "docs" / "api" / "examples"
 SESSION_ID = "11111111-1111-4111-8111-111111111111"
@@ -22,6 +24,8 @@ step_free = True
 closed_ids: list[str] = []
 last_route_id: str | None = None
 pending_action_id: str | None = None
+computed: dict[str, GuideSession] = {}
+building_dirs = {path.name: path for path in available_buildings()}
 
 
 def load(name: str) -> dict:
@@ -103,7 +107,14 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, load("health.json"), request_id)
             return
         if path == "/api/v1/buildings":
+            if "computed" in query:
+                items = [GuideSession(directory).building_summary() for directory in building_dirs.values()]
+                self._send(200, {"items": items, "page": 1, "page_size": len(items), "total": len(items)}, request_id)
+                return
             self._send(200, load("buildings-page.json"), request_id)
+            return
+        if path.startswith("/api/v1/sessions/") and path.split("/")[4] in computed:
+            self._computed_get(path, query, request_id)
             return
         if path == f"/api/v1/sessions/{SESSION_ID}":
             self._send(200, session_body(), request_id)
@@ -161,9 +172,23 @@ class Handler(BaseHTTPRequestHandler):
             self._send(conflict[0], conflict[1], request_id)
             return
         if path == "/api/v1/sessions":
+            if body.get("engine") == "computed":
+                directory = building_dirs.get(str(body.get("building_id")))
+                if directory is None:
+                    status, payload = error("30001_building_not_found", "This building is not loaded.", 404, request_id)
+                    self._send(status, payload, request_id)
+                    return
+                session = GuideSession(directory)
+                computed[session.id] = session
+                payload = {"id": session.id, "building_id": session.building_summary()["id"], "building_name": session.building_summary()["name"], "revision": session.revision, "preferences": {"step_free": session.step_free}}
+                self._send(201, payload, request_id, f"/api/v1/sessions/{session.id}")
+                return
             payload = session_body()
             self._remember(key, body, 201, payload)
             self._send(201, payload, request_id, f"/api/v1/sessions/{SESSION_ID}")
+            return
+        if path.startswith("/api/v1/sessions/") and path.split("/")[4] in computed:
+            self._computed_post(path, body, request_id)
             return
         if path == f"/api/v1/sessions/{SESSION_ID}/routes":
             destination = str(body.get("destination", ""))
@@ -225,10 +250,71 @@ class Handler(BaseHTTPRequestHandler):
         if conflict:
             self._send(conflict[0], conflict[1], request_id)
             return
+        if path.startswith("/api/v1/sessions/") and path.split("/")[4] in computed and path.endswith("/preferences"):
+            session = computed[path.split("/")[4]]
+            session.step_free = bool(body.get("step_free"))
+            session.revision += 1
+            self._send(200, {"id": session.id, "building_id": session.building_summary()["id"], "building_name": session.building_summary()["name"], "revision": session.revision, "preferences": {"step_free": session.step_free}}, request_id)
+            return
         if path == f"/api/v1/sessions/{SESSION_ID}/preferences":
             step_free = bool(body.get("step_free"))
             revision += 1
             self._send(200, session_body(), request_id)
+            return
+        status, payload = error("30002_session_not_found", "Resource was not found.", 404, request_id)
+        self._send(status, payload, request_id)
+
+
+    def _computed_get(self, path: str, query: dict, request_id: str) -> None:
+        session = computed[path.split("/")[4]]
+        parts = path.split("/")
+        if parts[-1] == session.id:
+            self._send(200, {"id": session.id, "building_id": session.building_summary()["id"], "building_name": session.building_summary()["name"], "revision": session.revision, "preferences": {"step_free": session.step_free}, "closed_ids": sorted(session.map.closed), "last_route_id": session.last_route_id, "pending_action_id": None if not session.pending else session.pending["id"]}, request_id)
+            return
+        if parts[-1] == "floors":
+            self._send(200, {"floors": session.floors()}, request_id)
+            return
+        if parts[-1] == "plan":
+            self._send(200, session.floor_plan(parts[-2]), request_id)
+            return
+        if parts[-1] == "places":
+            page = int((query.get("page") or ["1"])[0])
+            self._send(200, session.search((query.get("q") or [""])[0], page), request_id)
+            return
+        if "routes" in parts:
+            route = session.routes.get(parts[-1])
+            if route is None:
+                status, payload = error("30004_place_not_found", "Route was not found.", 404, request_id)
+                self._send(status, payload, request_id)
+                return
+            self._send(200, route, request_id)
+            return
+        status, payload = error("30002_session_not_found", "Resource was not found.", 404, request_id)
+        self._send(status, payload, request_id)
+
+    def _computed_post(self, path: str, body: dict, request_id: str) -> None:
+        session = computed[path.split("/")[4]]
+        if path.endswith("/messages"):
+            self._send(201, session.message(str(body.get("text", ""))), request_id)
+            return
+        if path.endswith("/routes"):
+            route = session.create_route(str(body.get("start")), str(body.get("destination")), bool(body.get("step_free")), body.get("via") or [])
+            self._send(201, route, request_id)
+            return
+        if path.endswith("/confirmations"):
+            try:
+                payload = session.confirm()
+            except Exception as error:
+                status, body_error = error("30009_action_expired", str(error), 409, request_id)
+                self._send(status, body_error, request_id)
+                return
+            self._send(200, payload, request_id)
+            return
+        if path.endswith("/cancellations"):
+            self._send(200, session.cancel(), request_id)
+            return
+        if path.endswith("/validations"):
+            self._send(200, {"issues": validate_plan(body)}, request_id)
             return
         status, payload = error("30002_session_not_found", "Resource was not found.", 404, request_id)
         self._send(status, payload, request_id)

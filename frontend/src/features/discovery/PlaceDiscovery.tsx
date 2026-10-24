@@ -20,10 +20,12 @@ export function PlaceDiscovery({ plans, floors, stepFree, busyId, onToggleStepFr
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [typeId, setTypeId] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
+  const [page, setPage] = useState(1)
   const category = categories.find((item) => item.id === categoryId) ?? null
   const type = category?.types.find((item) => item.id === typeId) ?? null
   const filtered = searchDiscovery(categories, filter)
-  const results = filter.trim() ? filtered : type ? limitPlaces(type.places) : []
+  const paged = filtered.slice((page - 1) * 15, page * 15)
+  const results = filter.trim() ? paged : type ? limitPlaces(type.places) : []
 
   const chooseCategory = (id: string) => {
     setFilter('')
@@ -49,7 +51,7 @@ export function PlaceDiscovery({ plans, floors, stepFree, busyId, onToggleStepFr
         <form onSubmit={submitFilter}>
           <input
             value={filter}
-            onChange={(event) => setFilter(event.target.value)}
+            onChange={(event) => { setFilter(event.target.value); setPage(1) }}
             placeholder={copy.filterPlaces}
             aria-label={copy.filterPlaces}
           />
@@ -91,6 +93,7 @@ export function PlaceDiscovery({ plans, floors, stepFree, busyId, onToggleStepFr
               </button>
             </div>
           ))}
+          {filter.trim() && filtered.length > page * 15 && <button type="button" onClick={() => setPage((value) => value + 1)}>More</button>}
         </div>
       )}
     </section>

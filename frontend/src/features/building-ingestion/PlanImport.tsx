@@ -49,7 +49,15 @@ export function PlanImport({ onApply }: PlanImportProps) {
       return
     }
     const record = parsed as Record<string, unknown>
-    const missing = REQUIRED.filter((key) => !(key in record))
+    const missing: string[] = REQUIRED.filter((key) => !(key in record))
+    const ids = new Set<string>()
+    for (const space of Array.isArray(record.spaces) ? record.spaces as Array<Record<string, unknown>> : []) {
+      const id = String(space.id ?? '')
+      if (!id || ids.has(id)) missing.push(`duplicate:${id || 'missing'}`)
+      ids.add(id)
+      const polygon = space.polygon
+      if (!Array.isArray(polygon) || polygon.length < 3) missing.push(`polygon:${id}`)
+    }
     const spaces = Array.isArray(record.spaces) ? record.spaces.length : 0
     setIssues(missing.map((key) => `Missing ${key}.`))
     setDraft(missing.length === 0 && spaces > 0 ? parsed as FloorPlan : null)

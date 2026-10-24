@@ -20,7 +20,7 @@ export interface BuildingGateway {
   getSession(sessionId: string): Promise<Session>
   listFloors(sessionId: string): Promise<FloorSummary[]>
   getFloorPlan(sessionId: string, floorId: string): Promise<FloorPlan>
-  searchPlaces(sessionId: string, query: string): Promise<Place[]>
+  searchPlaces(sessionId: string, query: string, page?: number): Promise<{ items: Place[]; total: number }>
   createRoute(sessionId: string, input: RouteRequest): Promise<Route>
   getRoute(sessionId: string, routeId: string): Promise<Route>
   updatePreferences(sessionId: string, preferences: { step_free: boolean }): Promise<Session>
@@ -75,7 +75,7 @@ function fixturePlaces(query: string): Place[] {
   for (const asset of catalog.assets.values()) {
     if (!needle || asset.name.toLowerCase().includes(needle) || asset.type.toLowerCase().includes(needle)) places.push({ id: asset.id, kind: 'asset', name: asset.name, floor_id: asset.floor_id, floor_level: catalog.floors.find((floor) => floor.id === asset.floor_id)?.level ?? 0, space_id: asset.space_id, position: asset.position })
   }
-  return places.slice(0, 20)
+  return places
 }
 
 export const fixtureGateway: BuildingGateway = {
@@ -85,7 +85,7 @@ export const fixtureGateway: BuildingGateway = {
   async getSession(sessionId) { if (sessionId !== fixtureSession().id) throw new ApiError('Session was not found.', '30002_session_not_found', 'fixture', null, 404); return fixtureSession() },
   async listFloors() { return catalog.floors },
   async getFloorPlan(_sessionId, floorId) { const plan = planFor(floorId); if (!plan) throw new Error(`Floor not found: ${floorId}`); return plan },
-  async searchPlaces(_sessionId, query) { return fixturePlaces(query) },
+  async searchPlaces(_sessionId, query, page = 1) { const all = fixturePlaces(query); const start = (page - 1) * 15; return { items: all.slice(start, start + 15), total: all.length } },
   async createRoute(_sessionId, input) {
     const saved = catalog.replies.accepted.routes[0]
     if (!saved) throw new Error('Fixture route missing')
@@ -194,12 +194,12 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
   const json = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) })
   return {
     mode: 'http',
-    async listBuildings() { const result = await request<{ items?: Array<BuildingSummary & { level_count?: number }> }>(config, '/buildings'); return (result.items ?? []).map(mapBuilding) },
-    async createSession(buildingId) { return request<Session>(config, '/sessions', json({ building_id: buildingId }), crypto.randomUUID()) },
+    async listBuildings() { const result = await request<{ items?: Array<BuildingSummary & { level_count?: number }> }>(config, '/buildings?computed=1'); return (result.items ?? []).map(mapBuilding) },
+    async createSession(buildingId) { return request<Session>(config, '/sessions', json({ building_id: buildingId, engine: 'computed' }), crypto.randomUUID()) },
     async getSession(sessionId) { return request<Session>(config, `/sessions/${sessionId}`) },
     async listFloors(sessionId) { const result = await request<{ floors: FloorSummary[] }>(config, `/sessions/${sessionId}/floors`); return result.floors },
     async getFloorPlan(sessionId, floorId) { return request<FloorPlan>(config, `/sessions/${sessionId}/floors/${floorId}/plan`) },
-    async searchPlaces(sessionId, query) { const result = await request<{ items?: Place[]; places?: Place[] }>(config, `/sessions/${sessionId}/places?q=${encodeURIComponent(query)}`); return (result.items ?? result.places ?? []).map(mapPlace) },
+    async searchPlaces(sessionId, query, page = 1) { const result = await request<{ items?: Place[]; places?: Place[]; total?: number }>(config, `/sessions/${sessionId}/places?q=${encodeURIComponent(query)}&page=${page}`); return { items: (result.items ?? result.places ?? []).map(mapPlace), total: result.total ?? (result.items ?? result.places ?? []).length } },
     async createRoute(sessionId, input) {
       return request<Route>(config, `/sessions/${sessionId}/routes`, json({
         start: input.start_space_id,
@@ -225,5 +225,21 @@ export function createGateway(): BuildingGateway {
   return fixtureGateway
 }
 
-export const gateway = createGateway()
+let activeGateway = createGateway()
+export const gateway: BuildingGateway = new Proxy({} as BuildingGateway, {
+  get(_target, property: string) {
+    return activeGateway[property as keyof BuildingGateway]
+  },
+})
+
+export async function connectComputedApi(): Promise<boolean> {
+  try {
+    const response = await fetch('/api/v1/health')
+    if (!response.ok) return false
+    activeGateway = createHttpGateway({ mode: 'http', baseUrl: '/api/v1' })
+    return true
+  } catch {
+    return false
+  }
+}
 export { labelFor }

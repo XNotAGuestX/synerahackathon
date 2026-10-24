@@ -118,6 +118,23 @@ Entspricht dem genehmigten Erlebnis in `docs/WEB_PRODUCT_PLAN.md`: die Route wir
 - [x] **STORY-02 Etagenübergang:** endet der sichtbare Abschnitt vor einem Wechsel, liegt ein Verbindungs-Marker auf dem Plan. Die nächste Etage öffnet sich mit dem Schritt.
   - Dateien: `frontend/src/rendering/PlanCanvas.tsx`, `frontend/src/features/guide/GuidePanel.tsx`
 
+## P0 – Fehlende BACKLOG-Anbindung L1–L4
+
+Die bisherigen CTX-Punkte sind die Fixture-Oberfläche. Diese Liste schließt die Lücken, indem dieselbe Oberfläche berechnete Session-Antworten zeichnet. Das Frontend rechnet keine Route.
+
+- [x] **GAP-01 L1-01 Gespräch:** jede Eingabe geht an die Session-API. Die Antwort kommt aus den Gebäudedaten. Der Guide zeigt Text, `effects` und die passende Etage.
+- [x] **GAP-02 L1-02 Treffer:** ein Treffer wird auf der richtigen Etage markiert. Mehr als 15 Treffer können weitergeblättert werden.
+- [x] **GAP-03 L1-03 Mehrdeutig:** ein Name mit mehreren Treffern stellt eine Frage. „9.99“ erzeugt keinen Ort und keine Route.
+- [x] **GAP-04 L1-04 Kontext:** Standort, Ziel, Gebäude und Step-free bleiben in der Session. „instead“ ändert nur das Ziel.
+- [x] **GAP-05 L2-01 Route:** Route here und Sätze liefern Länge, Richtungen und `legs`. Die Karte zeichnet genau diese `legs`.
+- [x] **GAP-06 L2-02 Schließen:** Tür, Raum, Aufzug und Treppe können bestätigt geschlossen und wieder geöffnet werden. Die aktive Route wird neu berechnet oder als unerreichbar erklärt.
+- [x] **GAP-07 L2-03 Tour:** die genannte Reihenfolge bleibt. Die Antwort enthält Abschnitte und die summierte Länge, wenn eine Route existiert.
+- [x] **GAP-08 L3-01 Etagen:** eine berechnete Route über mehrere Etagen zeigt je Etage ihr Segment und den Verbinder.
+- [x] **GAP-09 L3-02 Gebäude:** der Picker lädt ein zweites Gebäude. Raumnummern bleiben an die Gebäude-ID gebunden.
+- [x] **GAP-10 L3-03 Übergang:** ein Schritt, der das Gebäude verlässt, wird als eigener Abschnitt gezeigt. Eine fehlende Verbindungsbrücke wird erklärt, nicht erfunden.
+- [x] **GAP-11 L4 Prüfung:** ein hochgeladenes JSON wird auf IDs, Koordinaten und Polygone geprüft. Korrekturen sind sichtbar. Bilder bleiben bei der Maßstabsprüfung und erzeugen keine Räume.
+  - Dateien: `final_agent/guide_session.py`, `scripts/serve_api.py`, `frontend/src/api/gateway.ts`, `frontend/src/app/App.tsx`, `frontend/src/features/discovery/PlaceDiscovery.tsx`, `frontend/src/features/building-ingestion/PlanImport.tsx`
+
 ## Backend- und Benchmark-Spur
 
 Diese Aufgaben sind nicht durch die React-Oberfläche erledigt und müssen parallel verfolgt werden.
