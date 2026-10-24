@@ -19,7 +19,7 @@ import anthropic
 from benchmark.evaluate import cost_dollars, load_questions, sample_per_kind
 from benchmark.score import score_reply
 
-from .agent import MODEL, BuildingAgent, MissingCredentialsError
+from .agent import MODELS, BuildingAgent, MissingCredentialsError, add_model_argument
 from .benchmark import RUN_LIBRARY_PATH
 from .building_map import BuildingMap
 from .embedding import default_embedder
@@ -123,15 +123,15 @@ def build(selected: list[Question], library: Path, model: str, full: bool) -> No
         results[(run.kind, run.accepted)] += 1
         outcome = "ACCEPTED" if run.accepted else "rejected"
         print(f"{run.question_id:34s} {run.kind:26s} {outcome:8s} declared {run.declared_kind}")
-    print_summary(results, usage)
+    print_summary(results, usage, model)
 
 
-def print_summary(results: Counter[tuple[str, bool]], usage: Counter[str]) -> None:
+def print_summary(results: Counter[tuple[str, bool]], usage: Counter[str], model: str) -> None:
     print(f"\n{'kind':28s} accepted / total")
     for kind in sorted({kind for kind, _ in results}):
         accepted = results[(kind, True)]
         print(f"  {kind:26s} {accepted:8d} / {accepted + results[(kind, False)]}")
-    print(f"tokens: {dict(usage)}  cost: ${cost_dollars(usage):.2f}")
+    print(f"tokens: {dict(usage)}  cost: ${cost_dollars(usage, model):.2f}")
 
 
 def main() -> None:
@@ -140,7 +140,7 @@ def main() -> None:
     )
     parser.add_argument("--full", action="store_true", help="every pending question, after a typed 'yes'")
     parser.add_argument("--all", action="store_true", help="add data/dev to data/train")
-    parser.add_argument("--model", default=MODEL, help=f"agent model (default: {MODEL})")
+    add_model_argument(parser)
     parser.add_argument(
         "--library", type=Path, default=RUN_LIBRARY_PATH, help=f"run library JSONL (default: {RUN_LIBRARY_PATH})"
     )
@@ -151,7 +151,7 @@ def main() -> None:
         raise SystemExit(f"No questions found under {', '.join(map(str, directories))}.")
     require_labels(questions)
     selected = questions if arguments.full else sample_per_kind(questions, SMALL_PER_KIND)
-    build(selected, arguments.library, arguments.model, arguments.full)
+    build(selected, arguments.library, MODELS[arguments.model], arguments.full)
 
 
 if __name__ == "__main__":

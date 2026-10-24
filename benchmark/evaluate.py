@@ -3,7 +3,8 @@
   uv run --env-file .env python -m benchmark.evaluate data/dev --per-kind 4
 
 By default it runs the project agent (final_agent.benchmark:answer). Pass --agent module:function to evaluate
-another one; the function gets (building_directory: Path, question_text: str) and returns the reply text."""
+another one; the function gets (building_directory: Path, question_text: str) and returns the reply text.
+With --model it is also called with model=<API model ID>."""
 
 import argparse
 import csv
@@ -14,23 +15,33 @@ import random
 import sys
 from collections import Counter
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 
 import anthropic
 
 from benchmark.score import score_reply
+from final_agent.agent import DEFAULT_MODEL, MODEL, MODELS
 
 QUESTIONS_FILENAME = "questions.jsonl"
 SUBMISSION_COLUMNS = ("question_id", "answer")
 RESULTS_DIRECTORY = Path("agent_output") / "benchmark"
 SAMPLE_SEED = 7
 DEFAULT_AGENT = "final_agent.benchmark:answer"
-# claude-opus-5-5 prices, dollars per million tokens; cache writes are 1.25x input (5-minute cache)
+# Dollars per million tokens; cache writes are the 5-minute cache. Haiku's rates apply to prompts up to 100K tokens.
 PRICE_PER_MILLION = {
-    "input_tokens": 4.00,
-    "output_tokens": 20.00,
-    "cache_read_input_tokens": 0.20,
-    "cache_creation_input_tokens": 5.00,
+    "claude-opus-5-5": {
+        "input_tokens": 4.00, "output_tokens": 20.00,
+        "cache_read_input_tokens": 0.20, "cache_creation_input_tokens": 5.00,
+    },
+    "claude-sonnet-5-5": {
+        "input_tokens": 2.00, "output_tokens": 10.00,
+        "cache_read_input_tokens": 0.20, "cache_creation_input_tokens": 2.50,
+    },
+    "claude-haiku-5-5": {
+        "input_tokens": 0.10, "output_tokens": 0.50,
+        "cache_read_input_tokens": 0.01, "cache_creation_input_tokens": 0.125,
+    },
 }
 
 AgentFunction = Callable[[Path, str], str]
@@ -74,8 +85,8 @@ def enable_debug_log(agent_reference: str | None) -> None:
     logging.getLogger(module_name.partition(".")[0]).setLevel(logging.DEBUG)
 
 
-def cost_dollars(usage: Counter[str]) -> float:
-    return sum(usage[key] * price / 1_000_000 for key, price in PRICE_PER_MILLION.items())
+def cost_dollars(usage: Counter[str], model: str) -> float:
+    return sum(usage[key] * price / 1_000_000 for key, price in PRICE_PER_MILLION[model].items())
 
 
 def write_submission_csv(path: Path, replies: list[tuple[str, str]]) -> None:
@@ -95,8 +106,11 @@ def run(
     results_name: str,
     submission_csv: Path | None = None,
     kinds: list[str] | None = None,
+    model: str | None = None,
 ) -> None:
-    agent = load_agent(agent_reference)
+    answer = load_agent(agent_reference)
+    # Without a model the agent uses its own default (MODEL for the project agent).
+    agent = partial(answer, model=model) if model else answer
     results: Counter[tuple[str, bool]] = Counter()
     replies: list[tuple[str, str]] = []
     RESULTS_DIRECTORY.mkdir(parents=True, exist_ok=True)
@@ -134,9 +148,9 @@ def run(
         report(results)
     if submission_csv is not None:
         write_submission_csv(submission_csv, replies)
-    usage = getattr(agent, "usage", None)
+    usage = getattr(answer, "usage", None)
     if usage:
-        print(f"tokens: {dict(usage)}  cost: ${cost_dollars(usage):.2f}")
+        print(f"tokens: {dict(usage)}  cost: ${cost_dollars(usage, model or MODEL):.2f}")
     print(f"replies saved to {results_path}")
 
 
@@ -165,6 +179,10 @@ def main() -> None:
     parser.add_argument(
         "--debug", action="store_true", help="print each question and the run-library questions it matched"
     )
+    parser.add_argument(
+        "--model", choices=MODELS, default=None,
+        help=f"Claude model (default: the agent's own; final_agent: {DEFAULT_MODEL})",
+    )
     arguments = parser.parse_args()
     if arguments.debug:
         enable_debug_log(arguments.agent)
@@ -175,6 +193,7 @@ def main() -> None:
         arguments.name,
         arguments.submission_csv,
         arguments.kinds,
+        MODELS[arguments.model] if arguments.model else None,
     )
 
 

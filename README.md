@@ -662,11 +662,11 @@ The live score checks what the agent computed, not its wording. A route must be 
 - **Level 3 (scale).** Several buildings at once. Load more than one `BuildingMap`, link them with outdoor walkways, and add a `building` argument to the tools.
 - **Level 4 (build).** Create a building from a floor-plan image. Send the PNG to Claude as an image, have it produce `spaces` and `openings` in the same JSON format, then load it with `BuildingMap` and check that every room can be reached.
 - **Level 5 (extend).** Moving assets (an `update_asset_position` tool), forklift routes that avoid blocked aisles (close hall zones), voice, or a three.js view that stacks floors by `elevation_m`.
-- **Cost.** The system prompt (with the building overview) is cached, so you only pay full price for it once. Lower `EFFORT` to `"low"` for quick lookups, or try `claude-sonnet-5-5` or `claude-haiku-5-5` and compare with the evaluator.
+- **Cost.** The system prompt (with the building overview) is cached, so you only pay full price for it once. Lower `EFFORT` to `"low"` for quick lookups, or compare models with `--model opus|sonnet|haiku` on the evaluator.
 
 #### Notes
 
-- The model is `claude-opus-5-5` at `effort: "medium"`. Server-side fallbacks are switched on (`fallbacks: "default"`), so if a request is declined it is retried on a fallback model instead of failing. Remove the `betas` and `fallbacks` arguments in `agent.py` if you don't want this.
+- The default model is `claude-haiku-5-5` at `effort: "medium"`; every paid command takes `--model opus|sonnet|haiku`. For Opus and Sonnet, server-side fallbacks are switched on (`fallbacks: "default"`), so if a request is declined it is retried on a fallback model instead of failing. Haiku has no server-side fallback, so a declined Haiku request returns the refusal reply. `FALLBACK_MODELS` in `agent.py` controls this.
 - `tool_runner` comes from the Anthropic Python SDK (beta helper). It runs the call-tools-and-feed-back-results loop. `agent.py` copies its history so that follow-up questions keep their context.
 
 The following unique note came from the final-agent README; its shared text and older tool table are covered by the reference above. Its link now points within this document.

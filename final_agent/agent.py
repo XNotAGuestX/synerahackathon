@@ -13,11 +13,16 @@ from .building_map import BuildingMap
 from .run_library import RunIndex
 from .tools import make_recall_tool, make_tools
 
-MODEL = "claude-sonnet-5-5"
+# --model choices. Haiku is the default: it matched Sonnet's 17/17 on a dev sample at about 1/20 of the cost.
+MODELS = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5", "haiku": "claude-haiku-5-5"}
+DEFAULT_MODEL = "haiku"
+MODEL = MODELS[DEFAULT_MODEL]
 MAX_TOKENS = 16000
 MAX_TOOL_ITERATIONS = 20
 EFFORT = "medium"
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
+# Haiku 5.5 has no server-side fallback: a declined request stays declined, and the reply says so.
+FALLBACK_MODELS = {MODELS["opus"], MODELS["sonnet"]}
 DEFAULT_OUTPUT_DIRECTORY = Path("agent_output")
 EXIT_WORDS = {"exit", "quit", "bye"}
 # Part of the TypeError the SDK raises at request time when no api_key, auth_token or profile resolves.
@@ -250,6 +255,7 @@ class BuildingAgent:
             raise MissingCredentialsError(MISSING_CREDENTIALS_MESSAGE) from error
 
     def run_tool_loop(self) -> str:
+        fallback = {"betas": [FALLBACK_BETA], "fallbacks": "default"} if self.model in FALLBACK_MODELS else {}
         runner = self.client.beta.messages.tool_runner(
             model=self.model,
             max_tokens=MAX_TOKENS,
@@ -258,8 +264,7 @@ class BuildingAgent:
             tools=self.tools,
             messages=list(self.messages),
             output_config={"effort": EFFORT},
-            betas=[FALLBACK_BETA],
-            fallbacks="default",
+            **fallback,
         )
         final = None
         for message in runner:
@@ -294,12 +299,19 @@ class BuildingAgent:
         self.usage["cache_creation_input_tokens"] += usage.cache_creation_input_tokens or 0
 
 
-def chat(building_directory: Path, output_directory: Path) -> None:
+def add_model_argument(parser: argparse.ArgumentParser) -> None:
+    """Add --model opus|sonnet|haiku; MODELS[arguments.model] is the API model ID."""
+    parser.add_argument(
+        "--model", choices=MODELS, default=DEFAULT_MODEL, help=f"Claude model (default: {DEFAULT_MODEL})"
+    )
+
+
+def chat(building_directory: Path, output_directory: Path, model: str = MODEL) -> None:
     try:
         building_map = BuildingMap.load(building_directory)
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise SystemExit(f"Cannot load building {building_directory}: {error}") from error
-    agent = BuildingAgent(building_map, output_directory)
+    agent = BuildingAgent(building_map, output_directory, model=model)
     print(f"Guide for {agent.map.data['building']['name']}. Ask me anything (type 'exit' to stop).")
     while True:
         try:
@@ -334,5 +346,6 @@ def main() -> None:
     parser.add_argument(
         "--output", type=Path, default=DEFAULT_OUTPUT_DIRECTORY, help="where route images and edits go"
     )
+    add_model_argument(parser)
     arguments = parser.parse_args()
-    chat(arguments.building, arguments.output)
+    chat(arguments.building, arguments.output, MODELS[arguments.model])

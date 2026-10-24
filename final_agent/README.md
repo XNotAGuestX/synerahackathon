@@ -72,7 +72,7 @@ class implementing `Embedder` and return it from `default_embedder()`.
 uv run python -m final_agent.train_runs                 # small: 1 train question per kind
 uv run python -m final_agent.train_runs --all           # small sample from train + dev
 uv run python -m final_agent.train_runs --full          # every pending question, after typing 'yes'
-uv run python -m final_agent.train_runs --model claude-opus-5-5   # default claude-sonnet-5-5
+uv run python -m final_agent.train_runs --model sonnet  # opus, sonnet or haiku (default)
 
 # A/B on the same dev sample (keep the library train-only for this comparison)
 uv run python -m benchmark.evaluate data/dev --agent final_agent.benchmark:answer_without_examples --per-kind 2 --name dev-runs-baseline
@@ -87,6 +87,11 @@ examples **17/17**. This is a small sample, not a scored result. The baseline is
 perfect on it, so it shows no measurable effect of the examples. The evaluate log keeps
 replies only, so it does not show whether `recall_examples` was called in each A/B
 answer.
+
+On 25 October 2026 `answer` on claude-haiku-5-5 also scored **17/17** on that sample, for
+about $0.04 in total (about 1/20 of Sonnet's cost), so Haiku is now the default model for
+every command. Pick another one with `--model opus` or `--model sonnet`. Haiku has no
+server-side fallback, so only Opus and Sonnet requests send `fallbacks`.
 
 - [Complete challenge and implementation reference](../README.md)
 - [Remaining implementation work](../BACKLOG.md)

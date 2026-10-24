@@ -5,8 +5,12 @@ Run from the repo root. Commands marked *paid* call Claude and need credentials
 
 ## Normal mode
 
+Every paid command takes `--model opus|sonnet|haiku` (default `haiku`, i.e.
+`claude-haiku-5-5`). Only the exact names are accepted.
+
 **Chat** (*paid*): `uv run python -m final_agent data/dev/<building>`
 - `--output DIR`: where route images and edits go (default `agent_output`)
+- `--model NAME`: `opus`, `sonnet` or `haiku` (default)
 
 **Benchmark** (*paid*): `uv run python -m benchmark.evaluate data/dev`
 - `--per-kind N`: sample N questions per kind (default: all)
@@ -17,9 +21,11 @@ Run from the repo root. Commands marked *paid* call Claude and need credentials
 - `--submission-csv PATH`: also write `question_id,answer`
 - `--debug`: print each question, the agent's `recall_examples` declaration and the
   run-library questions it matched (similarity score, question ID, translation, question)
+- `--model NAME`: `opus`, `sonnet` or `haiku` (default)
 
 **Warm-up check** (free): `uv run python -m final_agent.evaluate data/dev --oracle`
 - `--limit N`: first N questions only
+- without `--oracle` it runs the live agent (*paid*); `--model NAME` as above
 
 ## Training (build the run library)
 
@@ -32,7 +38,7 @@ skipped.
 - default: 1 question per kind from `data/train` (9 questions)
 - `--full`: every pending question; asks you to type `yes` first
 - `--all`: also use `data/dev`. Don't use it if you measure on dev.
-- `--model M`: default `claude-sonnet-5-5`
+- `--model NAME`: `opus`, `sonnet` or `haiku` (default)
 - `--library PATH`: default `final_agent/run_library.jsonl`
 
 The first run with examples downloads the embedding model (~67 MB) to `~/.cache/fastembed`.

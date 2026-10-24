@@ -14,7 +14,7 @@ from pathlib import Path
 
 import anthropic
 
-from .agent import BuildingAgent, MissingCredentialsError
+from .agent import MODEL, MODELS, BuildingAgent, MissingCredentialsError, add_model_argument
 from .building_map import BuildingMap, MapError
 
 QUESTIONS_FILENAME = "questions_basic.jsonl"
@@ -87,7 +87,7 @@ def oracle_answer(question: dict, building_map: BuildingMap) -> str:
     return ""
 
 
-def evaluate(directory: Path, limit: int | None, oracle: bool) -> None:
+def evaluate(directory: Path, limit: int | None, oracle: bool, model: str = MODEL) -> None:
     results: Counter[tuple[str, bool]] = Counter()
     usage: Counter[str] = Counter()
     client = None if oracle else anthropic.Anthropic()
@@ -97,7 +97,7 @@ def evaluate(directory: Path, limit: int | None, oracle: bool) -> None:
         if oracle:
             reply = oracle_answer(question, building_map)
         else:
-            agent = BuildingAgent(building_map, OUTPUT_DIRECTORY, client)
+            agent = BuildingAgent(building_map, OUTPUT_DIRECTORY, client, model=model)
             try:
                 reply = agent.ask(question["question"])
             except MissingCredentialsError as error:
@@ -129,8 +129,9 @@ def main() -> None:
     parser.add_argument("directory", type=Path, help="a split directory such as data/dev")
     parser.add_argument("--limit", type=int, default=None, help="only the first N questions")
     parser.add_argument("--oracle", action="store_true", help="answer with the tools directly (no API calls)")
+    add_model_argument(parser)
     arguments = parser.parse_args()
-    evaluate(arguments.directory, arguments.limit, arguments.oracle)
+    evaluate(arguments.directory, arguments.limit, arguments.oracle, MODELS[arguments.model])
 
 
 if __name__ == "__main__":

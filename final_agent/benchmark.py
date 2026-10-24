@@ -9,7 +9,7 @@ from functools import cache
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from .agent import BuildingAgent, MissingCredentialsError
+from .agent import MODEL, BuildingAgent, MissingCredentialsError
 from .building_map import BuildingMap
 from .embedding import default_embedder
 from .run_library import RunIndex, load_runs
@@ -24,17 +24,17 @@ def run_index() -> RunIndex:
     return RunIndex(load_runs(RUN_LIBRARY_PATH), default_embedder())
 
 
-def answer(building_directory: Path, question_text: str) -> str:
+def answer(building_directory: Path, question_text: str, model: str = MODEL) -> str:
     """Answer one question with worked examples of similar accepted runs."""
-    return _answer(building_directory, question_text, run_index())
+    return _answer(building_directory, question_text, run_index(), model)
 
 
-def answer_without_examples(building_directory: Path, question_text: str) -> str:
+def answer_without_examples(building_directory: Path, question_text: str, model: str = MODEL) -> str:
     """Answer one question without the run library (A/B baseline)."""
-    return _answer(building_directory, question_text, None)
+    return _answer(building_directory, question_text, None, model)
 
 
-def _answer(building_directory: Path, question_text: str, examples: RunIndex | None) -> str:
+def _answer(building_directory: Path, question_text: str, examples: RunIndex | None, model: str) -> str:
     """Answer one question with a fresh map, conversation and temporary outputs.
 
     Edits and closures affect only this question. Scratch images and snapshots
@@ -42,7 +42,9 @@ def _answer(building_directory: Path, question_text: str, examples: RunIndex | N
     """
     logger.debug("question: %s", question_text)
     with TemporaryDirectory(prefix="final-agent-benchmark-") as temporary:
-        agent = BuildingAgent(BuildingMap.load(building_directory), Path(temporary), examples=examples)
+        agent = BuildingAgent(
+            BuildingMap.load(building_directory), Path(temporary), examples=examples, model=model
+        )
         try:
             return agent.ask(question_text)
         except MissingCredentialsError as error:
