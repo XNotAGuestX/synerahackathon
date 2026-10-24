@@ -6,6 +6,7 @@ Run:  uv run python -m final_agent data/dev/<building_id>
 import argparse
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import anthropic
 
@@ -17,9 +18,13 @@ from .tools import make_emergency_tools, make_recall_tool, make_tools
 MODELS = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5", "haiku": "claude-haiku-5-5"}
 DEFAULT_MODEL = "haiku"
 MODEL = MODELS[DEFAULT_MODEL]
+
+if TYPE_CHECKING:
+    from .guidance import Guidance
 MAX_TOKENS = 16000
 MAX_TOOL_ITERATIONS = 20
 EFFORT = "medium"
+VOICE_EFFORT = "low"
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 # Haiku 5.5 has no server-side fallback: a declined request stays declined, and the reply says so.
 FALLBACK_MODELS = {MODELS["opus"], MODELS["sonnet"]}
@@ -363,6 +368,25 @@ EMERGENCY_PROMPT = """
 """
 
 
+VOICE_PROMPT = """
+# Voice mode
+These rules override the formatting rules above. You speak with the user through their phone while they walk; every word you write is read aloud.
+- Talk like a friendly local walking next to them: warm, relaxed and natural. Use contractions and plain words.
+- Keep it short: usually one or two sentences, under about 35 words. Go longer only when asked.
+- Mention the key fact; hold back details such as exact areas, distances or alternatives unless asked. You may offer once: "Want the details?"
+- Never use lists, numbering, markdown, emojis, IDs, coordinates or an "Answer:" line.
+- Round numbers for speech: "about 40 metres", "about a minute's walk" (roughly 80 metres per minute).
+- Ask one question at a time. Do not repeat the user's question back.
+- Brief acknowledgements are fine ("Sure.", "Got it."). No filler apologies or forced enthusiasm.
+- Reply in the user's language given in the app context.
+- Each user message starts with an app context line in square brackets: language, current position and tracking state, and guidance status. The user did not say it; never read it out. Use the current position's space as the route start. If it is unknown, ask where they are or what they can see, in one short question.
+- To guide someone: resolve the destination, call find_route from their position with their constraints, then call start_guidance. The app speaks each direction when they reach the next checkpoint, so after start_guidance say only a one-sentence lead-in with the destination and rough distance or time. Never list the directions yourself.
+- During guidance, answer questions briefly. If the user raises something unrelated to the walk, answer, then ask whether to stop the navigation. If they want a different destination, ask before replacing the current route; if they agree, route and call start_guidance again. Call stop_guidance when they want to stop. If the user says in their own words that they reached the next point, call guidance_next_step; the app speaks the next direction, so add nothing or a word like "Great."
+- Without live tracking the app waits for the user to confirm each checkpoint. If they do not want to confirm every step, call set_guidance_options with confirm_each_step=false.
+- If the transcript seems garbled, cut off or like background noise, ask them to say it again.
+"""
+
+
 class MissingCredentialsError(RuntimeError):
     """The Anthropic client has no usable credentials."""
 
@@ -376,6 +400,7 @@ class BuildingAgent:
         *, notes_database: Path | None = None, facility_number: str | None = None,
         registered_tools: list | None = None, response_format: type | None = None,
         turn_context: str = "", request_timeout: float | None = None,
+        guidance: "Guidance | None" = None, voice: bool = False,
     ) -> None:
         self.map = building_map
         self.client = client or anthropic.Anthropic()
@@ -385,9 +410,11 @@ class BuildingAgent:
         self.turn_context = turn_context
         self.emergency = emergency
         self.workspace = workspace
+        self.voice = voice
         if workspace is None:
             self.tools = registered_tools if registered_tools is not None else make_tools(
                 building_map, output_directory, notes_database=notes_database, facility_number=facility_number,
+                guidance=guidance,
             )
             overview = json.loads(next(tool for tool in self.tools if tool.name == "building_overview").call({}))
         else:
@@ -414,6 +441,8 @@ class BuildingAgent:
             self.tools.append(make_recall_tool(examples))
             self.extra_prompt += EXAMPLES_PROMPT
         self.extra_prompt += turn_context
+        if voice:
+            self.extra_prompt += "\n" + VOICE_PROMPT
         system_text += self.extra_prompt
         self.system = [{"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}]
         self.messages: list[dict] = []
@@ -455,7 +484,7 @@ class BuildingAgent:
             system=self.system,
             tools=self.tools,
             messages=list(self.messages),
-            output_config={"effort": EFFORT},
+            output_config={"effort": VOICE_EFFORT if self.voice else EFFORT},
             **options,
         )
         final = None

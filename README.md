@@ -523,6 +523,18 @@ benchmark.evaluate → agent(building_directory, question_text) → reply
 | 4 — Build | PNG/JPEG vision import, visible metric calibration, validation, source overlay, draft corrections, apply/cancel/undo, export/reload and usable locate/route; small live image-to-route demo passes | No PDF converter; unscaled or unobservable access facts need review; multi-floor extraction is supported with explicit alignment/elevations but not live-verified |
 | 5 — Extend | No complete optional extension is demonstrated | Select and finish one extension after the core workflow works |
 
+### Voice control (EXT-01)
+
+A client-neutral voice backend for one building. ElevenLabs is only the audio boundary: Scribe converts audio to text and TTS converts our response text to audio. Building data, routing, session state, prompts and future Anthropic reasoning remain in this repository. No production UI is bundled; another client can use the documented API in [VOICE_HANDOFF.md](VOICE_HANDOFF.md).
+
+- **What it does.** Accepts text or recorded audio, returns text plus optional speech, and advances deterministic turn-by-turn guidance from client position updates or explicit checkpoint confirmations. It reroutes after the user leaves the path and stops honestly when no route remains.
+- **Run the API.** `uv run python -m final_agent.voice data/dev/proc-factory-dev-003`. `GET http://127.0.0.1:8765/` returns service metadata, not HTML. A future client posts audio to `/api/turn`, text to `/api/text`, and positions to `/api/update`.
+- **Run the console tester.** `uv run python voice_launcher.py`, or build `dist/TalkToYourBuilding.exe` with `uv run --group voice-build pyinstaller --noconfirm --clean TalkToYourBuilding.spec`. Type normally or enter `/talk` for Windows push-to-talk. Recording pairs the input with the active output device when possible (for example, headphones and their microphone), normalises quiet speech before upload and reports the captured level; `/mics` and `/mic NUMBER` select another input. `/position Office 0.23` sets the local position oracle.
+- **Keys.** `ELEVENLABS_API_KEY` enables Scribe v2 and Flash v2.5. The Windows tester can instead read `TalkToYourBuilding.ElevenLabs` from the current user's Credential Manager. `ANTHROPIC_API_KEY` switches intelligence to `BuildingAgent`; without it, the tester uses a clearly labelled deterministic local backend that answers from the map or echoes the received text.
+- **Position.** The backend does not invent indoor positioning. A client sends reliable metre coordinates through `/api/update`; the console uses `/position ROOM` as its explicit test oracle. Without updates, guidance waits for checkpoint confirmations unless the user requests otherwise.
+- **Evidence.** On 25 October 2026 all 307 offline tests passed; 44 are in `tests/test_guidance.py` and `tests/test_voice.py`. A generated spoken sentence survived the same WAV-normalisation path and was transcribed by live ElevenLabs Scribe. Both source and packaged testers enumerated the real WASAPI endpoints, captured and uploaded non-empty microphone audio, returned spoken answers for typed data/routing requests, and advanced guidance after a checkpoint confirmation. No live Anthropic call was made; recognition of a human utterance through the newly paired headset still needs the final manual demo check.
+- **Status.** Backend and UI-free Windows tester implemented. Live Claude behavior and integration with the separately owned production client remain, so [BACKLOG.md](BACKLOG.md) keeps EXT-01 unticked.
+
 ### Evaluation evidence and limits
 
 The free dev warm-up command was rerun with the corrected kit 1.1.0 answers:

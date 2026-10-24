@@ -12,6 +12,12 @@ uv run python -m final_agent data/dev/proc-factory-dev-003
 # Frontend HTTP API (only /messages needs model credentials)
 uv run python -m final_agent.api
 
+# Client-neutral voice HTTP API (EXT-01; no bundled UI)
+uv run python -m final_agent.voice data/dev/proc-factory-dev-003
+
+# Windows console round-trip tester: typed text, /talk push-to-talk, /mics input selection
+uv run python voice_launcher.py
+
 # Free deterministic warm-up evaluation
 uv run python -m final_agent.evaluate data/dev --oracle
 
@@ -21,6 +27,8 @@ uv run python -m benchmark.evaluate data/dev --agent final_agent.benchmark:answe
 # Storage and integration checks (no API calls)
 uv run python -m unittest discover -s tests -v
 ```
+
+The voice backend and console tester (EXT-01) are described in [VOICE_HANDOFF.md](../VOICE_HANDOFF.md).
 
 The benchmark runner uses `final_agent.benchmark:answer` by default (`--agent` selects
 another callable). Each adapter call loads a fresh map and

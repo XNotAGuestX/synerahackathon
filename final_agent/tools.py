@@ -5,7 +5,7 @@ import sqlite3
 from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
 
 from anthropic.lib.tools import BetaFunctionTool, ToolError
@@ -16,6 +16,9 @@ from .emergency import EmergencyError, EmergencyRollCall
 from .run_library import SKILL_BY_KIND, RunIndex, ScoredKind, example_json
 from .viewer import draw_emergency, draw_location, draw_route, landmark_targets, route_floor_ids, route_handoffs
 from .storage import RoomNoteStore
+
+if TYPE_CHECKING:
+    from .guidance import Guidance
 
 JSON_INDENT = 1
 NO_EXAMPLES_NOTE = "No accepted example for this kind yet; solve it with the building tools."
@@ -63,6 +66,7 @@ def make_tools(
     facility_number: str | None = None,
     notes_store: RoomNoteStore | None = None,
     session_id: str | None = None,
+    guidance: "Guidance | None" = None,
 ) -> list:
     """Build the tool list bound to one building. Errors become is_error tool results via ToolError.
 
@@ -1003,6 +1007,62 @@ def make_tools(
             return as_json(building_map.destination_context(space, radius_m, min_area_m2, page, page_size))
         except MapError as error:
             raise ToolError(str(error)) from error
+
+    # ---------- voice guidance ----------
+
+    if guidance is not None:
+        @register
+        def start_guidance() -> str:
+            """Start spoken turn-by-turn directions for the active route (the one show_route draws).
+
+            The app speaks each direction when the person reaches the next checkpoint. Replaces any guidance
+            already running. Fails if no route is active: call find_route first.
+            """
+            route = building_map.last_route
+            if route is None:
+                raise ToolError("No active route. Call find_route first.")
+            guidance.start(route)
+            return as_json({
+                **guidance.status(),
+                "note": "The app speaks the directions now; give only a one-sentence lead-in.",
+            })
+
+        @register
+        def stop_guidance() -> str:
+            """Stop spoken guidance. Returns stopped=false when no guidance was running."""
+            return as_json({"stopped": guidance.stop()})
+
+        @register
+        def guidance_status() -> str:
+            """Spoken guidance state: active or not, destination, next step, progress, remaining metres.
+
+            `tracking` is "live" when the app has the person's position, "lost" or "none" otherwise.
+            """
+            return as_json(guidance.status())
+
+        @register
+        def set_guidance_options(confirm_each_step: bool) -> str:
+            """Choose whether guidance waits for a spoken confirmation at each checkpoint.
+
+            Only matters while live position tracking is off. Returns the guidance status.
+
+            Args:
+                confirm_each_step: True waits for a spoken confirmation at each checkpoint; False reads all
+                    remaining directions at once.
+            """
+            guidance.confirm_each_step = confirm_each_step
+            return as_json(guidance.status())
+
+        @register
+        def guidance_next_step() -> str:
+            """The user says in their own words that they reached the next point of the walk (for example "I'm at the stairs now").
+
+            Move guidance on; the app then speaks the next direction. Only while guidance is active.
+            """
+            if not guidance.active:
+                raise ToolError("No guidance is running.")
+            guidance.confirm()
+            return as_json(guidance.status())
 
     return tools
 

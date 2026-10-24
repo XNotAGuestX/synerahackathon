@@ -454,6 +454,16 @@ class BuildingMap:
                 result.update(self.asset_record(self.assets[result["id"]]))
         return results
 
+    def space_at(self, floor_level: int, x_m: float, y_m: float) -> str | None:
+        """Id of the space containing the point; else the nearest space within 1.5 m (standing in a doorway); else None."""
+        self.floor_by_level(floor_level)
+        x_m, y_m = check_number("x_m", x_m), check_number("y_m", y_m)
+        if self._spatial_index is None:
+            self._spatial_index = BuildingSpatialIndex(self.data)
+        # Results are sorted by distance, so the first one is the containing space or the nearest one.
+        results = self._spatial_index.search(x_m, y_m, floor_level, 1.5, "space")
+        return results[0]["id"] if results else None
+
     def matches(self, text: str, words: list[str], floor_id: str, floor_level: int | None) -> bool:
         if floor_level is not None and self.floors[floor_id]["level"] != floor_level:
             return False
