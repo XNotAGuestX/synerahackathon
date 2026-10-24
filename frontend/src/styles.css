@@ -310,6 +310,8 @@ button:disabled { cursor: default; }
   backdrop-filter: blur(14px);
 }
 
+.topbar > .brand { flex: 1 1 auto; }
+
 .brand {
   display: flex;
   align-items: center;
@@ -335,12 +337,17 @@ button:disabled { cursor: default; }
   display: flex;
   align-items: center;
   gap: var(--space-4);
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
   margin-left: auto;
 }
 
 .building-picker {
-  max-width: 240px;
+  width: min(240px, 100%);
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 1 240px;
   min-height: var(--control-height);
   padding: var(--space-3) var(--space-7) var(--space-3) var(--space-4);
   border: 1px solid var(--color-border);
@@ -348,6 +355,9 @@ button:disabled { cursor: default; }
   background: var(--color-surface-raised);
   color: var(--color-text-primary);
   font-weight: var(--font-weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--font-size-label);
 }
 
@@ -601,9 +611,6 @@ button:disabled { cursor: default; }
   max-width: 28ch;
   padding: 0 var(--space-3);
   border-radius: var(--radius-xs);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .discover-crumb button {
@@ -743,9 +750,6 @@ button:disabled { cursor: default; }
 }
 .place-main strong {
   max-width: 24ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font: var(--font-weight-semibold) var(--font-size-label) var(--font-family-title);
 }
 .place-main span {
@@ -860,6 +864,7 @@ button:disabled { cursor: default; }
   box-shadow: var(--shadow-stage);
   touch-action: none;
   overscroll-behavior: contain;
+  -ms-content-zooming: none;
 }
 
 .plan {
@@ -924,6 +929,8 @@ button:disabled { cursor: default; }
 .asset.fixture rect { fill: var(--map-asset-fixture); }
 .asset.equipment rect { fill: var(--map-asset-equipment); }
 .asset.highlighted rect { fill: var(--color-primary); stroke: var(--color-primary-strong); }
+.asset.landmark rect { stroke-width: 0.28; }
+.plan .mock-marker { fill: var(--color-caution, #d19a24); stroke: var(--color-text-primary); stroke-width: 0.12; }
 .asset.picked rect {
   stroke: var(--color-destination);
   stroke-width: 0.28;
@@ -1500,6 +1507,8 @@ button:disabled { cursor: default; }
 .route-floors button:hover { border-color: var(--color-primary); }
 
 .ask-block { display: grid; gap: var(--space-4); }
+.ask-field { display: flex; gap: var(--space-2); }
+.ask-field input { flex: 1; min-height: var(--control-height); padding: 0 var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text-primary); }
 
 .choice-list { display: grid; gap: var(--space-3); }
 .choice-list button {

@@ -7,7 +7,11 @@ type DebugPanelProps = {
   selection: Selection | null
   presentation: Presentation
   effects: ViewEffect[]
+  facts: { position: string; width: string | null; stepFree: string | null } | null
+  markerArmed: boolean
+  onArmMarker: () => void
   onLoad: (id: ReplyId) => void
+  onLeavePreview: () => void
 }
 
 const samples: { id: ReplyId; label: string }[] = [
@@ -17,7 +21,7 @@ const samples: { id: ReplyId; label: string }[] = [
   { id: 'unreachable', label: 'Unreachable step-free route' },
 ]
 
-export function DebugPanel({ selection, presentation, effects, onLoad }: DebugPanelProps) {
+export function DebugPanel({ selection, presentation, effects, facts, markerArmed, onArmMarker, onLoad, onLeavePreview }: DebugPanelProps) {
   const route = presentation.route
   return (
     <section className="debug-panel" aria-label={copy.debugTitle}>
@@ -39,6 +43,22 @@ export function DebugPanel({ selection, presentation, effects, onLoad }: DebugPa
           <dt>Route</dt>
           <dd>{route ? formatMetres(route.length_m) : copy.none}</dd>
         </div>
+        <div>
+          <dt>{copy.coordinate}</dt>
+          <dd className="mono">{facts?.position ?? copy.none}</dd>
+        </div>
+        {facts?.width && (
+          <div>
+            <dt>{copy.doorWidth}</dt>
+            <dd>{facts.width}</dd>
+          </div>
+        )}
+        {facts?.stepFree && (
+          <div>
+            <dt>{copy.access}</dt>
+            <dd>{facts.stepFree}</dd>
+          </div>
+        )}
       </dl>
       {selection?.note && <p className="debug-note">{selection.note}</p>}
       {!selection && <p className="debug-note">{copy.clickHint}</p>}
@@ -51,7 +71,9 @@ export function DebugPanel({ selection, presentation, effects, onLoad }: DebugPa
         </summary>
         <pre>{JSON.stringify(effects, null, 2)}</pre>
       </details>
+      <button type="button" className="secondary-action" aria-pressed={markerArmed} onClick={onArmMarker}>{markerArmed ? copy.markerArmed : copy.placeMarker}</button>
       <p className="debug-note">{copy.samples}</p>
+      <button type="button" className="secondary-action" onClick={onLeavePreview}>{copy.leavePreview}</button>
       <div className="choice-list">
         {samples.map((sample) => (
           <button type="button" key={sample.id} onClick={() => onLoad(sample.id)}>{sample.label}<span>→</span></button>

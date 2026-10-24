@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FloorPlan, Point, Route, Selection } from '../domain/types'
 import type { Connector } from '../domain/types'
-import { connectorNote } from '../api/fixtures'
+import { connectorNoteFromPlan, landmarkIds } from '../domain/live'
 
 type PlanCanvasProps = {
   plan: FloorPlan | null
@@ -16,6 +16,9 @@ type PlanCanvasProps = {
   selectionId: string | null
   onSelect: (selection: Selection) => void
   onFocusSelection: (selection: Selection | null) => void
+  mockPoint?: Point | null
+  markerArmed?: boolean
+  onPlaceMarker?: (point: Point) => void
 }
 
 function polygonArea(polygon: Point[]): number {
@@ -110,6 +113,9 @@ function InteractivePlan({
   selectionId,
   onSelect,
   onFocusSelection,
+  mockPoint = null,
+  markerArmed = false,
+  onPlaceMarker,
 }: PlanCanvasProps & { plan: FloorPlan }) {
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState<Point>([0, 0])
@@ -176,7 +182,7 @@ function InteractivePlan({
   if (focusedSpaceId && !reasons.has(focusedSpaceId)) reasons.set(focusedSpaceId, 'selected')
 
   const selectSpace = (space: FloorPlan['spaces'][number]) => {
-    onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNote(space.id) })
+    onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNoteFromPlan(plan, space.id) })
     if (!allowSelect()) return
     onSelect({
       kind: 'space',
@@ -184,7 +190,7 @@ function InteractivePlan({
       name: space.name,
       floorId: plan.floor.id,
       floorName: plan.floor.name,
-      note: connectorNote(space.id),
+      note: connectorNoteFromPlan(plan, space.id),
     })
   }
 
@@ -194,6 +200,15 @@ function InteractivePlan({
         className={`plan${gesture.current.pointerId >= 0 ? ' panning' : ''}`}
         viewBox={viewBox}
         data-zoom={zoom}
+        onClick={(event) => {
+          if (!markerArmed || !onPlaceMarker) return
+          const svg = event.currentTarget
+          const point = svg.createSVGPoint()
+          point.x = event.clientX
+          point.y = event.clientY
+          const mapped = point.matrixTransform(svg.getScreenCTM()?.inverse())
+          onPlaceMarker([mapped.x, -mapped.y])
+        }}
         onPointerDown={(event) => {
           if (event.button !== 0) return
           pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
@@ -281,7 +296,7 @@ function InteractivePlan({
                   tabIndex={0}
                   aria-label={space.name}
                   aria-pressed={picked}
-                  onFocus={() => onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNote(space.id) })}
+                  onFocus={() => onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNoteFromPlan(plan, space.id) })}
                   onBlur={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.ownerSVGElement?.contains(event.relatedTarget)) onFocusSelection(null) }}
                   onClick={() => selectSpace(space)}
                   onKeyDown={(event) => {
@@ -324,14 +339,15 @@ function InteractivePlan({
             </circle>
           ))}
           {plan.assets.map((asset) => {
-            const highlighted = assetIds.has(asset.id)
+            const landmark = landmarkIds(plan, stepPoint).includes(asset.id)
+            const highlighted = assetIds.has(asset.id) || landmark
             const picked = selectionId === asset.id
             const { width_m: width, depth_m: depth, rotation_deg: rotation } = asset.footprint
             return (
               <g
                 key={asset.id}
                 transform={`translate(${asset.position[0]} ${asset.position[1]}) rotate(${rotation})`}
-                className={['asset', asset.category, highlighted ? 'highlighted' : '', picked ? 'picked' : ''].filter(Boolean).join(' ')}
+                className={['asset', asset.category, highlighted ? 'highlighted' : '', landmark ? 'landmark' : '', picked ? 'picked' : ''].filter(Boolean).join(' ')}
                 role="button"
                 tabIndex={highlighted ? 0 : -1}
                 aria-label={asset.name}
@@ -397,6 +413,7 @@ function InteractivePlan({
             <circle className="destination" cx={lastLeg.points.at(-1)![0]} cy={lastLeg.points.at(-1)![1]} r={0.9} />
           )}
           {stepPoint && <circle className="step-marker" cx={stepPoint[0]} cy={stepPoint[1]} r={1.05} />}
+          {mockPoint && <circle className="mock-marker" cx={mockPoint[0]} cy={mockPoint[1]} r={1.3} />}
         </g>
       </svg>
       <div

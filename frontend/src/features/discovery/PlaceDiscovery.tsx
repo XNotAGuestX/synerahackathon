@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import { buildDiscovery, discoveryResultLimit, limitPlaces, searchDiscovery } from '../../domain/discovery'
+import { buildDiscovery, discoveryResultLimit, searchDiscovery } from '../../domain/discovery'
 import type { DiscoveryPlace } from '../../domain/discovery'
 import type { FloorPlan, FloorSummary } from '../../domain/types'
 import { copy } from '../../i18n/en'
@@ -21,12 +21,14 @@ export function PlaceDiscovery({ plans, floors, stepFree, busyId, onToggleStepFr
   const [typeId, setTypeId] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
   const [page, setPage] = useState(1)
+  const [typePage, setTypePage] = useState(1)
   const category = categories.find((item) => item.id === categoryId) ?? null
   const type = category?.types.find((item) => item.id === typeId) ?? null
   const searching = filter.trim().length > 0
   const filtered = searchDiscovery(categories, filter)
   const paged = filtered.slice((page - 1) * 15, page * 15)
-  const results = searching ? paged : type ? limitPlaces(type.places) : []
+  const typeSlice = type ? type.places.slice((typePage - 1) * 15, typePage * 15) : []
+  const results = searching ? paged : typeSlice
 
   const chooseCategory = (id: string) => {
     setFilter('')
@@ -36,6 +38,7 @@ export function PlaceDiscovery({ plans, floors, stepFree, busyId, onToggleStepFr
   const chooseType = (id: string) => {
     setFilter('')
     setTypeId(id)
+    setTypePage(1)
   }
   const reset = () => {
     setCategoryId(null)
@@ -94,7 +97,7 @@ export function PlaceDiscovery({ plans, floors, stepFree, busyId, onToggleStepFr
           </span>
         )}
         {!searching && type && type.count > discoveryResultLimit && (
-          <span className="discover-count">{copy.showingOf} {results.length} {copy.of} {type.count}</span>
+          <span className="discover-count">{(typePage - 1) * 15 + 1}–{Math.min(typePage * 15, type.count)} {copy.of} {type.count}</span>
         )}
       </nav>
       <div className="discover-browse">
@@ -149,6 +152,13 @@ export function PlaceDiscovery({ plans, floors, stepFree, busyId, onToggleStepFr
               </button>
             </li>
           ))}
+          {!searching && type && type.places.length > typePage * 15 && (
+            <li>
+              <button type="button" className="more-button" onClick={() => setTypePage((value) => value + 1)}>
+                {copy.more} ({type.places.length - typePage * 15})
+              </button>
+            </li>
+          )}
           {searching && filtered.length > page * 15 && (
             <li>
               <button type="button" className="more-button" onClick={() => setPage((value) => value + 1)}>

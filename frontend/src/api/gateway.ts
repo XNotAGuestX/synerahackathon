@@ -11,8 +11,23 @@ export type BuildingSummary = { id: string; name: string; floors: number; has_li
 export type Session = { id: string; building_id: string; building_name: string; revision: number; preferences: { step_free: boolean }; closed_ids?: string[]; last_route_id?: string | null; pending_action_id?: string | null }
 export type Place = { id: string; kind: string; name: string; floor_id: string; floor_level: number; space_id: string | null; position: [number, number] | null }
 export type RouteRequest = { start_space_id: string; destination_space_id: string; step_free?: boolean; via?: string[] }
-export type ActionResult = { summary: string; closed_ids: string[] }
-
+export type ActionResult = { summary: string; closed_ids: string[]; id?: string; status?: string; proposal?: { kind: string; element_ref?: string; closed?: boolean } }
+function requestId(): string {
+  const browserCrypto = globalThis.crypto
+  if (typeof browserCrypto?.randomUUID === 'function') return browserCrypto.randomUUID()
+  if (typeof browserCrypto?.getRandomValues === 'function') {
+    const bytes = browserCrypto.getRandomValues(new Uint8Array(16))
+    bytes[6] = (bytes[6] & 0x0f) | 0x40
+    bytes[8] = (bytes[8] & 0x3f) | 0x80
+    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+    const value = Math.random() * 16 | 0
+    const replacement = character === 'x' ? value : (value & 0x3) | 0x8
+    return replacement.toString(16)
+  })
+}
 export interface BuildingGateway {
   readonly mode: DataMode
   listBuildings(): Promise<BuildingSummary[]>
@@ -149,7 +164,7 @@ export const fixtureGateway: BuildingGateway = {
   async cancelAction() { fixturePendingActionId = null; return { summary: 'Change cancelled.', closed_ids: [], id: '55555555-5555-4555-8555-555555555555', status: 'cancelled' } },
   async getAction(_sessionId, actionId) {
     if (actionId !== catalog.replies.pending.pending?.id) throw new ApiError('Action was not found.', '30008_action_not_found', 'fixture', null, 404)
-    return { summary: catalog.replies.pending.pending.summary, closed_ids: [], id: actionId, status: fixturePendingActionId ? 'pending' : 'cancelled' }
+    return { summary: catalog.replies.pending.pending.summary, closed_ids: [], id: actionId, status: fixturePendingActionId ? 'pending' : 'cancelled', proposal: catalog.replies.pending.pending.proposal }
   },
 }
 
@@ -195,7 +210,7 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
   return {
     mode: 'http',
     async listBuildings() { const result = await request<{ items?: Array<BuildingSummary & { level_count?: number }> }>(config, '/buildings?computed=1'); return (result.items ?? []).map(mapBuilding) },
-    async createSession(buildingId) { return request<Session>(config, '/sessions', json({ building_id: buildingId, engine: 'computed' }), crypto.randomUUID()) },
+    async createSession(buildingId) { return request<Session>(config, '/sessions', json({ building_id: buildingId, engine: 'computed' }), requestId()) },
     async getSession(sessionId) { return request<Session>(config, `/sessions/${sessionId}`) },
     async listFloors(sessionId) { const result = await request<{ floors: FloorSummary[] }>(config, `/sessions/${sessionId}/floors`); return result.floors },
     async getFloorPlan(sessionId, floorId) { return request<FloorPlan>(config, `/sessions/${sessionId}/floors/${floorId}/plan`) },
@@ -206,15 +221,15 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
         destination: input.destination_space_id,
         step_free: input.step_free,
         via: input.via ?? [],
-      }), crypto.randomUUID())
+      }), requestId())
     },
     async getRoute(sessionId, routeId) { return request<Route>(config, `/sessions/${sessionId}/routes/${routeId}`) },
     async updatePreferences(sessionId, preferences) {
       return request<Session>(config, `/sessions/${sessionId}/preferences`, { method: 'PUT', body: JSON.stringify(preferences) })
     },
-    async sendMessage(sessionId, text, inputMode = 'text') { const result = await request<unknown>(config, `/sessions/${sessionId}/messages`, json({ text, input_mode: inputMode }), crypto.randomUUID()); return normalizeReply(result) },
-    async confirmAction(sessionId, actionId) { return request<ActionResult>(config, `/sessions/${sessionId}/actions/${actionId}/confirmations`, json({}), crypto.randomUUID()) },
-    async cancelAction(sessionId, actionId) { return request<ActionResult>(config, `/sessions/${sessionId}/actions/${actionId}/cancellations`, json({}), crypto.randomUUID()) },
+    async sendMessage(sessionId, text, inputMode = 'text') { const result = await request<unknown>(config, `/sessions/${sessionId}/messages`, json({ text, input_mode: inputMode }), requestId()); return normalizeReply(result) },
+    async confirmAction(sessionId, actionId) { return request<ActionResult>(config, `/sessions/${sessionId}/actions/${actionId}/confirmations`, json({}), requestId()) },
+    async cancelAction(sessionId, actionId) { return request<ActionResult>(config, `/sessions/${sessionId}/actions/${actionId}/cancellations`, json({}), requestId()) },
     async getAction(sessionId, actionId) { return request<ActionResult & { id: string; status: string }>(config, `/sessions/${sessionId}/actions/${actionId}`) },
   }
 }

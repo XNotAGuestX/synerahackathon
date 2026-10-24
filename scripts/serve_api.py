@@ -10,12 +10,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from final_agent.building_map import MapError
 from final_agent.guide_session import GuideSession, available_buildings, validate_plan
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = ROOT / "docs" / "api" / "examples"
 SESSION_ID = "11111111-1111-4111-8111-111111111111"
-HOST = "127.0.0.1"
+HOST = "0.0.0.0"
 PORT = 8000
 
 idempotency: dict[str, tuple[str, int, dict]] = {}
@@ -281,6 +282,24 @@ class Handler(BaseHTTPRequestHandler):
             page = int((query.get("page") or ["1"])[0])
             self._send(200, session.search((query.get("q") or [""])[0], page), request_id)
             return
+        if "actions" in parts:
+            action_id = parts[-1]
+            if session.pending and session.pending["id"] == action_id:
+                self._send(200, {
+                    "id": session.pending["id"],
+                    "status": "pending",
+                    "summary": session.pending["summary"],
+                    "closed_ids": [],
+                    "proposal": {
+                        "kind": "set_closed",
+                        "element_ref": session.pending["element_id"],
+                        "closed": session.pending["closed"],
+                    },
+                }, request_id)
+                return
+            status, payload = error("30009_action_expired", "Action is no longer pending.", 409, request_id)
+            self._send(status, payload, request_id)
+            return
         if "routes" in parts:
             route = session.routes.get(parts[-1])
             if route is None:
@@ -294,11 +313,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def _computed_post(self, path: str, body: dict, request_id: str) -> None:
         session = computed[path.split("/")[4]]
-        if path.endswith("/messages"):
+        if path.endswith("/messages") or path.endswith("/message"):
             self._send(201, session.message(str(body.get("text", ""))), request_id)
             return
         if path.endswith("/routes"):
-            route = session.create_route(str(body.get("start")), str(body.get("destination")), bool(body.get("step_free")), body.get("via") or [])
+            try:
+                route = session.create_route(str(body.get("start")), str(body.get("destination")), bool(body.get("step_free")), body.get("via") or [])
+            except MapError as route_error:
+                status, payload = error("30004_place_not_found", str(route_error), 422, request_id)
+                self._send(status, payload, request_id)
+                return
             self._send(201, route, request_id)
             return
         if path.endswith("/confirmations"):

@@ -9,6 +9,25 @@ from pathlib import Path
 from .building_map import BuildingMap, MapError, RouteResult
 
 DEV = Path(__file__).resolve().parents[1] / "data" / "dev"
+# Words that carry no place. Leftover words are what the person is looking for.
+GOAL_STOP = {
+    "a", "an", "am", "and", "are", "at", "be", "can", "could", "do", "for", "from", "get",
+    "go", "have", "how", "i", "in", "is", "it", "like", "me", "my", "need", "now", "of",
+    "on", "or", "please", "should", "some", "take", "that", "the", "there", "this", "to",
+    "want", "wanted", "where", "which", "with", "would", "you",
+}
+# Everyday words that are not always the room name in the plan.
+GOAL_ALIASES = {
+    "coffee": ["coffee", "cafe", "canteen", "kitchen", "vending"],
+    "cafe": ["cafe", "canteen", "coffee", "kitchen"],
+    "tea": ["tea", "canteen", "kitchen", "coffee"],
+    "food": ["canteen", "kitchen", "restaurant"],
+    "eat": ["canteen", "kitchen", "restaurant"],
+    "snack": ["vending", "canteen", "kitchen"],
+    "toilet": ["toilet", "restroom", "wc", "bathroom"],
+    "bathroom": ["bathroom", "toilet", "wc"],
+    "restroom": ["restroom", "toilet", "wc"],
+}
 
 
 def available_buildings() -> list[Path]:
@@ -97,6 +116,27 @@ class GuideSession:
             return self._tour(match.group(1), match.group(2), stripped)
         if re.fullmatch(r"no stairs|without stairs|step-free|wheelchair", lowered):
             return self._context_reply(stripped, "Step-free is on for later routes.")
+        words = self._content_words(stripped)
+        goal = self._matching_goal(words)
+        if goal:
+            return self._offer_goal(words[0], goal, stripped)
+        if words:
+            looked = ", ".join(GOAL_ALIASES.get(words[0].lower(), [words[0]]))
+            return self._reply(
+                stripped,
+                f"No {words[0]} place in {self.building_summary()['name']}. I looked for {looked}.",
+                effects=[{"type": "clear_route"}],
+                intent="clarify",
+                missing=["place"],
+            )
+        if re.search(r"where should i go|where can i go|where do i go", lowered):
+            return self._reply(
+                stripped,
+                "What are you looking for?",
+                effects=[{"type": "ask", "question": "What are you looking for?", "options": []}],
+                intent="clarify",
+                missing=["place"],
+            )
         return self._not_found(stripped)
 
     def confirm(self) -> dict:
@@ -118,6 +158,39 @@ class GuideSession:
         self.destination = self.map.resolve_space(destination)
         self.step_free = step_free
         return self._route(self.here, self.destination, via or [])
+
+    def _content_words(self, text: str) -> list[str]:
+        return [
+            word
+            for word in re.sub(r"[^0-9A-Za-z]+", " ", text).split()
+            if word.lower() not in GOAL_STOP and len(word) > 1
+        ]
+
+    def _matching_goal(self, words: list[str]) -> str | None:
+        """First place term that exists in this building, including everyday aliases."""
+        phrases = [" ".join(words), *words] if words else []
+        phrases += [" ".join(words[index:index + 2]) for index in range(max(len(words) - 1, 0))]
+        for word in words:
+            phrases += GOAL_ALIASES.get(word.lower(), [])
+        seen: set[str] = set()
+        for phrase in phrases:
+            key = phrase.lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            if self.map.search(phrase):
+                return phrase
+        return None
+
+    def _offer_goal(self, asked: str, query: str, text: str) -> dict:
+        reply = self._locate_or_ask(query, text, set_here=False)
+        if asked.lower() == query.lower():
+            return reply
+        note = f"{self.building_summary()['name']} has no {asked} by that name. Closest is {query}."
+        guide = reply["guide_message"]
+        guide["text"] = f"{note} {guide['text']}"
+        guide["understood"]["summary"] = guide["text"]
+        return reply
 
     def _locate_or_ask(self, query: str, text: str, set_here: bool) -> dict:
         found = self.map.search(re.sub(r"^the ", "", query.strip(), flags=re.IGNORECASE))

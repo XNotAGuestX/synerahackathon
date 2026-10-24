@@ -41,6 +41,20 @@ def main() -> int:
         page.get_by_role("button", name="Close the office lift").click()
         check("pending confirm", page.get_by_role("button", name="Confirm").is_visible())
         check("pending cancel", page.get_by_role("button", name="Cancel").is_visible())
+        page.get_by_role("button", name="Back to session").click()
+        check("leave fixture preview", page.get_by_role("button", name="Confirm").count() == 0)
+        page.get_by_role("button", name="All categories").click()
+        route_here = page.get_by_role("button", name="Route here").first
+        if route_here.count() == 0:
+            page.get_by_role("button", name="Machines").click()
+            page.get_by_role("button").filter(has_text="Cnc").first.click()
+        page.get_by_role("button", name="Route here").first.click()
+        check("route here asks for start", page.get_by_text("Where are you now?").is_visible())
+        picker = page.get_by_label("Choose building")
+        if picker.locator("option").count() > 1:
+            picker.select_option(index=1)
+            page.wait_for_timeout(400)
+            check("building switch", page.get_by_role("heading").first.is_visible())
         page.keyboard.press("Tab")
         check("keyboard focus", page.evaluate("() => document.activeElement !== document.body"))
         axe_path = Path(__file__).resolve().parents[1] / "node_modules" / "axe-core" / "axe.min.js"
