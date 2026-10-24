@@ -2,8 +2,8 @@
 
   uv run --env-file .env python -m benchmark.evaluate data/dev --per-kind 4
 
-By default it runs the unchanged starter agent. Pass --agent module:function to evaluate your own; the
-function gets (building_directory: Path, question_text: str) and returns the reply text."""
+By default it runs the project agent (final_agent.benchmark:answer). Pass --agent module:function to evaluate
+another one; the function gets (building_directory: Path, question_text: str) and returns the reply text."""
 
 import argparse
 import csv
@@ -22,7 +22,7 @@ QUESTIONS_FILENAME = "questions.jsonl"
 SUBMISSION_COLUMNS = ("question_id", "answer")
 RESULTS_DIRECTORY = Path("agent_output") / "benchmark"
 SAMPLE_SEED = 7
-OUTPUT_DIRECTORY = RESULTS_DIRECTORY / "scratch"
+DEFAULT_AGENT = "final_agent.benchmark:answer"
 # claude-opus-5-5 prices, dollars per million tokens; cache writes are 1.25x input (5-minute cache)
 PRICE_PER_MILLION = {
     "input_tokens": 4.00,
@@ -56,30 +56,8 @@ def sample_per_kind(questions: list[tuple[Path, dict]], per_kind: int | None) ->
     return sampled
 
 
-class StarterAgentRunner:
-    """Runs the starter agent exactly as shipped, one fresh conversation per question."""
-
-    def __init__(self) -> None:
-        from starter_agent.agent import BuildingAgent
-        from starter_agent.building_map import BuildingMap
-
-        self.agent_class = BuildingAgent
-        self.map_class = BuildingMap
-        self.client = anthropic.Anthropic()
-        self.usage: Counter[str] = Counter()
-
-    def __call__(self, building_directory: Path, question_text: str) -> str:
-        agent = self.agent_class(self.map_class.load(building_directory), OUTPUT_DIRECTORY, self.client)
-        try:
-            return agent.ask(question_text)
-        finally:
-            self.usage.update(agent.usage)
-
-
 def load_agent(reference: str | None) -> AgentFunction:
-    if reference is None:
-        return StarterAgentRunner()
-    module_name, function_name = reference.split(":")
+    module_name, function_name = (reference or DEFAULT_AGENT).split(":")
     return getattr(importlib.import_module(module_name), function_name)
 
 
@@ -108,9 +86,7 @@ def run(
     agent = load_agent(agent_reference)
     results: Counter[tuple[str, bool]] = Counter()
     replies: list[tuple[str, str]] = []
-    OUTPUT_DIRECTORY.mkdir(
-        parents=True, exist_ok=True
-    )  # the starter agent saves edits here without creating it
+    RESULTS_DIRECTORY.mkdir(parents=True, exist_ok=True)
     results_path = RESULTS_DIRECTORY / f"{results_name}.jsonl"
     with results_path.open("w", encoding="utf-8") as log:
         questions = [item for item in load_questions(directory) if not kinds or item[1]["kind"] in kinds]
@@ -167,7 +143,7 @@ def main() -> None:
     parser.add_argument("--per-kind", type=int, default=None, help="sample this many questions per kind")
     parser.add_argument("--kinds", nargs="+", default=None, help="only these question kinds")
     parser.add_argument(
-        "--agent", default=None, help="module:function of your agent (default: starter agent)"
+        "--agent", default=None, help=f"module:function of the agent (default: {DEFAULT_AGENT})"
     )
     parser.add_argument("--name", default="results", help="file name for the saved replies")
     parser.add_argument(

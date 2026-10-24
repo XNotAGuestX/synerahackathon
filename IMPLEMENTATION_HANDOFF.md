@@ -22,7 +22,10 @@ component checks for all nine scored kinds, dev 138/138 and train 517/517; 45/45
 `bench_analsysis` representatives; live sweeps of every tool over all 280
 buildings with no unexpected exception; every entry point stops with one clear
 message (no traceback) when credentials are missing. No live API evaluation was
-possible (no credentials). The original specification below is unchanged.
+possible (no credentials). Afterwards, by user decision, the kit's `starter_agent/`
+was removed once `final_agent` was verified to contain all of it; where the
+specification says to keep the starter unchanged, that no longer applies. The
+original specification below is unchanged.
 
 ## 1. Coordinator instructions: Sonnet agents, then verification
 
@@ -656,7 +659,8 @@ release time; adapt only when the announced contract is available.
   [F15_HANDOFF.md](F15_HANDOFF.md).)*
 - [x] Focused tool/geometry/state tests and integration suite pass; no starter
   imports, scorer changes, label leakage or unrelated working-tree edits.
-  *(173 tests; `benchmark/score.py` and `starter_agent/` byte-unchanged; only the
+  *(173 tests; `benchmark/score.py` byte-unchanged; `starter_agent/` stayed unchanged
+  during F01–F15 and was later removed by user decision; only the
   evaluation-only `final_agent/evaluate.py` reads warm-up labels.)*
 - [x] Existing kit oracle results remain compatible; new tool results identify
   their distance model and preserve all route constraints. *(369/369; selected
