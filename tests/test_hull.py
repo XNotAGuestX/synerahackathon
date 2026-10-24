@@ -21,10 +21,20 @@ ROOT = Path(__file__).resolve().parents[1]
 BUILDING = ROOT / "data" / "dev" / "proc-factory-dev-003"
 P = "proc-factory-dev-003-"
 CREDENTIAL_VARIABLES = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+# Even if a stored `ant` profile still resolves credentials, no request can reach a paid endpoint.
+UNREACHABLE_API = "http://127.0.0.1:9"
 
 
 def without_credentials() -> dict:
-    return {name: value for name, value in os.environ.items() if name not in CREDENTIAL_VARIABLES}
+    environment = {name: value for name, value in os.environ.items() if name not in CREDENTIAL_VARIABLES}
+    return {**environment, "ANTHROPIC_BASE_URL": UNREACHABLE_API}
+
+
+def credentials_resolve() -> bool:
+    """Whether the SDK still finds credentials (e.g. an `ant auth login` profile) without the variables."""
+    with patch.dict(os.environ, without_credentials(), clear=True):
+        client = anthropic.Anthropic()
+    return any(getattr(client, name, None) for name in ("api_key", "auth_token", "credentials", "_token_cache"))
 
 
 def call(name: str, **arguments) -> SimpleNamespace:
@@ -161,6 +171,7 @@ class ScriptedConversationTests(unittest.TestCase):
 
 
 class MissingCredentialsTests(unittest.TestCase):
+    @unittest.skipIf(credentials_resolve(), "Anthropic credentials are configured on this machine")
     def test_sdk_authentication_type_error_becomes_missing_credentials_error(self):
         with patch.dict(os.environ, without_credentials(), clear=True):
             with tempfile.TemporaryDirectory() as temporary:
@@ -180,6 +191,7 @@ class MissingCredentialsTests(unittest.TestCase):
             with self.assertRaisesRegex(TypeError, "a real bug"):
                 agent.ask("hello")
 
+    @unittest.skipIf(credentials_resolve(), "Anthropic credentials are configured on this machine")
     def test_benchmark_answer_stops_the_run_without_credentials(self):
         with patch.dict(os.environ, without_credentials(), clear=True):
             with self.assertRaises(SystemExit) as caught:
@@ -209,6 +221,7 @@ class CommandLineTests(unittest.TestCase):
         self.assertIn("Cannot load building", result.stderr)
         self.assertNotIn("Traceback", result.stderr)
 
+    @unittest.skipIf(credentials_resolve(), "Anthropic credentials are configured on this machine")
     def test_chat_without_credentials_ends_with_clear_message(self):
         result = self.run_cli(BUILDING, "where is the printer?\nexit\n")
         self.assertNotEqual(result.returncode, 0)
