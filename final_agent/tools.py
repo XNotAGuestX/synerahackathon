@@ -100,6 +100,33 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
     # ---------- straight-line 3D distance ----------
 
+    def round_numbers(value: object, decimals: int) -> object:
+        """Round every float in nested JSON-like data; used only for presentation."""
+        if isinstance(value, float):
+            return round(value, decimals)
+        if isinstance(value, list):
+            return [round_numbers(item, decimals) for item in value]
+        if isinstance(value, dict):
+            return {key: round_numbers(item, decimals) for key, item in value.items()}
+        return value
+
+    @register
+    def straight_line_distance_3d(first: str, second: str) -> str:
+        """Straight-line (through-the-air) distance in metres between two places, across floors if needed.
+
+        Uses each room's polygon centroid and its floor's elevation, not walking routes. For a scored
+        "Answer:" line give exactly one number: distance_m in metres. Do not use for walking distance.
+
+        Args:
+            first: Space id, asset id (its containing room is used), or exact room number/name.
+            second: Space id, asset id (its containing room is used), or exact room number/name.
+        """
+        try:
+            result = building_map.straight_line_distance_3d(first, second)
+        except MapError as error:
+            raise ToolError(str(error)) from error
+        return as_json(round_numbers(result, 3))
+
     # ---------- stacked rooms ----------
 
     # ---------- shared walls ----------
