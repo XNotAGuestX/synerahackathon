@@ -15,9 +15,6 @@ cp .env.example .env                                   # set ANTHROPIC_API_KEY (
 # Conversation in the terminal (needs credentials)
 uv run --env-file .env python -m final_agent data/dev/proc-factory-dev-003
 
-# Local map UI (pending merge of F14)
-uv run --env-file .env python -m final_agent.web data/dev/proc-factory-dev-003
-
 # Free checks, no API calls
 uv run python -m unittest discover -s tests -v
 uv run python -m final_agent.evaluate data/dev --oracle
