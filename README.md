@@ -15,7 +15,7 @@
 | Complete challenge PDF text, including its grading table | [13. Challenge PDF reference](#13-challenge-pdf-reference) |
 | Full data attribution | [8. Licences](#8-licences), [14. Data sources and licences](#14-data-sources-and-licences) |
 
-**Current status:** `final_agent` is independently wired and packaged: CLI, tools, viewer, evaluator, building map and storage use local modules, with no starter imports. Its storage/integration suite passes 11 tests; its free dev warm-up passes 369/369. The scored runner selects it with `--agent final_agent.benchmark:answer`, using fresh state and temporary outputs per question. The nine scored benchmark kinds still need dedicated analysis tools; no live benchmark score or generated test answers are claimed. Sunday output format and release time remain organizer-dependent. See [final-agent commands](final_agent/README.md), [BACKLOG.md](BACKLOG.md) and sections 9–11.
+**Current status:** `final_agent` is independently wired and packaged: CLI, tools, viewer, evaluator, building map and storage use local modules. The kit's `starter_agent` was removed on 24 October 2026 after `final_agent` was verified to contain all of its files, map functions and tools; `benchmark.evaluate` now runs `final_agent.benchmark:answer` by default. Its storage/integration suite passes 11 tests; its free dev warm-up passes 369/369. The scored runner selects it with `--agent final_agent.benchmark:answer`, using fresh state and temporary outputs per question. The nine scored benchmark kinds still need dedicated analysis tools; no live benchmark score or generated test answers are claimed. Sunday output format and release time remain organizer-dependent. See [final-agent commands](final_agent/README.md), [BACKLOG.md](BACKLOG.md) and sections 9–11.
 
 [FEATURE_SHORTLIST.md](FEATURE_SHORTLIST.md) records proposed features, prompt-related implementation gaps and the future switch to automatic mobile location updates; these capabilities remain unimplemented.
 
@@ -176,9 +176,9 @@ We review all Track 01 submissions and pick four finalists. Finalists present at
 ```
 README.md                  this file
 ATTRIBUTION.md             data sources and licences (read before you share anything)
-pyproject.toml             Python project for the starter agent and the scorer (uv or pip)
+pyproject.toml             Python project for the project agent and the scorer (uv or pip)
 .env.example               copy to .env and add your ANTHROPIC_API_KEY
-starter_agent/             a working example agent (Claude + tools); its own README explains it
+final_agent/               the project agent (Claude + tools); grew from the kit's starter_agent, removed 24 Oct 2026
 benchmark/                 score.py (the official scorer) and evaluate.py (runs an agent, writes the submission)
 data/
   manifest.csv             one row per building: split, source, licence, size, lifts, stairs, ...
@@ -288,7 +288,7 @@ Route lengths in the answers come from this graph, so your router reproduces the
 - **Parallel connections:** a stair and a lift can join the same two spaces. Keep both; a simple graph would drop one.
 - **Outside:** all entrances meet at one `"outside"` node at zero cost, so a route may go out one entrance and back in another for free. The benchmark questions only use cases where this shortcut makes no difference.
 
-`starter_agent/building_map.py` implements exactly this model.
+`final_agent/building_map.py` implements exactly this model.
 
 ---
 
@@ -349,15 +349,15 @@ You need Python 3.12+ and [uv](https://docs.astral.sh/uv/) (or pip), plus an Ant
 ```bash
 uv sync
 cp .env.example .env        # then put your key in .env
-uv run --env-file .env python -m starter_agent data/dev/proc-factory-dev-003
+uv run --env-file .env python -m final_agent data/dev/proc-factory-dev-003
 ```
 
 Measure yourself on **dev** before you touch the test set:
 
 ```bash
 # warm-up questions, tools only, free:
-uv run python -m starter_agent.evaluate data/dev --oracle
-# benchmark questions with the starter agent (uses credits; about $0.10–0.25 per question):
+uv run python -m final_agent.evaluate data/dev --oracle
+# benchmark questions with the project agent, the runner's default (uses credits):
 uv run --env-file .env python -m benchmark.evaluate data/dev --per-kind 3
 # your own agent:
 uv run --env-file .env python -m benchmark.evaluate data/dev --agent my_agent:answer
@@ -365,7 +365,7 @@ uv run --env-file .env python -m benchmark.evaluate data/dev --agent my_agent:an
 
 `--agent module:function` takes a function `answer(building_directory: Path, question_text: str) -> str` that returns your agent's full reply.
 
-The starter agent scores **under 5% on the benchmark questions**. That is deliberate: its tools don't expose room areas, door widths or reachability, and it shows you where to start. See `starter_agent/README.md` for how it works and ideas to extend it.
+The kit's starter agent scored **under 5% on the benchmark questions**. That was deliberate: its tools didn't expose room areas, door widths or reachability. `final_agent` grew from it, and the starter package was removed from this repository on 24 October 2026.
 
 ---
 
@@ -444,7 +444,7 @@ benchmark.evaluate → agent(building_directory, question_text) → reply
                   → benchmark.score → result log + submission CSV
 ```
 
-`final_agent/` now uses package-local imports throughout its entry point, conversation layer, tools, viewer, evaluator, map and storage. `BuildingMap` and `MapError` identities are consistent across these modules. `final_agent.storage` contains its own atomic JSON store and spatial index; no project runtime module imports the starter. The wheel includes `final_agent`, `starter_agent` and `benchmark`. The starter remains available as the baseline. Use `python -m final_agent` for the project CLI and `benchmark.evaluate --agent final_agent.benchmark:answer` for scored runs; the benchmark default intentionally remains the starter.
+`final_agent/` now uses package-local imports throughout its entry point, conversation layer, tools, viewer, evaluator, map and storage. `BuildingMap` and `MapError` identities are consistent across these modules. `final_agent.storage` contains its own atomic JSON store and spatial index; no project runtime module imports the starter. The wheel includes `final_agent` and `benchmark`; the kit's `starter_agent` baseline was removed on 24 October 2026. Use `python -m final_agent` for the project CLI; `benchmark.evaluate` runs `final_agent.benchmark:answer` by default.
 
 ### What exists and what it does not yet cover
 
@@ -454,7 +454,7 @@ benchmark.evaluate → agent(building_directory, question_text) → reply
 | Conversation | Claude tool loop, full in-session message history, cached initial overview, token accounting and CLI API-error messages | No web/mobile interface, durable user preferences or explicit location state; clarification and preference retention rely on the prompt |
 | Overview | Floor summaries, entrances, stairs/lifts, asset count and current closures | No detailed spatial analysis or room/door inspection tool |
 | Search | Case-insensitive matching of every query word against names, room refs/types and IDs; optional floor filter; assets resolve to their containing room | No synonyms/semantic search, exact typed enumeration or pagination; tool exposes only the first 15 results, though it reports the total match count |
-| Spatial queries and storage | Final package integrates its own per-floor STRtree, atomic saves, directory creation and closure snapshots; storage and integration checks pass | No pagination or merged writes; original starter map retains its original storage/spatial limitations |
+| Spatial queries and storage | Final package integrates its own per-floor STRtree, atomic saves, directory creation and closure snapshots; storage and integration checks pass | No pagination or merged writes |
 | Routes | Dijkstra on a MultiGraph, openings as nodes, room representative points, multiple floors, stairs/lifts, step-free filtering and ordered via stops | No minimum door width, reachable-room counts, nearest-equipment selection, optimal stop ordering or cross-building routing |
 | Closures | Final tools close/reopen rooms, openings, stairs and lifts; snapshots serialize closures and reload restores them | No automatic route invalidation/recalculation or event history; save failures are not transactional with in-memory edits |
 | Edits | Adds a synthetic 0.9 m door between nearby spaces on one floor and exports edited building JSON | No reliable shared-wall midpoint, custom width, preview/undo or transactional save; validation is incomplete |
@@ -523,7 +523,7 @@ P0/P1/P2 are project delivery priorities, not organizer weights. P1 includes req
 | Public test output vs. Sunday output | Repository section 6 defines `question_id,answer` CSV. PDF page 3 specifies `questions.json` → `answers.json` with IDs, route node lists and lengths. | Use the implemented CSV contract for the public 145-question submission. Treat the Sunday JSON contract as provisional until the organizers release its schema; do not assume either format replaces the other. Preserve both specifications below. |
 | Sunday timing and schema | PDF literally contains “TODO: exact time” and a schema/example “(TODO)”. Repository section 1 says the exact release time and file format will be announced with the release. | Organizer-dependent open points. Record the announcement and implement/verify the actual adapter when available; no exact time or schema is established here. |
 | PDF data description has placeholders | “several buildings”, a “[FORMAT, e.g. JSON; the schema is in the kit.]” placeholder, and a general test-set description | Use the concrete repository data schema and split counts for current development. The public test has no answer labels; train/dev do. Keep the PDF wording as source material, not a claim that hidden answers are present. |
-| Project package | Entry point and internal imports now use the final package; storage is local and the wheel includes it | Use the final CLI and explicit benchmark callable. Keep the starter as the baseline. |
+| Project package | Entry point and internal imports now use the final package; storage is local and the wheel includes it | Use the final CLI; the benchmark runner calls it by default. The kit's starter baseline was removed on 24 October 2026. |
 | Persistent changes vs. what-if analysis | Final closures/doors save snapshots and reload correctly; benchmark questions have isolated maps and temporary outputs | Add transactional edits, preview/undo and dedicated what-if analysis; isolate concurrent interactive outputs. |
 | New-building ingestion quality | Only JSON loading and one door edit exist; no image ingestion implementation | Decide extraction method and uncertainty handling; demonstrate geometry and connectivity validation on a genuinely new plan. |
 | Supplied kit vs. Synera automatic route check | The kit uses anchor-to-door segments, fixed per-floor costs and a zero-cost outside node. The [Synera clarification](#route-scoring-clarification-synera) specifies wall-respecting door-to-door paths with about 15 cm clearance, height-based costs, forklift restrictions, destination-only production bays and ordered-space validation. | Implement the clarified automatic-check rules and distinguish them from local kit scoring. Confirm schema, route endpoint details and outside handling with organizers; the clarification supplies no file format or outside-node rule. |
@@ -532,9 +532,9 @@ P0/P1/P2 are project delivery priorities, not organizer weights. P1 includes req
 
 ## 12. Consolidated agent reference
 
-The following reference retains original starter commands and model/caching claims. The independently runnable project package is documented in [final_agent/README.md](final_agent/README.md); section 9 records current verification. Historical starter commands below continue to select the starter baseline.
+The following reference retains the kit's description of its starter agent and its model/caching claims. `final_agent` grew from that starter, which was removed from this repository on 24 October 2026 after `final_agent` was verified to contain all of it; the commands below therefore run `final_agent`. The project package is documented in [final_agent/README.md](final_agent/README.md); section 9 records current verification.
 
-**API scope:** the storage/spatial examples below use `final_agent`, whose CLI, tools and evaluator now use the same implementation. The original starter map retains its original limitations. Run the documented test command to check the final package; see [final-agent commands](final_agent/README.md).
+**API scope:** the storage/spatial examples below use `final_agent`, whose CLI, tools and evaluator use the same implementation. Run the documented test command to check it; see [final-agent commands](final_agent/README.md).
 
 ### Starter agent: an indoor "Google Maps" you can talk to
 
@@ -553,7 +553,7 @@ You need Python 3.12, [uv](https://docs.astral.sh/uv/) and Claude API credential
 
 ```bash
 uv sync
-uv run python -m starter_agent data/dev/proc-factory-dev-003
+uv run python -m final_agent data/dev/proc-factory-dev-003
 ```
 
 ```
@@ -624,14 +624,14 @@ uv run python -m unittest discover -s tests -v
 
 #### Check how well it does
 
-These commands use the warm-up set (`questions_basic.jsonl`). The real benchmark is `questions.jsonl`, scored with `benchmark.evaluate`, and the starter agent fails it on purpose. See section 6 of [../README.md](#6-submission-format).
+These commands use the warm-up set (`questions_basic.jsonl`). The real benchmark is `questions.jsonl`, scored with `benchmark.evaluate`; the kit's starter agent failed it on purpose. See section 6 of [../README.md](#6-submission-format).
 
 ```bash
 ### Free: answers every question with the tools directly. Shows the tools can reach 100%.
-uv run python -m starter_agent.evaluate data/dev --oracle
+uv run python -m final_agent.evaluate data/dev --oracle
 
 ### Live agent on the first 10 dev questions (uses API credits)
-uv run python -m starter_agent.evaluate data/dev --limit 10
+uv run python -m final_agent.evaluate data/dev --limit 10
 ```
 
 The live score checks what the agent computed, not its wording. A route must be within 1% of the optimal length, a locate question must find the right asset, and a count answer must contain the right number. Each question runs in a fresh conversation, so you can see per-question token use.

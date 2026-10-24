@@ -6,11 +6,26 @@ conversation. Read [AGENTS.md](AGENTS.md), the [README](README.md) and
 [BACKLOG.md](BACKLOG.md) first. The backlog owns completion status; this document
 defines the implementation contracts and agent handoffs for this feature set.
 
-**Status, 24 October 2026:** specification only; the features below are not newly
-implemented. Baseline rerun during preparation: 11 unit/integration tests pass;
-369/369 oracle warm-up questions pass. No live API evaluation was run for this
-handoff. Oracle results do not establish conversational accuracy or a scored
-benchmark result.
+**Status, 24 October 2026:** F01–F14 are implemented, each by a Claude Sonnet 5.5
+agent on an isolated worktree branch, then reviewed, merged and independently
+re-verified by the coordinator. By user decision, F14's local web UI was removed
+from scope: the team's separate frontend track owns the interactive surface, and
+F14 delivers the per-floor PNG renderer plus `show_location`,
+`show_route(landmark_ids)` and `describe_destination_context`. **F15 was
+implemented and then reverted at the user's request; it is pending again.**
+[F15_HANDOFF.md](F15_HANDOFF.md) records its scope, the reverted implementation
+(`git show dd3303f:<path>`) and everything learned. Because F15 owned the
+documentation update, README/BACKLOG/FEATURE_SHORTLIST currently describe the
+pre-implementation state. Verified without API credentials: 173
+unit/integration tests (incl. 12 hull tests); 369/369 oracle warm-up; labelled
+component checks for all nine scored kinds, dev 138/138 and train 517/517; 45/45
+`bench_analsysis` representatives; live sweeps of every tool over all 280
+buildings with no unexpected exception; every entry point stops with one clear
+message (no traceback) when credentials are missing. No live API evaluation was
+possible (no credentials). Afterwards, by user decision, the kit's `starter_agent/`
+was removed once `final_agent` was verified to contain all of it; where the
+specification says to keep the starter unchanged, that no longer applies. The
+original specification below is unchanged.
 
 ## 1. Coordinator instructions: Sonnet agents, then verification
 
@@ -638,21 +653,32 @@ release time; adapt only when the announced contract is available.
 
 ### Coordinator sign-off
 
-- [ ] Each F01–F15 implementation has a Sonnet agent report and reviewed diff,
-  or is explicitly recorded as pending with its blocker.
-- [ ] Focused tool/geometry/state tests and integration suite pass; no starter
+- [x] Each F01–F15 implementation has a Sonnet agent report and reviewed diff,
+  or is explicitly recorded as pending with its blocker. *(F14 web UI removed
+  from scope by user decision; F15 reverted by user decision and pending, see
+  [F15_HANDOFF.md](F15_HANDOFF.md).)*
+- [x] Focused tool/geometry/state tests and integration suite pass; no starter
   imports, scorer changes, label leakage or unrelated working-tree edits.
-- [ ] Existing kit oracle results remain compatible; new tool results identify
-  their distance model and preserve all route constraints.
-- [ ] All nine scored kinds have deterministic tool coverage and documented
+  *(173 tests; `benchmark/score.py` byte-unchanged; `starter_agent/` stayed unchanged
+  during F01–F15 and was later removed by user decision; only the
+  evaluation-only `final_agent/evaluate.py` reads warm-up labels.)*
+- [x] Existing kit oracle results remain compatible; new tool results identify
+  their distance model and preserve all route constraints. *(369/369; selected
+  `element_path`/`space_path` equal the labels for 172/172 dev routes and 40/40
+  tour legs; 17/17 unreachable cases explained and cleared.)*
+- [x] All nine scored kinds have deterministic tool coverage and documented
   dev verification; live results are reported separately from oracle/component
-  results.
-- [ ] Map, steps, selected connectors, optimized stop order and distances agree;
+  results. *(Components dev 138/138, train 517/517; live not run: no credentials.)*
+- [x] Map, steps, selected connectors, optimized stop order and distances agree;
   stale routes and misleading/ambiguous landmarks do not survive rerouting.
-- [ ] Pagination, complete inspection, reachability, what-if isolation and save
+  *(Renderer draws the route's selected doors; best tour equals brute force on 79
+  feasible real tours; rendered PNGs inspected; `show_route` refuses a stale route.)*
+- [x] Pagination, complete inspection, reachability, what-if isolation and save
   failure behavior have been exercised through actual tool boundaries.
 - [ ] README/backlog/tool descriptions agree with what is implemented and what
-  was actually tested; demo/submission commands are reproducible.
+  was actually tested; demo/submission commands are reproducible. *(Pending with
+  F15: its documentation update was reverted with it; the live submission
+  command cannot be run here.)*
 
 Each implementation report states: feature/backlog IDs, changed files, tool
 contract, exact checks run with outcomes, actual user-flow evidence, remaining

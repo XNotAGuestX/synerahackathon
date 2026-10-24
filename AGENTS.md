@@ -43,9 +43,10 @@ keep the codebase small and easy for teammates to understand.
 
 ## Project boundaries and correctness
 
-- `final_agent/` is the project implementation. Keep its imports package-local and
-  independent of `starter_agent/`, which remains the baseline. Select the final
-  agent explicitly in benchmark runs; the runner defaults to the starter.
+- `final_agent/` is the project implementation and the only agent package; the kit's
+  `starter_agent/` was removed on 24 October 2026 after `final_agent` was verified to
+  contain all of it. Keep imports package-local. `benchmark.evaluate` runs
+  `final_agent.benchmark:answer` by default.
 - Use the existing building JSON schema and metre coordinates. Preserve IDs,
   custom fields, floor elevations and source/licence metadata. Keep persistence
   local and file-based unless a concrete feature requires more.

@@ -1,9 +1,9 @@
 # Project agent
 
 `final_agent` is independently runnable. Its CLI, conversation layer, tools, viewer,
-evaluator, building map and storage all use package-local imports. It has no runtime
-dependency on `starter_agent`; the wheel includes both packages so the starter remains
-available as a baseline.
+evaluator, building map and storage all use package-local imports. It is the only
+agent package: the kit's `starter_agent` was removed on 24 October 2026 after this
+package was verified to contain all of its files, map functions and tools.
 
 ```bash
 # Conversation (requires Claude API credentials)
@@ -19,8 +19,8 @@ uv run python -m benchmark.evaluate data/dev --agent final_agent.benchmark:answe
 uv run python -m unittest discover -s tests -v
 ```
 
-The benchmark runner defaults to the starter; select the project explicitly with
-`--agent final_agent.benchmark:answer`. Each adapter call loads a fresh map and
+The benchmark runner uses `final_agent.benchmark:answer` by default (`--agent` selects
+another callable). Each adapter call loads a fresh map and
 conversation and uses its own temporary output directory, removed after the reply.
 The runner retains replies and scores. The adapter does not add the nine missing
 scored-analysis tools or establish a live benchmark score.
@@ -32,12 +32,11 @@ directories for concurrent interactive sessions.
 
 `final_agent.storage` owns atomic JSON saves and per-floor spatial indexes. Invalid
 map operations use the same `final_agent.building_map.MapError` class throughout the
-agent tools and evaluator. Storage tests target this project implementation; the
-original starter map retains its original storage/spatial limitations.
+agent tools and evaluator. Storage tests target this project implementation.
 
 Verified after rewiring: **11 tests pass**, **369/369 oracle warm-up questions pass**,
-and the built wheel's CLI, evaluator and benchmark adapter load with the starter
-package removed. Integration tests reject starter imports, exercise actual tools
+and the built wheel's CLI, evaluator and benchmark adapter load without the starter
+package. Integration tests reject starter imports, exercise actual tools
 and image generation, and verify isolated benchmark edits. No live API evaluation
 was performed.
 

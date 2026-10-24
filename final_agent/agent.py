@@ -19,6 +19,12 @@ EFFORT = "medium"
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 DEFAULT_OUTPUT_DIRECTORY = Path("agent_output")
 EXIT_WORDS = {"exit", "quit", "bye"}
+# Part of the TypeError the SDK raises at request time when no api_key, auth_token or profile resolves.
+SDK_MISSING_AUTH_MESSAGE = "Could not resolve authentication method"
+MISSING_CREDENTIALS_MESSAGE = (
+    "No Anthropic credentials: set ANTHROPIC_API_KEY (or run `ant auth login`); "
+    "the map tools need no credentials."
+)
 
 SYSTEM_PROMPT = """
 # Role
@@ -116,6 +122,10 @@ Initial building overview:
 """
 
 
+class MissingCredentialsError(RuntimeError):
+    """The Anthropic client has no usable credentials."""
+
+
 class BuildingAgent:
     """Keeps the conversation history and runs Claude's tool loop for each user turn."""
 
@@ -143,7 +153,17 @@ class BuildingAgent:
         }
 
     def ask(self, user_text: str) -> str:
+        history_length = len(self.messages)
         self.messages.append({"role": "user", "content": user_text})
+        try:
+            return self.run_tool_loop()
+        except TypeError as error:
+            if SDK_MISSING_AUTH_MESSAGE not in str(error):
+                raise
+            del self.messages[history_length:]
+            raise MissingCredentialsError(MISSING_CREDENTIALS_MESSAGE) from error
+
+    def run_tool_loop(self) -> str:
         runner = self.client.beta.messages.tool_runner(
             model=MODEL,
             max_tokens=MAX_TOKENS,
@@ -179,7 +199,11 @@ class BuildingAgent:
 
 
 def chat(building_directory: Path, output_directory: Path) -> None:
-    agent = BuildingAgent(BuildingMap.load(building_directory), output_directory)
+    try:
+        building_map = BuildingMap.load(building_directory)
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise SystemExit(f"Cannot load building {building_directory}: {error}") from error
+    agent = BuildingAgent(building_map, output_directory)
     print(f"Guide for {agent.map.data['building']['name']}. Ask me anything (type 'exit' to stop).")
     while True:
         try:
@@ -192,6 +216,8 @@ def chat(building_directory: Path, output_directory: Path) -> None:
             break
         try:
             print(f"\nguide> {agent.ask(user_text)}")
+        except MissingCredentialsError as error:
+            raise SystemExit(str(error)) from error
         except anthropic.AuthenticationError:
             print("No valid API credentials: set ANTHROPIC_API_KEY or run `ant auth login`.")
             return
