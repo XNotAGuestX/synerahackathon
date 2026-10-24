@@ -21,7 +21,7 @@ BUILDING = ROOT / "data" / "dev" / "proc-factory-dev-003"
 TEMPLATE = ROOT / "data" / "test" / "submission_template.csv"
 
 # Tools other features add; the coordinator empties this set once they are merged.
-UPCOMING = {"analyze_what_if_door", "show_location", "describe_destination_context"}
+UPCOMING = {"show_location", "describe_destination_context"}
 
 # Every tool the prompt names; each must be registered (or upcoming).
 PROMPT_TOOLS = {

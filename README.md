@@ -15,13 +15,13 @@
 | Complete challenge PDF text, including its grading table | [13. Challenge PDF reference](#13-challenge-pdf-reference) |
 | Full data attribution | [8. Licences](#8-licences), [14. Data sources and licences](#14-data-sources-and-licences) |
 
-**Current status:** `final_agent` is independently wired and packaged: CLI, tools, viewer, evaluator, building map and storage use local modules, with no starter imports. Its storage/integration suite passes 11 tests; its free dev warm-up passes 369/369. The scored runner selects it with `--agent final_agent.benchmark:answer`, using fresh state and temporary outputs per question. The nine scored benchmark kinds still need dedicated analysis tools; no live benchmark score or generated test answers are claimed. Sunday output format and release time remain organizer-dependent. See [final-agent commands](final_agent/README.md), [BACKLOG.md](BACKLOG.md) and sections 9–11.
+**Current status (24 October 2026):** `final_agent` is independently wired and packaged and registers 19 tools, with a dedicated deterministic tool for each of the nine scored question kinds plus exact inventory, inspection, constrained routing, best tours, what-if doors, landmarks, closures and door edits. Checks run without API credentials: all unit/integration tests pass (165 at the F15 phase 2 review), the dev warm-up oracle passes 369/369, the component runner passes 138/138 dev and 517/517 train scored questions, and the 45 offline representatives pass. The component runner calls the tools with labelled, resolved inputs, so these are not a live benchmark score; **no live run, model-interpretation result or generated test answer file is claimed**. The scored runner selects the project agent with `--agent final_agent.benchmark:answer` (fresh state and temporary outputs per question); [BENCHMARK.md](BENCHMARK.md) has the commands and the submission validator. Map highlights and destination context (F14) are pending at the time of writing; the visual chat/web surface belongs to the team's separate frontend track. Sunday output format and release time remain organizer-dependent. See [final-agent commands](final_agent/README.md), [BACKLOG.md](BACKLOG.md) and sections 9–11.
 
-[FEATURE_SHORTLIST.md](FEATURE_SHORTLIST.md) records proposed features, prompt-related implementation gaps and the future switch to automatic mobile location updates; these capabilities remain unimplemented.
+[FEATURE_SHORTLIST.md](FEATURE_SHORTLIST.md) records proposed features, prompt-related implementation gaps and the future switch to automatic mobile location updates. It marks the capabilities that are now implemented; mobile location, layout editing, furniture changes, multiple buildings, plan ingestion and the Synera route model remain unimplemented.
 
-[IMPLEMENTATION_HANDOFF.md](IMPLEMENTATION_HANDOFF.md) specifies the requested paginated search, room inspection, reachability, all nine analysis kinds, optimal tours, navigation landmarks and map highlights. It assigns one Sonnet implementation agent per feature and requires independent verification afterwards; it is an implementation specification, not a claim that these features are complete.
+[IMPLEMENTATION_HANDOFF.md](IMPLEMENTATION_HANDOFF.md) specifies the paginated search, room inspection, reachability, all nine analysis kinds, optimal tours, navigation landmarks and map highlights, with one Sonnet implementation agent per feature and independent verification afterwards. Those features are now implemented, except that F14 (map display and destination context) is pending at the time of writing and the web UI is out of scope (owned by the team's frontend track). The document remains the contract reference; the verified status is in section 9 and [BACKLOG.md](BACKLOG.md).
 
-[Benchmark request analysis](bench_analsysis/README.md) reviews 280 questions across 20 varied dev buildings, with implementation/missing-tool tables, underdocumented expected results and 45 runnable representatives in three difficulty tiers. Its offline evidence distinguishes passing component checks from missing capabilities; it does not claim live benchmark accuracy.
+[Benchmark request analysis](bench_analsysis/README.md) reviews 280 questions across 20 varied dev buildings, with implementation/missing-tool tables, underdocumented expected results and 45 runnable representatives in three difficulty tiers. Its offline evidence distinguishes passing component checks from missing capabilities; it does not claim live benchmark accuracy. An update after the implementation records the new offline and component results.
 
 The original kit reference follows. References such as “section 6” below retain their original numbering. The repository tree and setup instructions are source reference material; section 9 covers implementation additions, and section 11 identifies missing referenced setup resources.
 
@@ -436,7 +436,7 @@ This section is a code assessment as of 24 October 2026, not an organizer specif
 ```text
 Terminal conversation
   → final_agent.agent.BuildingAgent (Claude + conversation history)
-  → seven typed tools in final_agent/tools.py
+  → 19 typed tools in final_agent/tools.py (see section 12)
   → BuildingMap (JSON data + Shapely geometry + NetworkX MultiGraph)
   → route result / edited JSON / Matplotlib PNGs
 
@@ -451,26 +451,26 @@ benchmark.evaluate → agent(building_directory, question_text) → reply
 | Area | Implemented | Remaining limitation |
 |---|---|---|
 | Building input | Loads `building.json` from a directory or file; indexes floors, spaces, assets, openings and vertical connectors; preserves custom fields on save | No schema-validation pipeline, image/PDF ingestion or building creation workflow |
-| Conversation | Claude tool loop, full in-session message history, cached initial overview, token accounting and CLI API-error messages | No web/mobile interface, durable user preferences or explicit location state; clarification and preference retention rely on the prompt |
-| Overview | Floor summaries, entrances, stairs/lifts, asset count and current closures | No detailed spatial analysis or room/door inspection tool |
-| Search | Case-insensitive matching of every query word against names, room refs/types and IDs; optional floor filter; assets resolve to their containing room | No synonyms/semantic search, exact typed enumeration or pagination; tool exposes only the first 15 results, though it reports the total match count |
-| Spatial queries and storage | Final package integrates its own per-floor STRtree, atomic saves, directory creation and closure snapshots; storage and integration checks pass | No pagination or merged writes; original starter map retains its original storage/spatial limitations |
-| Routes | Dijkstra on a MultiGraph, openings as nodes, room representative points, multiple floors, stairs/lifts, step-free filtering and ordered via stops | No minimum door width, reachable-room counts, nearest-equipment selection, optimal stop ordering or cross-building routing |
-| Closures | Final tools close/reopen rooms, openings, stairs and lifts; snapshots serialize closures and reload restores them | No automatic route invalidation/recalculation or event history; save failures are not transactional with in-memory edits |
-| Edits | Adds a synthetic 0.9 m door between nearby spaces on one floor and exports edited building JSON | No reliable shared-wall midpoint, custom width, preview/undo or transactional save; validation is incomplete |
-| Directions | Room/floor transitions and distance estimates from the computed route | No geometric left/right turns, equipment landmarks or live positioning |
-| Visualization | Static PNG per crossed floor, space polygons, route line and closed-room shading | No asset markers, interactive locate view, animation or stacked 3D floors; selected opening identities are not preserved for rendering |
-| Evaluation | Project warm-up evaluator, isolated benchmark callable, official scorer/runner, CSV export and 11 passing storage/integration tests | No measured live benchmark baseline, complete geometry/interaction regression coverage or Sunday adapter |
+| Conversation | Claude tool loop, full in-session message history, cached initial overview, token accounting and CLI API-error messages; the system prompt has a tool-selection guide and the scored answer formats (not verified live) | No web/mobile interface (the team's frontend track owns it), durable user preferences or explicit location state; clarification and preference retention rely on the prompt |
+| Overview | Floor summaries, entrances, stairs/lifts, asset count and current closures; `inspect_space` gives one room in full (area, doors with widths and step-free flags, connectors, contents) | No whole-building spatial analysis beyond the dedicated tools |
+| Search | Case-insensitive matching of every query word against names, room refs/types and IDs; exact `room_type` / `asset_type` / `space_type` filters (also with an empty query) for inventories; exact `matches` total with pages and `next_page`; `list_spaces` lists every space; assets resolve to their containing room | No synonyms/semantic search |
+| Spatial queries and storage | Final package integrates its own per-floor STRtree, atomic saves, directory creation and closure snapshots; `spatial_search` is paginated with an exact total; storage and integration checks pass | No merged writes; original starter map retains its original storage/spatial limitations |
+| Routes | Dijkstra on a MultiGraph, openings as nodes, room representative points, multiple floors, stairs/lifts, step-free filtering, ordered via stops, minimum door width, a chosen entrance, `reachable_rooms` counts, `plan_errand` (nearest pickup by route distance, then largest destination), exact `find_best_tour` (any order, up to 10 stops) and results that keep selected doors/connectors | Local kit distance model only (no Synera route-check rules, wall-respecting paths or forklift rules); no cross-building routing |
+| Closures | Final tools close/reopen rooms, openings, stairs and lifts; snapshots serialize closures and reload restores them; after an edit the active route is recomputed with its constraints (`active_route` / `active_route_error`) and stale routes are cleared; a failed save rolls the edit back | No event history or preview/undo |
+| Edits | `add_door` validates the pair (rejects self, cross-floor and non-adjacent rooms), places the door at the shared-wall midpoint with an optional width and exports edited building JSON; `analyze_what_if_door` simulates a door without saving | No layout editing (room boundaries, names, types), furniture moves, preview/cancel/undo |
+| Directions | Room/floor transitions and distance from the computed route; `find_navigation_landmarks` returns nearby cues with an ambiguity check (`is_unambiguous`) | No geometric left/right turns or live positioning; using the cues in directions is prompt-driven |
+| Visualization | Static PNG per crossed floor, space polygons, the route line drawn through the selected doors and connectors, and closed-room shading | Locate highlights, asset markers and destination context (F14) are pending; no interactive map, animation or stacked 3D floors; a visual chat/web surface belongs to the team's frontend track |
+| Evaluation | Project warm-up evaluator, isolated benchmark callable, official scorer/runner, CSV export, submission validator (`python -m final_agent.benchmark --check`), focused unit/integration tests (all pass; 165 at the F15 phase 2 review) and the component runner | No measured live benchmark baseline or Sunday adapter; component runs use labelled resolved inputs |
 | Assets | Reads/searches equipment supplied in building JSON | No movement/update API, barcode/RFID ingestion or asset history |
 
 ### Status against challenge levels
 
 | Level | Current status | Completion work |
 |---|---|---|
-| 1 — Locate | Search and conversation exist | Show and highlight the selected room/equipment on a usable map; handle ambiguous/nonexistent references |
-| 2 — Route | Core routing, in-memory closures, step-free routing and ordered tours exist | Reliable visualization, route invalidation, closure persistence and stronger interaction checks; width filtering is also needed for scored delivery questions |
+| 1 — Locate | Search, inventory, room inspection and conversation exist | Show and highlight the selected room/equipment on a usable map (F14 pending; the visual chat surface belongs to the frontend track); live check of ambiguous/nonexistent references |
+| 2 — Route | Constrained routing (step-free, door width, entrance), closures with rerouting and persistence, ordered tours, best tours and PNG route maps exist | Live check of the interaction script (locate → route → no stairs → closure → reroute → reopen, tour, invalid room); map markers (F14) |
 | 3 — Scale | Multiple floors within one building work | Multiple buildings, building disambiguation and walkway connections |
-| 4 — Build | One limited door-edit operation exists | Floor-plan ingestion, calibrated geometry, generated rooms/openings/connectors, validation, conversational correction and dependable export/reload |
+| 4 — Build | A validated door edit with rollback and a what-if door simulation exist | Floor-plan ingestion, calibrated geometry, generated rooms/openings/connectors, validation, conversational correction and dependable export/reload |
 | 5 — Extend | No complete optional extension is demonstrated | Select and finish one extension after the core workflow works |
 
 ### Evaluation evidence and limits
@@ -493,9 +493,26 @@ The free dev warm-up command was rerun during the backlog audit:
 
 This is an oracle-assisted warm-up result, not a conversational-agent benchmark score. The oracle supplies destinations, constraints and closures from expected answers; for locate questions it directly assigns the expected asset ID. The warm-up scorer is also permissive: route checks primarily compare distance, and an unreachable case can pass when no route was computed. It does not establish correct natural-language interpretation, correct final answer formatting or a valid full submission.
 
-After rewiring, `.venv/bin/python -m unittest discover -s tests -v` passes **11 tests**. Storage tests now target the canonical final map/store, rather than requiring new APIs on the original starter map. Integration tests block starter imports, check the CLI and class/error identities, exercise spatial queries, door/closure snapshots and actual PNG generation, and verify benchmark state/output isolation. The built wheel also loads the CLI, evaluator and benchmark adapter with `starter_agent` removed. No paid live API check was performed.
+`.venv/bin/python -m unittest discover -s tests -v` passes (**165 tests** at the F15 phase 2 review; the number grows with later features). Storage tests target the canonical final map/store. Integration tests block starter imports, check the CLI and class/error identities, exercise spatial queries, door/closure snapshots and actual PNG generation, and verify benchmark state/output isolation. `tests/test_agent_integration.py` also checks every tool's schema, that the system prompt and the registered tools agree, one real call per tool, scored answer-line formats against the unchanged scorer and the submission validator. The built wheel loads the CLI, evaluator and benchmark adapter with `starter_agent` removed.
 
-The original README's “under 5%” benchmark statement remains a source claim. No paid live-agent evaluation was run for this review. All nine scored benchmark kinds still need dedicated tool support.
+**Component results (24 October 2026, no credentials).** The nine scored kinds are checked per question by `bench_analsysis/run_tests.py --mode components`, which calls the registered tools with the labelled, **resolved** inputs and compares the tool result with the label. It tests the tools, not question interpretation, prompt behaviour or the model's answer formatting, so it is **not a live benchmark score**.
+
+| Scored kind | dev | train |
+|---|---:|---:|
+| `largest_room` | 20 / 20 | 76 / 76 |
+| `floor_area_total` | 31 / 31 | 150 / 150 |
+| `straight_line_3d` | 13 / 13 | 17 / 17 |
+| `room_stacked` | 9 / 9 | 17 / 17 |
+| `shared_walls_count` | 24 / 24 | 119 / 119 |
+| `wide_delivery_count` | 19 / 19 | 61 / 61 |
+| `step_free_reachable_count` | 1 / 1 | 1 / 1 |
+| `errand` | 19 / 19 | 74 / 74 |
+| `what_if_door` | 2 / 2 | 2 / 2 |
+| **All** | **138 / 138** | **517 / 517** |
+
+The 45 offline representatives of the [benchmark request analysis](bench_analsysis/README.md) also pass (45 / 45, with 6 / 6 scorer-format checks). Commands and the placeholder for live runs are in [BENCHMARK.md](BENCHMARK.md).
+
+The original README's “under 5%” benchmark statement remains a source claim. No paid live-agent evaluation was run: how well the model interprets the questions, calls the tools and formats the `Answer:` line is unverified.
 
 ## 10. Tasks, priorities and completion criteria
 
@@ -568,15 +585,31 @@ Route images and edited buildings go to `agent_output/`.
 
 #### Tools
 
-| Tool | What it does | Level |
-|---|---|---|
-| `building_overview` | Floors, stairs and lifts, entrances, current closures | 1 |
-| `search_building` | Finds rooms and things by name, room number or type, optionally on one floor | 1 |
-| `spatial_search` | Finds rooms, assets and doors within a radius on one floor, using a spatial index | 1 |
-| `find_route` | Shortest route with step-by-step directions and metres. Supports `step_free` and `via` stops for tours | 2–3 |
-| `set_closed` | Closes or reopens a lift, staircase, door or room and saves `building_edited.json` | 2 |
-| `add_door` | Adds a door between neighbouring rooms and saves `building_edited.json` | 4 (start) |
-| `show_route` | Draws the last route on each floor it crosses | viewer |
+The starter agent keeps its original seven tools: `building_overview`, `search_building`, `spatial_search`, `find_route`, `set_closed`, `add_door` and `show_route`. The project agent registers the 19 tools below (arguments and example calls: [final_agent/README.md](final_agent/README.md#tools)); every fact, count, area, distance and path comes from them.
+
+| Tool | One-line usage |
+|---|---|
+| `building_overview` | Floors, stairs and lifts, entrances, current closures |
+| `search_building` | Fuzzy find by name/number/type, or exact inventory with `room_type` / `asset_type` / `space_type` filters; exact `matches`, paged |
+| `list_spaces` | Complete, paged list of spaces with exact filters |
+| `spatial_search` | Rooms, assets and doors within a radius of a point on one floor |
+| `inspect_space` | One room in full: area, doors with widths, connectors, contents |
+| `find_route` | Shortest route with directions; `step_free`, `via` stops, `min_width_m`, `entrance` |
+| `find_best_tour` | Shortest tour through stops in any order (up to 10); preview without replacing the active route |
+| `plan_errand` | Nearest pickup of an asset type by route distance, then the largest destination room of a type on a floor |
+| `reachable_rooms` | Count and list rooms reachable under step-free, width, entrance and closure constraints |
+| `find_largest_room` | Largest room of a type on a floor, with its area |
+| `sum_floor_area` | Total area of one room type on a floor |
+| `straight_line_distance_3d` | Centre-to-centre distance through the air, across floors |
+| `find_stacked_room` | Room directly above or below a room |
+| `count_shared_walls` | Rooms sharing at least 1 m of wall with a room |
+| `analyze_what_if_door` | Hypothetical door (nothing saved): rooms on a floor whose walk to the entrance gets shorter by more than a threshold |
+| `find_navigation_landmarks` | Cues near a route step with an ambiguity check |
+| `set_closed` | Close or reopen a lift, stair, door or room (saved); recomputes the active route |
+| `add_door` | Add a door in the middle of the wall two rooms share (saved) |
+| `show_route` | Draw the active route on each floor it crosses |
+
+`show_location`, `describe_destination_context` and a `landmark_ids` argument for `show_route` are planned in F14 and are not registered yet.
 
 Route costs match the dataset's expected answers: walking distance through door positions, 12 m per floor of stairs, and a 15 m wait plus 6 m per floor for a lift.
 
@@ -611,7 +644,7 @@ restored = BuildingMap.load(Path("agent_output/building_edited.json"))
 ```
 
 `kind` can be `all`, `space`, `asset` or `opening`. The agent's `spatial_search`
-tool returns the total match count and the first 15 results. Indexes are rebuilt
+tool returns the exact total match count and pages of 15 results by default. Indexes are rebuilt
 from JSON after loading; no database service or additional dependency is needed.
 Concurrent saves use the last completed replacement; this file backend does not
 merge simultaneous edits.
