@@ -27,6 +27,7 @@ export type Presentation = {
   closedIds: string[]
   effectTypes: string[]
   unknownEffectTypes: string[]
+  patchedFloorIds: string[]
   alert: { tone: 'amber' | 'red'; text: string } | null
 }
 
@@ -76,6 +77,7 @@ export function buildPresentation(input: BuildInput): Presentation {
   let focusFloorId: string | null = null
   let focusPoint: Point | null = null
   let closedIds: string[] = []
+  let patchedFloorIds: string[] = []
 
   for (const effect of effects) {
     effectTypes.push(effect.type)
@@ -83,7 +85,7 @@ export function buildPresentation(input: BuildInput): Presentation {
       unknownEffectTypes.push(effect.type)
       continue
     }
-    const fields = effect as { space_ids?: unknown; asset_ids?: unknown; closed_ids?: unknown; reason?: unknown; floor_id?: unknown; point?: unknown; route_id?: unknown }
+    const fields = effect as { space_ids?: unknown; asset_ids?: unknown; closed_ids?: unknown; reason?: unknown; floor_id?: unknown; floor_ids?: unknown; point?: unknown; route_id?: unknown }
     const spaceIds = stringList(fields.space_ids)
     const highlightedAssets = stringList(fields.asset_ids)
     const closureIds = stringList(fields.closed_ids)
@@ -100,6 +102,8 @@ export function buildPresentation(input: BuildInput): Presentation {
       route = null
     } else if (effect.type === 'set_closures' && closureIds) {
       closedIds = closureIds
+    } else if (effect.type === 'building_patched') {
+      patchedFloorIds = stringList(fields.floor_ids) ?? patchedFloorIds
     } else if (isAsk(effect)) {
       asks.push(effect)
     }
@@ -134,6 +138,7 @@ export function buildPresentation(input: BuildInput): Presentation {
     closedIds,
     effectTypes,
     unknownEffectTypes,
+    patchedFloorIds,
     alert,
   }
 }

@@ -1,10 +1,14 @@
 import { catalog, labelFor, planFor } from './fixtures'
-import type { FloorPlan, FloorSummary, Reply, ReplyId, Route, Space, Asset, Connector } from '../domain/types'
+import { interpretMessage } from './interpret'
+import { ApiError } from './errors'
+import type { FloorPlan, FloorSummary, Reply, ReplyId, Route } from '../domain/types'
+
+export type InputMode = 'text' | 'transcript'
 
 export type DataMode = 'fixture' | 'http'
 export type GatewayConfig = { mode: DataMode; baseUrl: string }
 export type BuildingSummary = { id: string; name: string; floors: number; has_lift: boolean; has_step_free_entrance: boolean }
-export type Session = { id: string; building_id: string; building_name: string; revision: number; preferences: { step_free: boolean } }
+export type Session = { id: string; building_id: string; building_name: string; revision: number; preferences: { step_free: boolean }; closed_ids?: string[]; last_route_id?: string | null; pending_action_id?: string | null }
 export type Place = { id: string; kind: string; name: string; floor_id: string; floor_level: number; space_id: string | null; position: [number, number] | null }
 export type RouteRequest = { start_space_id: string; destination_space_id: string; step_free?: boolean; via?: string[] }
 export type ActionResult = { summary: string; closed_ids: string[] }
@@ -13,16 +17,53 @@ export interface BuildingGateway {
   readonly mode: DataMode
   listBuildings(): Promise<BuildingSummary[]>
   createSession(buildingId: string): Promise<Session>
+  getSession(sessionId: string): Promise<Session>
   listFloors(sessionId: string): Promise<FloorSummary[]>
   getFloorPlan(sessionId: string, floorId: string): Promise<FloorPlan>
   searchPlaces(sessionId: string, query: string): Promise<Place[]>
   createRoute(sessionId: string, input: RouteRequest): Promise<Route>
-  sendMessage(sessionId: string, text: string): Promise<Reply>
+  getRoute(sessionId: string, routeId: string): Promise<Route>
+  updatePreferences(sessionId: string, preferences: { step_free: boolean }): Promise<Session>
+  sendMessage(sessionId: string, text: string, inputMode?: InputMode): Promise<Reply>
   confirmAction(sessionId: string, actionId: string): Promise<ActionResult>
   cancelAction(sessionId: string, actionId: string): Promise<ActionResult>
+  getAction(sessionId: string, actionId: string): Promise<ActionResult & { id: string; status: string }>
 }
 
 const fixtureBuilding: BuildingSummary = { id: 'proc-factory-dev-003', name: catalog.buildingName, floors: catalog.floors.length, has_lift: true, has_step_free_entrance: true }
+let fixtureStepFree = true
+let fixtureRevision = 2
+let fixtureLastRouteId: string | null = null
+let fixturePendingActionId: string | null = null
+let fixtureClosedIds: string[] = []
+
+function fixtureSession(buildingId = fixtureBuilding.id): Session & { closed_ids: string[]; last_route_id: string | null; pending_action_id: string | null } {
+  return {
+    id: '11111111-1111-4111-8111-111111111111',
+    building_id: buildingId,
+    building_name: catalog.buildingName,
+    revision: fixtureRevision,
+    preferences: { step_free: fixtureStepFree },
+    closed_ids: fixtureClosedIds,
+    last_route_id: fixtureLastRouteId,
+    pending_action_id: fixturePendingActionId,
+  }
+}
+
+function unreachableRoute(input: RouteRequest): Route {
+  return {
+    id: 'fixture-no-route',
+    reachable: false,
+    length_m: null,
+    step_free: input.step_free ?? fixtureStepFree,
+    via: input.via ?? [],
+    closed_ids: [],
+    start_space_id: input.start_space_id,
+    destination_space_id: input.destination_space_id,
+    directions: [],
+    legs: [],
+  }
+}
 
 function fixturePlaces(query: string): Place[] {
   const needle = query.trim().toLowerCase()
@@ -38,21 +79,87 @@ function fixturePlaces(query: string): Place[] {
 
 export const fixtureGateway: BuildingGateway = {
   mode: 'fixture',
-  async listBuildings() { return [fixtureBuilding] },
-  async createSession(buildingId) { if (buildingId !== fixtureBuilding.id) throw new Error('Fixture building not found'); return { id: '11111111-1111-4111-8111-111111111111', building_id: buildingId, building_name: catalog.buildingName, revision: 2, preferences: { step_free: true } } },
+  async listBuildings() { return [fixtureBuilding, { id: 'other-building', name: 'Other building', floors: 1, has_lift: false, has_step_free_entrance: true }] },
+  async createSession(buildingId) { if (buildingId !== fixtureBuilding.id) throw new ApiError('Fixture building not found', '30001_building_not_found', 'fixture', null, 404); return fixtureSession(buildingId) },
+  async getSession(sessionId) { if (sessionId !== fixtureSession().id) throw new ApiError('Session was not found.', '30002_session_not_found', 'fixture', null, 404); return fixtureSession() },
   async listFloors() { return catalog.floors },
   async getFloorPlan(_sessionId, floorId) { const plan = planFor(floorId); if (!plan) throw new Error(`Floor not found: ${floorId}`); return plan },
   async searchPlaces(_sessionId, query) { return fixturePlaces(query) },
-  async createRoute() { const route = catalog.replies.accepted.routes[0]; if (!route) throw new Error('Fixture route missing'); return route },
-  async sendMessage(_sessionId, text) { const normalized = text.trim().toLowerCase(); const replyId: ReplyId = normalized.includes('desk') ? 'clarify' : normalized.includes('closed') ? 'unreachable' : 'accepted'; return catalog.replies[replyId] },
-  async confirmAction() { return { summary: catalog.confirmedText, closed_ids: catalog.confirmedClosedIds } },
-  async cancelAction() { return { summary: 'Change cancelled.', closed_ids: [] } },
+  async createRoute(_sessionId, input) {
+    const saved = catalog.replies.accepted.routes[0]
+    if (!saved) throw new Error('Fixture route missing')
+    const wantsStepFree = input.step_free ?? fixtureStepFree
+    const destinationMatches = input.destination_space_id === saved.destination_space_id || input.destination_space_id === 'proc-factory-dev-003-A00001'
+    const startMatches = input.start_space_id === saved.start_space_id
+    if (startMatches && destinationMatches && wantsStepFree === saved.step_free) {
+      fixtureLastRouteId = saved.id
+      return saved
+    }
+    const missed = unreachableRoute(input)
+    fixtureLastRouteId = missed.id
+    return missed
+  },
+  async getRoute(_sessionId, routeId) {
+    const routes = [catalog.replies.accepted.routes[0], catalog.replies.unreachable.routes[0]].filter(Boolean)
+    const route = routes.find((item) => item.id === routeId)
+    if (!route) throw new ApiError('Route was not found.', '30004_place_not_found', 'fixture', null, 404)
+    return route
+  },
+  async updatePreferences(_sessionId, preferences) {
+    fixtureStepFree = preferences.step_free
+    fixtureRevision += 1
+    return fixtureSession()
+  },
+  async sendMessage(_sessionId, text) {
+    const exact = text.trim().toLowerCase()
+    if (exact.includes('closed') && !exact.includes('reopen')) {
+      fixturePendingActionId = catalog.replies.pending.pending?.id ?? null
+      return catalog.replies.pending
+    }
+    const reply = interpretMessage(text, fixtureClosedIds)
+    if (reply.pending) fixturePendingActionId = reply.pending.id
+    return reply
+  },
+  async confirmAction() {
+    const reopening = fixturePendingActionId === '55555555-5555-4555-8555-555555555556'
+    fixtureClosedIds = reopening ? [] : catalog.confirmedClosedIds
+    fixturePendingActionId = null
+    fixtureRevision += 1
+    return {
+      summary: reopening ? 'Office lift is open.' : catalog.confirmedText,
+      closed_ids: fixtureClosedIds,
+      id: reopening ? '55555555-5555-4555-8555-555555555556' : '55555555-5555-4555-8555-555555555555',
+      status: 'confirmed',
+    }
+  },
+  async cancelAction() { fixturePendingActionId = null; return { summary: 'Change cancelled.', closed_ids: [], id: '55555555-5555-4555-8555-555555555555', status: 'cancelled' } },
+  async getAction(_sessionId, actionId) {
+    if (actionId !== catalog.replies.pending.pending?.id) throw new ApiError('Action was not found.', '30008_action_not_found', 'fixture', null, 404)
+    return { summary: catalog.replies.pending.pending.summary, closed_ids: [], id: actionId, status: fixturePendingActionId ? 'pending' : 'cancelled' }
+  },
 }
 
-async function request<T>(config: GatewayConfig, path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${config.baseUrl.replace(/\/$/, '')}${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) } })
-  if (!response.ok) throw new Error(`API request failed (${response.status})`)
+async function request<T>(config: GatewayConfig, path: string, init?: RequestInit, idempotencyKey?: string): Promise<T> {
+  let response: Response
+  try {
+    response = await fetch(`${config.baseUrl.replace(/\/$/, '')}${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}), ...(init?.headers ?? {}) } })
+  } catch (error) {
+    throw new ApiError(error instanceof Error ? error.message : 'API is unavailable.', '00001_internal', 'network', null, 0)
+  }
+  if (!response.ok) {
+    const requestId = response.headers.get('X-Request-Id')
+    const payload = await response.json().catch(() => null) as { code?: string; message?: string; trace_id?: string } | null
+    throw new ApiError(payload?.message ?? `API request failed (${response.status})`, payload?.code ?? '00001_internal', payload?.trace_id ?? 'unknown', requestId, response.status)
+  }
   return response.json() as Promise<T>
+}
+
+function mapBuilding(item: BuildingSummary & { level_count?: number }): BuildingSummary {
+  return { id: item.id, name: item.name, floors: item.floors ?? item.level_count ?? 0, has_lift: Boolean(item.has_lift), has_step_free_entrance: Boolean(item.has_step_free_entrance) }
+}
+
+function mapPlace(item: Place & { asset_type?: string | null }): Place {
+  return { id: item.id, kind: item.kind, name: item.name, floor_id: item.floor_id, floor_level: item.floor_level, space_id: item.space_id, position: item.position }
 }
 
 function normalizeReply(value: unknown): Reply {
@@ -73,15 +180,28 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
   const json = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) })
   return {
     mode: 'http',
-    async listBuildings() { const result = await request<{ items?: BuildingSummary[] }>(config, '/buildings'); return result.items ?? [] },
-    async createSession(buildingId) { return request<Session>(config, '/sessions', json({ building_id: buildingId })) },
+    async listBuildings() { const result = await request<{ items?: Array<BuildingSummary & { level_count?: number }> }>(config, '/buildings'); return (result.items ?? []).map(mapBuilding) },
+    async createSession(buildingId) { return request<Session>(config, '/sessions', json({ building_id: buildingId }), crypto.randomUUID()) },
+    async getSession(sessionId) { return request<Session>(config, `/sessions/${sessionId}`) },
     async listFloors(sessionId) { const result = await request<{ floors: FloorSummary[] }>(config, `/sessions/${sessionId}/floors`); return result.floors },
     async getFloorPlan(sessionId, floorId) { return request<FloorPlan>(config, `/sessions/${sessionId}/floors/${floorId}/plan`) },
-    async searchPlaces(sessionId, query) { const result = await request<{ places: Place[] }>(config, `/sessions/${sessionId}/places?q=${encodeURIComponent(query)}`); return result.places },
-    async createRoute(sessionId, input) { return request<Route>(config, `/sessions/${sessionId}/routes`, json(input)) },
-    async sendMessage(sessionId, text) { const result = await request<unknown>(config, `/sessions/${sessionId}/messages`, json({ text, input_mode: 'text' })); return normalizeReply(result) },
-    async confirmAction(sessionId, actionId) { return request<ActionResult>(config, `/sessions/${sessionId}/actions/${actionId}/confirmations`, json({})) },
-    async cancelAction(sessionId, actionId) { return request<ActionResult>(config, `/sessions/${sessionId}/actions/${actionId}/cancellations`, json({})) },
+    async searchPlaces(sessionId, query) { const result = await request<{ items?: Place[]; places?: Place[] }>(config, `/sessions/${sessionId}/places?q=${encodeURIComponent(query)}`); return (result.items ?? result.places ?? []).map(mapPlace) },
+    async createRoute(sessionId, input) {
+      return request<Route>(config, `/sessions/${sessionId}/routes`, json({
+        start: input.start_space_id,
+        destination: input.destination_space_id,
+        step_free: input.step_free,
+        via: input.via ?? [],
+      }), crypto.randomUUID())
+    },
+    async getRoute(sessionId, routeId) { return request<Route>(config, `/sessions/${sessionId}/routes/${routeId}`) },
+    async updatePreferences(sessionId, preferences) {
+      return request<Session>(config, `/sessions/${sessionId}/preferences`, { method: 'PUT', body: JSON.stringify(preferences) })
+    },
+    async sendMessage(sessionId, text, inputMode = 'text') { const result = await request<unknown>(config, `/sessions/${sessionId}/messages`, json({ text, input_mode: inputMode }), crypto.randomUUID()); return normalizeReply(result) },
+    async confirmAction(sessionId, actionId) { return request<ActionResult>(config, `/sessions/${sessionId}/actions/${actionId}/confirmations`, json({}), crypto.randomUUID()) },
+    async cancelAction(sessionId, actionId) { return request<ActionResult>(config, `/sessions/${sessionId}/actions/${actionId}/cancellations`, json({}), crypto.randomUUID()) },
+    async getAction(sessionId, actionId) { return request<ActionResult & { id: string; status: string }>(config, `/sessions/${sessionId}/actions/${actionId}`) },
   }
 }
 

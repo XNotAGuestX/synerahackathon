@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import type { FloorPlan, Point, Route, Selection } from '../domain/types'
 import type { Connector } from '../domain/types'
 import { connectorNote } from '../api/fixtures'
@@ -13,6 +14,7 @@ type PlanCanvasProps = {
   stepPoint: Point | null
   selectionId: string | null
   onSelect: (selection: Selection) => void
+  onFocusSelection: (selection: Selection | null) => void
 }
 
 function polygonArea(polygon: Point[]): number {
@@ -61,7 +63,26 @@ function UprightText({ x, y, children }: { x: number; y: number; children: strin
   )
 }
 
-export function PlanCanvas({
+const MIN_ZOOM = 1
+const MAX_ZOOM = 4
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+export function PlanCanvas(props: PlanCanvasProps) {
+  if (!props.plan) {
+    return (
+      <div className="plan-wrap plan-empty" role="status" data-floor="missing">
+        <strong>{props.floorName}</strong>
+        <p>No plan fixture for this floor.</p>
+      </div>
+    )
+  }
+  return <InteractivePlan {...props} plan={props.plan} />
+}
+
+function InteractivePlan({
   plan,
   floorName,
   route,
@@ -72,15 +93,16 @@ export function PlanCanvas({
   stepPoint,
   selectionId,
   onSelect,
-}: PlanCanvasProps) {
-  if (!plan) {
-    return (
-      <div className="plan-wrap plan-empty" role="status" data-floor="missing">
-        <strong>{floorName}</strong>
-        <p>No plan fixture for this floor.</p>
-      </div>
-    )
-  }
+  onFocusSelection,
+}: PlanCanvasProps & { plan: FloorPlan }) {
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState<Point>([0, 0])
+  const gesture = useRef({ pointerId: -1, x: 0, y: 0, panX: 0, panY: 0, moved: false })
+  const suppressClick = useRef(false)
+  useEffect(() => {
+    setZoom(1)
+    setPan([0, 0])
+  }, [plan.floor.id])
 
   const reasons = new Map(spaceReasons)
   if (route?.start_space_id && !reasons.has(route.start_space_id)) reasons.set(route.start_space_id, 'selected')
@@ -92,15 +114,49 @@ export function PlanCanvas({
   const [minX, minY] = plan.bounds.min
   const [maxX, maxY] = plan.bounds.max
   const pad = 1.2
+  const baseX = minX - pad
+  const baseY = -(maxY + pad)
+  const baseW = maxX - minX + pad * 2
+  const baseH = maxY - minY + pad * 2
+  const viewW = baseW / zoom
+  const viewH = baseH / zoom
+  const maxPanX = Math.max(0, baseW - viewW)
+  const maxPanY = Math.max(0, baseH - viewH)
+  const panX = clamp(pan[0], 0, maxPanX)
+  const panY = clamp(pan[1], 0, maxPanY)
   // Building coordinates are metres with y up. SVG y grows down, so the plan
   // group is flipped and the viewBox origin sits at the top of the plan.
-  const viewBox = `${minX - pad} ${-(maxY + pad)} ${maxX - minX + pad * 2} ${maxY - minY + pad * 2}`
+  const viewBox = `${baseX + panX} ${baseY + panY} ${viewW} ${viewH}`
+  const setZoomAroundCenter = (nextZoom: number) => {
+    const clampedZoom = clamp(nextZoom, MIN_ZOOM, MAX_ZOOM)
+    const nextW = baseW / clampedZoom
+    const nextH = baseH / clampedZoom
+    const centerX = panX + viewW / 2
+    const centerY = panY + viewH / 2
+    setZoom(clampedZoom)
+    setPan([
+      clamp(centerX - nextW / 2, 0, Math.max(0, baseW - nextW)),
+      clamp(centerY - nextH / 2, 0, Math.max(0, baseH - nextH)),
+    ])
+  }
+  const resetView = () => {
+    setZoom(1)
+    setPan([0, 0])
+  }
+  const allowSelect = () => {
+    if (!suppressClick.current) return true
+    suppressClick.current = false
+    return false
+  }
   const legs = route?.reachable ? route.legs.filter((leg) => leg.floor_id === plan.floor.id && leg.points.length > 1) : []
   const firstLeg = route?.legs[0]
   const lastLeg = route?.legs.at(-1)
   const focusedSpaceId = focusPoint ? plan.spaces.find((space) => containsPoint(space.polygon, focusPoint))?.id ?? null : null
+  if (focusedSpaceId && !reasons.has(focusedSpaceId)) reasons.set(focusedSpaceId, 'selected')
 
   const selectSpace = (space: FloorPlan['spaces'][number]) => {
+    onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNote(space.id) })
+    if (!allowSelect()) return
     onSelect({
       kind: 'space',
       id: space.id,
@@ -113,7 +169,37 @@ export function PlanCanvas({
 
   return (
     <div className="plan-wrap" aria-label={`${floorName} plan`} data-floor={plan.floor.id}>
-      <svg className="plan" viewBox={viewBox}>
+      <svg
+        className={`plan${gesture.current.pointerId >= 0 ? ' panning' : ''}`}
+        viewBox={viewBox}
+        data-zoom={zoom}
+        onPointerDown={(event) => {
+          if (event.button !== 0) return
+          const interactive = event.target instanceof Element ? event.target.closest('[role="button"]') : null
+          if (interactive instanceof SVGElement) interactive.focus()
+          else onFocusSelection(null)
+          gesture.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, panX, panY, moved: false }
+        }}
+        onPointerMove={(event) => {
+          if (gesture.current.pointerId !== event.pointerId) return
+          const dx = event.clientX - gesture.current.x
+          const dy = event.clientY - gesture.current.y
+          if (!gesture.current.moved && Math.hypot(dx, dy) < 6) return
+          if (!gesture.current.moved) event.currentTarget.setPointerCapture(event.pointerId)
+          gesture.current.moved = true
+          const rect = event.currentTarget.getBoundingClientRect()
+          setPan([
+            clamp(gesture.current.panX - (dx / rect.width) * viewW, 0, maxPanX),
+            clamp(gesture.current.panY - (dy / rect.height) * viewH, 0, maxPanY),
+          ])
+        }}
+        onPointerUp={(event) => {
+          if (gesture.current.pointerId !== event.pointerId) return
+          if (gesture.current.moved) suppressClick.current = true
+          gesture.current.pointerId = -1
+        }}
+        onPointerCancel={() => { gesture.current.pointerId = -1 }}
+      >
         <g transform="scale(1 -1)">
           {plan.spaces.map((space) => {
             const reason = reasons.get(space.id)
@@ -129,6 +215,8 @@ export function PlanCanvas({
                   tabIndex={0}
                   aria-label={space.name}
                   aria-pressed={picked}
+                  onFocus={() => onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNote(space.id) })}
+                  onBlur={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.ownerSVGElement?.contains(event.relatedTarget)) onFocusSelection(null) }}
                   onClick={() => selectSpace(space)}
                   onKeyDown={(event) => {
                     if (event.key !== 'Enter' && event.key !== ' ') return
@@ -154,6 +242,8 @@ export function PlanCanvas({
               aria-label={`${opening.kind}, ${opening.width_m} m`}
               onClick={(event) => {
                 event.stopPropagation()
+                onFocusSelection({ kind: 'opening', id: opening.id, name: `${opening.kind}, ${opening.width_m} m`, floorId: plan.floor.id, floorName: plan.floor.name, note: opening.step_free ? 'Step-free' : 'Has a step' })
+                if (!allowSelect()) return
                 onSelect({
                   kind: 'opening',
                   id: opening.id,
@@ -182,6 +272,8 @@ export function PlanCanvas({
                 aria-pressed={picked}
                 onClick={(event) => {
                   event.stopPropagation()
+                onFocusSelection({ kind: 'asset', id: asset.id, name: asset.name, floorId: plan.floor.id, floorName: plan.floor.name, note: asset.type })
+                  if (!allowSelect()) return
                   onSelect({
                     kind: 'asset',
                     id: asset.id,
@@ -221,6 +313,21 @@ export function PlanCanvas({
           {stepPoint && <circle className="step-marker" cx={stepPoint[0]} cy={stepPoint[1]} r={1.05} />}
         </g>
       </svg>
+      <div
+        className="map-controls"
+        role="group"
+        aria-label="Map view"
+        onKeyDown={(event) => {
+          if (event.key === '+' || event.key === '=') setZoomAroundCenter(zoom * 1.25)
+          if (event.key === '-' || event.key === '_') setZoomAroundCenter(zoom / 1.25)
+          if (event.key === '0') resetView()
+        }}
+      >
+        <button type="button" aria-label="Zoom out" onClick={() => setZoomAroundCenter(zoom / 1.25)} disabled={zoom <= MIN_ZOOM}>−</button>
+        <span aria-live="polite">{Math.round(zoom * 100)}%</span>
+        <button type="button" aria-label="Zoom in" onClick={() => setZoomAroundCenter(zoom * 1.25)} disabled={zoom >= MAX_ZOOM}>+</button>
+        <button type="button" aria-label="Reset map to 100 percent" onClick={resetView}>Reset</button>
+      </div>
     </div>
   )
 }

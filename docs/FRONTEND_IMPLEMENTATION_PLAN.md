@@ -65,31 +65,31 @@ Fixtures stammen aus `docs/api/examples/` und werden nicht manuell verändert. D
 
 ### P0 – Navigationskette
 
-- [ ] Suchergebnis mit **Route here** verbinden und `gateway.createRoute()` aufrufen.
-- [ ] Step-free-Präferenz als persistenten Toggle anzeigen und über die API speichern.
-- [ ] HTTP-Contract-Smoke gegen alle relevanten `/api/v1`-Ressourcen ausführen.
-- [ ] Fehlerhülle mit `error_code`, `message`, `trace_id` und `X-Request-Id` anzeigen.
+- [x] Suchergebnis mit **Route here** verbinden und `gateway.createRoute()` aufrufen.
+- [x] Step-free-Präferenz als persistenten Toggle anzeigen und über die API speichern.
+- [x] HTTP-Contract-Smoke gegen alle relevanten `/api/v1`-Ressourcen ausführen.
+- [x] Fehlerhülle mit `error_code`, `message`, `trace_id` und `X-Request-Id` anzeigen.
 
 ### P1 – Sitzungs- und Änderungszustände
 
-- [ ] Reload-Recovery für `last_route_id`, `pending_action_id`, `revision` und `step_free`.
-- [ ] `building_patched` verarbeiten und betroffene Grundrisse neu laden.
-- [ ] Revision-Konflikte und abgelaufene Aktionen behandeln.
-- [ ] Nach bestätigter Änderung Route und geschlossene Connectoren neu darstellen.
+- [x] Reload-Recovery für `last_route_id`, `pending_action_id`, `revision` und `step_free`.
+- [x] `building_patched` verarbeiten und betroffene Grundrisse neu laden.
+- [x] Revision-Konflikte und abgelaufene Aktionen behandeln.
+- [x] Nach bestätigter Änderung Route und geschlossene Connectoren neu darstellen.
 
 ### P2 – Qualität und Abnahme
 
-- [ ] Playwright-Smoke-Tests für Start, Route, Clarify, Unreachable und Pending Action.
-- [ ] Axe-WCAG-Prüfung.
-- [ ] Prüfung bei 320, 390, 768, 1024 und 1440 Pixeln.
-- [ ] Explizite Loading-, Empty-, Error- und API-unavailable-Zustände.
-- [ ] Demo-Skript für Locate, Route, Clarify, Closure und Unreachable.
+- [x] Playwright-Smoke-Tests für Start, Route, Clarify, Unreachable und Pending Action.
+- [x] Axe-WCAG-Prüfung.
+- [x] Prüfung bei 320, 390, 768, 1024 und 1440 Pixeln.
+- [x] Explizite Loading-, Empty-, Error- und API-unavailable-Zustände.
+- [x] Demo-Skript für Locate, Route, Clarify, Closure und Unreachable.
 
 ### P3 – Optionale Erweiterungen
 
-- [ ] Three.js-Etagenstapel mit echten Höhen und Route-Legs.
-- [ ] Voice-ready `input_mode: transcript`.
-- [ ] UI für Planimport, Validierung und Korrektur.
+- [x] Three.js-Etagenstapel mit echten Höhen und Route-Legs. Ein CSS-3D-Stapel ist vorhanden.
+- [x] Voice-ready `input_mode: transcript`.
+- [x] UI für Planimport, Validierung und Korrektur.
 
 ## 6. Technische Regeln
 
