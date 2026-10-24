@@ -5,9 +5,11 @@ description = "Track 01 Google Maps for Every Building: project agent and scorer
 requires-python = ">=3.12"
 dependencies = [
     "anthropic>=2.1.0",
+    "fastembed>=0.9.1",
     "matplotlib>=3.11.2",
     "networkx>=3.7",
     "numpy>=2.0",
+    "qdrant-client>=1.20.0",
     "shapely>=2.2.0",
 ]
 
