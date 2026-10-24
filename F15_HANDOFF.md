@@ -10,15 +10,18 @@ Read [AGENTS.md](AGENTS.md) (hard rules) and sections 1, 2, 17 and 18 of
 The reverted implementation stays in git history. Inspect or reuse any file:
 
 ```bash
-git show 553e25f:final_agent/agent.py         # prompt with the F15 sections
-git show 553e25f:final_agent/benchmark.py     # answer() + submission validator
-git show 553e25f:tests/test_agent_integration.py
-git show 553e25f:BENCHMARK.md
-git show 553e25f:final_agent/README.md        # tool reference with examples
-git diff 253b4fa 553e25f -- README.md BACKLOG.md FEATURE_SHORTLIST.md bench_analsysis/README.md
+git show dd3303f:final_agent/agent.py         # prompt with the F15 sections
+git show dd3303f:final_agent/benchmark.py     # answer() + submission validator
+git show dd3303f:tests/test_agent_integration.py
+git show dd3303f:BENCHMARK.md
+git show dd3303f:final_agent/README.md        # tool reference with examples
+git diff 5765d63 dd3303f -- README.md BACKLOG.md FEATURE_SHORTLIST.md bench_analsysis/README.md
 ```
 
-`253b4fa` is `main` just before F15; `553e25f` is `main` with F15 complete.
+`5765d63` is `main` just before F15; `dd3303f` is `main` with F15 complete.
+These hashes are current: the history was re-authored to credit KarolLoL, so
+older hashes quoted inside some commit messages (e.g. `553e25f`, `253b4fa`)
+refer to the pre-rewrite history.
 
 ## 1. Scope
 
@@ -167,7 +170,7 @@ question wording, scored by the unchanged official scorer (all CORRECT):
 
 **Prompt.** The final prompt was 7,591 characters (model `claude-sonnet-5-5`,
 effort `medium`, 20 tool iterations). It kept every original section and added
-two. Retrieve the exact text with `git show 553e25f:final_agent/agent.py`. Core of
+two. Retrieve the exact text with `git show dd3303f:final_agent/agent.py`. Core of
 the additions:
 
 ```text

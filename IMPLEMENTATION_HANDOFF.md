@@ -14,7 +14,7 @@ F14 delivers the per-floor PNG renderer plus `show_location`,
 `show_route(landmark_ids)` and `describe_destination_context`. **F15 was
 implemented and then reverted at the user's request; it is pending again.**
 [F15_HANDOFF.md](F15_HANDOFF.md) records its scope, the reverted implementation
-(`git show 553e25f:<path>`) and everything learned. Because F15 owned the
+(`git show dd3303f:<path>`) and everything learned. Because F15 owned the
 documentation update, README/BACKLOG/FEATURE_SHORTLIST currently describe the
 pre-implementation state. Verified without API credentials: 173
 unit/integration tests (incl. 12 hull tests); 369/369 oracle warm-up; labelled
