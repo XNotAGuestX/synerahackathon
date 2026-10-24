@@ -1,4 +1,4 @@
-"""Rebuild the 20-building question catalog and Markdown/CSV deliverables."""
+"""Rebuild the dev catalog, labelled train supplements and coverage reports."""
 
 from collections import Counter
 import csv
@@ -7,6 +7,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
+CASES_PER_KIND = 5
 
 # Status is an audit of the exposed final_agent tools, not live LLM accuracy.
 TYPES = [
@@ -133,46 +134,72 @@ def main() -> None:
     buildings = json.loads((HERE / "buildings.json").read_text(encoding="utf-8"))
     assert len(buildings) == 20 and len({b["building_id"] for b in buildings}) == 20
     annotations = {}
-    for path in sorted((HERE / "reviews").glob("*_annotations.json")):
+    supplemental = json.loads((HERE / "supplemental_annotations.json").read_text(encoding="utf-8"))
+    for path in [*sorted((HERE / "reviews").glob("*_annotations.json")), HERE / "supplemental_annotations.json"]:
         for row in json.loads(path.read_text(encoding="utf-8")):
             if row["question_id"] in annotations:
                 raise ValueError(f"Duplicate annotation: {row['question_id']}")
             annotations[row["question_id"]] = row
     cases = json.loads((HERE / "test_cases.json").read_text(encoding="utf-8"))
-    assert Counter(case["tier"] for case in cases) == {"easy": 15, "medium": 15, "hard": 15}
-    assert {case["building_id"] for case in cases} == {b["building_id"] for b in buildings}
+    assert {case["tier"] for case in cases} == {"easy", "medium", "hard"}
+    assert {b["building_id"] for b in buildings} <= {case["building_id"] for case in cases}
     selected = {case["question_id"]: case for case in cases}
+    assert len(selected) == len(cases), "Representative IDs must be unique"
+    assert {row["question_id"] for row in supplemental} <= set(selected)
+    # Keep the original family-balanced dev sample intact. Add only the scarce
+    # labelled train questions, rather than silently adding their whole building.
+    sources = [(building, filename, None) for building in buildings
+               for filename in ("questions.jsonl", "questions_basic.jsonl")]
+    for source_file in sorted({row["source_file"] for row in supplemental}):
+        source = Path(source_file)
+        assert source.parts[:2] == ("data", "train")
+        building = {"building_id": source.parent.name, "path": str(source.parent), "family": "osm"}
+        sources.append((building, source.name, {row["question_id"] for row in supplemental
+                                              if row["source_file"] == source_file}))
     questions = []
     originals = {}
-    for building in buildings:
+    for building, filename, only_ids in sources:
         building_data = json.loads((ROOT / building["path"] / "building.json").read_text(encoding="utf-8"))
-        for filename in ("questions.jsonl", "questions_basic.jsonl"):
-            source = Path(building["path"]) / filename
-            for line_number, line in enumerate((ROOT / source).read_text(encoding="utf-8").splitlines(), 1):
-                if not line.strip():
-                    continue
-                question = json.loads(line)
-                qid = question["id"]
-                if qid in originals:
-                    raise ValueError(f"Duplicate source question: {qid}")
-                originals[qid] = question
-                annotation = annotations[qid]
-                assert annotation["kind"] == question["kind"] and annotation["building_id"] == building["building_id"]
-                assert annotation["source_file"] == str(source)
-                subtype, flags = classify(question, building_data)
-                questions.append({
-                    "question_id": qid, "building_id": building["building_id"], "family": building["family"],
-                    "scope": "scored" if filename == "questions.jsonl" else "warm-up",
-                    "kind": question["kind"], "subtype": subtype, "flags": json.dumps(flags),
-                    "reviewer_subtype": annotation["subtype"],
-                    "tier": selected.get(qid, annotation)["tier"], "representative": qid in selected,
-                    "source_file": str(source), "source_line": line_number,
-                    "question": question["question"], "expected_result": expected_result(question),
-                    "expected_json": json.dumps(question["answer"], ensure_ascii=False, sort_keys=True),
-                    "review_note": annotation["note"],
-                })
-    assert set(annotations) == set(originals), "Annotations must cover exactly the selected buildings' questions"
+        source = Path(building["path"]) / filename
+        for line_number, line in enumerate((ROOT / source).read_text(encoding="utf-8").splitlines(), 1):
+            if not line.strip():
+                continue
+            question = json.loads(line)
+            qid = question["id"]
+            if only_ids is not None and qid not in only_ids:
+                continue
+            if qid in originals:
+                raise ValueError(f"Duplicate source question: {qid}")
+            originals[qid] = question
+            annotation = annotations[qid]
+            assert annotation["kind"] == question["kind"] and annotation["building_id"] == building["building_id"]
+            assert annotation["source_file"] == str(source)
+            subtype, flags = classify(question, building_data)
+            questions.append({
+                "question_id": qid, "building_id": building["building_id"], "family": building["family"],
+                "scope": "scored" if filename == "questions.jsonl" else "warm-up",
+                "split": source.parts[1],
+                "kind": question["kind"], "subtype": subtype, "flags": json.dumps(flags),
+                "reviewer_subtype": annotation["subtype"],
+                "tier": selected.get(qid, annotation)["tier"], "representative": qid in selected,
+                "source_file": str(source), "source_line": line_number,
+                "question": question["question"], "expected_result": expected_result(question),
+                "expected_json": json.dumps(question["answer"], ensure_ascii=False, sort_keys=True),
+                "review_note": annotation["note"],
+            })
+    assert set(annotations) == set(originals), "Annotations must cover exactly the dev sample and supplements"
     assert set(selected) <= set(originals)
+    for qid, case in selected.items():
+        assert all(case[key] == annotations[qid][key] for key in ("kind", "building_id", "source_file")), qid
+    # Availability is audited from labelled train/dev only; test has no labels.
+    available = Counter()
+    for split in ("train", "dev"):
+        for path in sorted((ROOT / "data" / split).glob("*/questions*.jsonl")):
+            available.update(json.loads(line)["kind"] for line in path.read_text(encoding="utf-8").splitlines()
+                             if line.strip())
+    case_counts = Counter(case["kind"] for case in cases)
+    assert set(case_counts) == {row[0] for row in TYPES}
+    assert all(case_counts[kind] == min(CASES_PER_KIND, available[kind]) for kind in case_counts), "Top up underrepresented kinds"
     write_csv("questions.csv", questions)
     subtype_rows = []
     for kind, subtype in sorted({(q["kind"], q["subtype"]) for q in questions}):
@@ -182,7 +209,7 @@ def main() -> None:
                              "example_id": matching[0]["question_id"]})
     write_csv("question_subtypes.csv", subtype_rows)
     subtype_text = ["# Normalized request subtypes", "",
-                    "These analysis subtypes normalize the three reviewers' vocabulary; they are not new official kind labels. Each of the 280 source questions has one subtype. Overlapping edge characteristics are recorded separately as flags in `questions.csv`.", "",
+                    f"These analysis subtypes normalize reviewer vocabulary; they are not new official kind labels. Each of the {len(questions)} source questions has one subtype. Overlapping edge characteristics are recorded separately as flags in `questions.csv`.", "",
                     "| Kind | Subtype | Questions | Buildings | Example |", "|---|---|---:|---:|---|"]
     subtype_text += ["| " + " | ".join(cell(value) for value in row.values()) + " |" for row in subtype_rows]
     subtype_text += ["", "| Additional flag | Questions |", "|---|---:|"]
@@ -195,6 +222,7 @@ def main() -> None:
     for kind, scope, status, existing, missing, output, example in TYPES:
         matching = [question for question in questions if question["kind"] == kind]
         catalog.append({"question_type": kind, "scope": scope, "questions": counts[kind],
+                        "representative_cases": case_counts[kind], "labelled_available": available[kind],
                         "buildings": len({q["building_id"] for q in matching}), "implemented": status,
                         "existing_tool": existing, "missing_tool": missing,
                         "expected_result": output, "representative_ids": example})
@@ -204,30 +232,45 @@ def main() -> None:
     write_csv("building_sample.csv", sample_csv)
     rows = ["# Question types and implementation coverage", "",
             "Status audits the exposed `final_agent` tools. Yes means a resolved-input local-model primitive exists; it does not claim live conversational accuracy or complete rendering. Partial count support is not a complete exact inventory tool. All nine scored kinds lack a complete exposed solution.", "",
-            "| Type | Questions / buildings | Implemented | Existing tool | Missing tool or work | Expected result |",
-            "|---|---:|---|---|---|---|"]
+            f"Runnable selection targets {CASES_PER_KIND} distinct questions per kind, preserving all original cases. Two kinds exhaust the labelled train/dev supply below that target. The full ledger retains the original dev distribution plus three explicitly marked train supplements; its raw counts are not balanced. See [selection balance](tests.md#selection-balance).", "",
+            "| Type | Questions / buildings | Runnable / labelled available | Implemented | Existing tool | Missing tool or work | Expected result |",
+            "|---|---:|---:|---|---|---|---|"]
     for row in catalog:
-        rows.append("| " + " | ".join(cell(value) for value in [f"`{row['question_type']}` ({row['scope']})", f"{row['questions']} / {row['buildings']}", row['implemented'], row['existing_tool'], row['missing_tool'], row['expected_result']]) + " |")
+        rows.append("| " + " | ".join(cell(value) for value in [f"`{row['question_type']}` ({row['scope']})", f"{row['questions']} / {row['buildings']}", f"{row['representative_cases']} / {row['labelled_available']}", row['implemented'], row['existing_tool'], row['missing_tool'], row['expected_result']]) + " |")
     rows += ["", "Evidence: [full question ledger](questions.csv), [selected runnable cases](tests.md), [tool contracts](tools_needed.md), and the three independent [family reviews](reviews/). `final_agent/tools.py` exposes seven tools; the implementation assessment is based on code and offline probes, not the older README baseline alone.", ""]
     (HERE / "question_types.md").write_text("\n".join(rows), encoding="utf-8")
     tests = ["# Representative runnable tests", "",
-             "45 unique question IDs across all 20 buildings and all 15 kinds; 15 cases per difficulty tier. Exact duplicate warm-up requests are not selected twice. Labels are dev-only assertions. Easy means one lookup/route/area operation; medium adds geometry or constraints; hard adds state, compound selection, ambiguity or large-map cross-floor effects.", "",
+             f"{len(cases)} unique question IDs across {len({c['building_id'] for c in cases})} buildings and all 15 kinds. The original 45 cases remain; 26 additions bring every kind to five cases where labelled train/dev supply permits. Exact duplicate warm-up requests are not selected twice. Labels are development assertions, with train supplements explicitly identified. Difficulty follows the operation, not equal tier quotas: easy means one lookup/route/area operation; medium adds geometry or constraints; hard adds state, compound selection, ambiguity or large-map cross-floor effects.", "",
              "Offline execution uses resolved fixture inputs to probe real tools; unsupported analyses are GAP. Agent execution sends only the original question text and building directory and runs the unmodified official scorer afterward; it selects the scored cases only. See [commands and limits](README.md).",
              "", "The hard `osm-way27917482-Q09` offline probe tests safe ambiguity rejection, not the labelled route: the text cannot uniquely identify its start even with the floor. A clarification turn is required."]
+    tests += ["", "## Selection balance", "",
+              "Availability counts every supplied labelled train/dev question of that kind. No held-out test questions, invented labels or repeated IDs are added. Three train questions supplement kinds whose dev supply was already exhausted. The original 20-building dev ledger remains complete; the full ledger is not a balanced evaluation set.", "",
+              "| Kind | Selected | Target | Labelled train/dev available | Remaining shortage |",
+              "|---|---:|---:|---:|---:|"]
+    tests += [f"| `{kind}` | {case_counts[kind]} | {CASES_PER_KIND} | {available[kind]} | {max(0, CASES_PER_KIND - case_counts[kind])} |"
+              for kind in sorted(case_counts)]
     for tier in ("easy", "medium", "hard"):
-        tests += ["", f"## {tier.title()}", "", "| Question ID / kind | Actual request | Expected result | Selection reason |", "|---|---|---|---|"]
+        tests += ["", f"## {tier.title()} ({sum(c['tier'] == tier for c in cases)} cases)", "", "| Question ID / kind / split | Actual request | Expected result | Selection reason |", "|---|---|---|---|"]
         for case in cases:
             if case["tier"] != tier:
                 continue
             question = originals[case["question_id"]]
-            tests.append("| " + " | ".join(cell(value) for value in [f"`{case['question_id']}` / `{case['kind']}`", question['question'], expected_result(question), case['reason']]) + " |")
+            tests.append("| " + " | ".join(cell(value) for value in [f"`{case['question_id']}` / `{case['kind']}` / {Path(case['source_file']).parts[1]}", question['question'], expected_result(question), case['reason']]) + " |")
     tests += ["", "## Additional regressions once the corresponding tools exist", "",
               "These are proposed tests, not observations or passing checks: width exactly at threshold; blocked/narrow entrance versus already-inside start; equality at 1 m shared wall and >1 m exit improvement; corner contact; no overlap/ties on a missing adjacent floor; unreachable-before/reachable-after what-if distances; failed-save rollback; stale-route clearing; repeated stops; Synera forklift-only openings and destination-only bays. Keep physical routing separate from the local anchor fixtures.", ""]
     (HERE / "tests.md").write_text("\n".join(tests), encoding="utf-8")
-    summary = {"buildings": len(buildings), "families": dict(Counter(b["family"] for b in buildings)),
+    building_families = {q["building_id"]: q["family"] for q in questions}
+    summary = {"buildings": len(building_families), "base_dev_buildings": len(buildings),
+               "families": dict(Counter(building_families.values())),
                "questions": len(questions), "scored": sum(q["scope"] == "scored" for q in questions),
+               "questions_by_split": dict(Counter(q["split"] for q in questions)),
                "warmup": sum(q["scope"] == "warm-up" for q in questions), "by_kind": dict(sorted(counts.items())),
                "representative_cases": len(cases), "cases_by_tier": dict(Counter(c["tier"] for c in cases)),
+               "cases_by_kind": dict(sorted(case_counts.items())), "target_cases_per_kind": CASES_PER_KIND,
+               "cases_by_split": dict(Counter(Path(c["source_file"]).parts[1] for c in cases)),
+               "labelled_available_by_kind": dict(sorted(available.items())),
+               "shortfalls": {kind: CASES_PER_KIND - count for kind, count in sorted(case_counts.items())
+                              if count < CASES_PER_KIND},
                "agent_mode_scored_cases": sum(Path(c["source_file"]).name == "questions.jsonl" for c in cases),
                "unknown_kinds": []}
     (HERE / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

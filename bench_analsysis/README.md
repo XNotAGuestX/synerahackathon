@@ -1,6 +1,6 @@
-# Benchmark request analysis — 20 buildings
+# Benchmark request analysis — 20 dev buildings plus scarce-kind supplements
 
-Reviewed **280 dev questions: 93 scored and 187 warm-ups**, with three subagents dividing OSM, procedural campus/factory, and Swiss/ResPlan review. The balanced sample has **four buildings from each of five families**, **1–8 floors**, negative and nonconsecutive levels, **5–1,623 spaces**, and **20–5,250 assets**. Selection is deliberately varied, not random or weighted to estimate public-test accuracy.
+The original review covered **280 dev questions: 93 scored and 187 warm-ups**, with three subagents dividing OSM, procedural campus/factory, and Swiss/ResPlan review. The family-balanced dev sample has **four buildings from each of five families**, **1–8 floors**, negative and nonconsecutive levels, **5–1,623 spaces**, and **20–5,250 assets**. Selection is deliberately varied, not random or weighted to estimate public-test accuracy. The current ledger adds **three labelled train questions from one additional OSM building**, for **283 questions across 21 buildings**. Train supplements cover the two kinds whose dev supply is exhausted; they are explicitly marked and are development fixtures, not held-out evaluation.
 
 **All 15 documented kinds occur; no new official kind was found.** All nine scored kinds still lack a complete exposed deterministic solution in the current `final_agent`. The six warm-up kinds have search/routing primitives, with exact inventory counts only partially supported. The important new findings concern expected-result semantics, eligibility, ambiguous source text, and missing route provenance.
 
@@ -10,11 +10,23 @@ Reviewed **280 dev questions: 93 scored and 187 warm-ups**, with three subagents
 | Consolidated subtypes and overlapping edge characteristics | [Subtype table](question_subtypes.md), [CSV](question_subtypes.csv) |
 | Necessary tools, suggested inputs/outputs and implementation order | [Tool plan](tools_needed.md) |
 | Under-documented results, source ambiguities and remaining uncertainties | [Findings](new_request_types.md) |
-| Representative tests: 15 easy, 15 medium, 15 hard | [Test table](tests.md), [machine-readable manifest](test_cases.json), [runner](run_tests.py) |
-| Complete source-backed classification of every question | [280-row ledger](questions.csv) |
-| Exact building selection and reasons | [20-building CSV](building_sample.csv), [JSON](buildings.json) |
+| Representative tests: 20 easy, 28 medium, 23 hard | [Test table](tests.md), [machine-readable manifest](test_cases.json), [runner](run_tests.py) |
+| Complete source-backed classification of every question | [283-row ledger](questions.csv) |
+| Original 20-building dev selection and reasons | [20-building CSV](building_sample.csv), [JSON](buildings.json) |
 | Recorded offline outcomes and implementation fingerprints | [Results](results.json), [sample counts](summary.json) |
 | Independent subagent evidence | [OSM](reviews/osm.md), [procedural](reviews/procedural.md), [residential](reviews/residential.md) |
+
+## Question balance
+
+The original runnable selection was uneven: `count` and `route` had five cases each, but `step_free_reachable_count` had one and four other kinds had only two. **26 cases were added**, preserving all original cases, to bring the runnable selection from **45 to 71**:
+
+- **13 of 15 kinds now have five distinct questions each.**
+- **Lift-outage reachability: two cases**, all labelled train/dev examples available (one dev, one train).
+- **Door what-if: four cases**, all labelled train/dev examples available (two dev, two train).
+
+The target is five per kind; the remaining shortages are dataset limits. No invented labels or duplicate IDs fill them. Difficulty tiers follow the operation rather than equal quotas. [The balance table](tests.md#selection-balance), `question_types.csv` and `summary.json` show selected counts, labelled availability and remaining shortages. The catalog builder enforces this target on every rebuild.
+
+The complete ledger retains all questions from the original dev buildings, so its raw distribution remains uneven (for example, 60 ordinary routes versus two lift-outage counts). **The runnable selection is the balanced analysis set**; the complete ledger is the source inventory. Neither is a live accuracy estimate.
 
 ## Most consequential findings
 
@@ -49,13 +61,13 @@ Default **offline** mode performs no model/API calls. It executes real `final_ag
 
 `PASS` means that particular component assertion passed. `GAP` means the exposed capability is missing or insufficient; it **does not** count as a passing request. The current missing-tool map is an audit snapshot, not automatic discovery of future implementations. Default exit is nonzero for `FAIL`; `--strict` also exits nonzero for `GAP`. The hard duplicate-name case checks safe rejection, not successful completion of its labelled route.
 
-The scored fixtures can also execute through a real answer callable. This path sends **only the original question text and building directory** to the production adapter, then scores its reply with the official scorer. It selects **23 scored cases** across the tiers; warm-up labels use a different contract and are excluded. This mode may consume API credits with the default adapter and was **not run** for this audit:
+The scored fixtures can also execute through a real answer callable. This path sends **only the original question text and building directory** to the production adapter, then scores its reply with the official scorer. It selects **41 scored cases** across the tiers; warm-up labels use a different contract and are excluded. This mode may consume API credits with the default adapter and was **not run** for this audit:
 
 ```bash
 uv run --env-file .env python bench_analsysis/run_tests.py --mode agent --tier easy --agent final_agent.benchmark:answer --results bench_analsysis/live-easy.json
 ```
 
-Remove `--tier easy` for all 23 scored representatives. A future deterministic `module:function` with signature `(building_directory, question_text) -> reply` can use the same mode without a model. `--question ID` restricts either mode to selected IDs and is repeatable. If Matplotlib cannot write its default cache in a sandbox, prefix the command with `MPLCONFIGDIR=/tmp/bench-analsysis-mpl`. If uv's normal cache is read-only, set `UV_CACHE_DIR=/tmp/bench-analsysis-uv`; the catalog command was also verified with this setting and `uv run --offline`.
+Remove `--tier easy` for all 41 scored representatives. A future deterministic `module:function` with signature `(building_directory, question_text) -> reply` can use the same mode without a model. `--question ID` restricts either mode to selected IDs and is repeatable. If Matplotlib cannot write its default cache in a sandbox, prefix the command with `MPLCONFIGDIR=/tmp/bench-analsysis-mpl`. If uv's normal cache is read-only, set `UV_CACHE_DIR=/tmp/bench-analsysis-uv`; the catalog command was also verified with this setting and `uv run --offline`.
 
 ## Verification recorded
 
@@ -63,17 +75,17 @@ On **24 October 2026**, using the existing `.venv/bin/python`:
 
 | Check actually run | Result |
 |---|---|
-| Catalog rebuild and exact annotation/source coverage | **280/280 rows**, 20 buildings, 15 kinds; all representative IDs resolve |
-| `bench_analsysis/run_tests.py` | **45 cases: 17 PASS, 28 GAP, 0 FAIL** |
+| Catalog rebuild and exact annotation/source coverage | **283/283 rows**, 21 buildings, 15 kinds; all 71 representative IDs resolve |
+| `bench_analsysis/run_tests.py` | **71 cases: 25 PASS, 46 GAP, 0 FAIL** |
 | Official-scorer format regressions | **6/6 PASS** |
-| Existing `python -m unittest discover -s tests -v` | **11/11 PASS** |
+| Existing `python -m unittest discover -s tests -v` (original audit; not rerun for this selection change) | **11/11 PASS** |
 
-The 28 gaps comprise **23 scored cases and five exact-inventory-count cases**. All selected resolved-input lookup/route/closure/tour/safe-ambiguity probes pass. The reports also document additional label-informed geometry and route diagnostics performed by the subagents; those calculations do not add missing production tools.
+The 46 gaps comprise **41 scored cases and five exact-inventory-count cases**. All selected resolved-input lookup/route/closure/tour/safe-ambiguity probes pass. The reports also document additional label-informed geometry and route diagnostics performed by the subagents; those calculations do not add missing production tools.
 
 No paid live benchmark, scored end-to-end accuracy, UI route review, new building ingestion, or Synera automatic-route compliance is claimed. The warm-up oracle cannot establish natural-language interpretation, and some source text cannot uniquely resolve its labelled answer. `results.json` records hashes of the inspected final-agent modules and official scorer so the audit can be compared with later changes.
 
 ## Rebuild and maintain
 
-`buildings.json` is the fixed sample. The three `reviews/*_annotations.json` files preserve every subagent classification and note. `build_catalog.py` checks exact source coverage, normalizes subtype vocabulary, and regenerates the CSV/Markdown catalogs and test table; it never edits production data or the scorer. `test_cases.json` owns the representative selection and difficulty tiers, which are analysis judgments rather than organizer fields.
+`buildings.json` is the original fixed dev sample. The three `reviews/*_annotations.json` files preserve every subagent classification and note. `supplemental_annotations.json` records the three additional train questions and their source paths. `build_catalog.py` checks exact source coverage, case metadata/uniqueness and per-kind balance against all labelled train/dev supply, normalizes subtype vocabulary, and regenerates the CSV/Markdown catalogs and test table; it never edits production data or the scorer. `test_cases.json` owns the representative selection and difficulty tiers, which are analysis judgments rather than organizer fields.
 
-All inputs are from `data/dev`; no hidden labels or building-specific production answers were created. Building IDs, source paths and line numbers allow verification against the original data. Preserve the dataset attribution in [ATTRIBUTION.md](../ATTRIBUTION.md), especially if redistributing the OSM-derived fixtures. Root [README](../README.md) and [BACKLOG](../BACKLOG.md) remain the product requirements and task reference; the proposed tool APIs here are analysis recommendations.
+Inputs are from `data/dev` plus the three explicitly marked `data/train` supplements; no hidden labels or building-specific production answers were created. Building IDs, source paths and line numbers allow verification against the original data. Preserve the dataset attribution in [ATTRIBUTION.md](../ATTRIBUTION.md), especially if redistributing the OSM-derived fixtures. Root [README](../README.md) and [BACKLOG](../BACKLOG.md) remain the product requirements and task reference; the proposed tool APIs here are analysis recommendations.

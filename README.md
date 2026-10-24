@@ -21,7 +21,9 @@
 
 [IMPLEMENTATION_HANDOFF.md](IMPLEMENTATION_HANDOFF.md) specifies the requested paginated search, room inspection, reachability, all nine analysis kinds, optimal tours, navigation landmarks and map highlights. It assigns one Sonnet implementation agent per feature and requires independent verification afterwards; it is an implementation specification, not a claim that these features are complete.
 
-[Benchmark request analysis](bench_analsysis/README.md) reviews 280 questions across 20 varied dev buildings, with implementation/missing-tool tables, underdocumented expected results and 45 runnable representatives in three difficulty tiers. Its offline evidence distinguishes passing component checks from missing capabilities; it does not claim live benchmark accuracy.
+[TASK_TARGET_OBJECT_HANDOFF.md](TASK_TARGET_OBJECT_HANDOFF.md) specifies typed user tasks, follow-up patches, session context and application-owned completion checks (L1-06). The system prompt includes completion-evidence rules and use cases; task classes and the controller are not implemented, and these prompt changes have no live interpretation result yet.
+
+[Benchmark request analysis](bench_analsysis/README.md) reviews 280 questions across 20 varied dev buildings plus three scarce-kind train supplements, with implementation/missing-tool tables, underdocumented expected results and 71 runnable representatives in three difficulty tiers. Thirteen kinds have five cases each; lift-outage reachability and door what-if use all two and four available labelled examples respectively. Its offline evidence distinguishes passing component checks from missing capabilities; it does not claim live benchmark accuracy.
 
 The original kit reference follows. References such as “section 6” below retain their original numbering. The repository tree and setup instructions are source reference material; section 9 covers implementation additions, and section 11 identifies missing referenced setup resources.
 

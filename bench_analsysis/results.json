@@ -6,7 +6,7 @@
   "source_sha256": {
     "final_agent/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "final_agent/__main__.py": "968351f3f5d48510f92d37f881c5fa0798d02587fec6137ad73f4aecbc68ad36",
-    "final_agent/agent.py": "8dc3546e76c9442387f7e16bcc70ec517768ebe6de4fd81113360e07fd85c7f3",
+    "final_agent/agent.py": "0452a4f39a860a95c31ba36a1653a243f168f74fa3dec69e6b283e6239a6ba17",
     "final_agent/benchmark.py": "ca736831e0776cfad577c216ddccf3a3183b02b55c0e04540dcf2e2c5b433e0b",
     "final_agent/building_map.py": "dff5baefe4ffd55bb89eabbfe4598b9a43c8412eb060ba9a0aa50a8707545c77",
     "final_agent/evaluate.py": "a7f0c41072265583cdae1f384d37a57958c0d08e567eb9dafdbdae1ec0b7765e",
@@ -16,8 +16,8 @@
     "benchmark/score.py": "0dbe53b391ad95e38984910eedb22ac70378b80cf17fadcca09974ad7f5422fc"
   },
   "counts": {
-    "PASS": 17,
-    "GAP": 28
+    "PASS": 25,
+    "GAP": 46
   },
   "format_checks": [
     {
@@ -540,6 +540,292 @@
       "reason": "Cross-floor delivery at 1.1 m includes lift access doors exactly equal to the width threshold.",
       "status": "GAP",
       "detail": "reachable_rooms: step-free + minimum width + eligible target-room count"
+    },
+    {
+      "question_id": "osm-way22744230-Q01",
+      "building_id": "osm-way22744230",
+      "source_file": "data/dev/osm-way22744230/questions_basic.jsonl",
+      "kind": "locate",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "OSM named asset lookup adds a fourth source family.",
+      "status": "PASS",
+      "detail": "Resolved asset search returns the expected asset, room and floor"
+    },
+    {
+      "question_id": "swiss-450-Q03",
+      "building_id": "swiss-450",
+      "source_file": "data/dev/swiss-450/questions_basic.jsonl",
+      "kind": "locate",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Housing asset lookup on another floor completes five lookup cases.",
+      "status": "PASS",
+      "detail": "Resolved asset search returns the expected asset, room and floor"
+    },
+    {
+      "question_id": "proc-campus-dev-000-H01",
+      "building_id": "proc-campus-dev-000",
+      "source_file": "data/dev/proc-campus-dev-000/questions.jsonl",
+      "kind": "largest_room",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Office maximum adds campus area coverage.",
+      "status": "GAP",
+      "detail": "room_area_summary: exact floor/type filter, largest polygon and area"
+    },
+    {
+      "question_id": "osm-way27917482-H01",
+      "building_id": "osm-way27917482",
+      "source_file": "data/dev/osm-way27917482/questions.jsonl",
+      "kind": "largest_room",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Largest lobby is a hall named Rechnerhalle; room-only filtering is wrong.",
+      "status": "GAP",
+      "detail": "room_area_summary: exact floor/type filter, largest polygon and area"
+    },
+    {
+      "question_id": "proc-factory-dev-003-H01",
+      "building_id": "proc-factory-dev-003",
+      "source_file": "data/dev/proc-factory-dev-003/questions.jsonl",
+      "kind": "largest_room",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Factory maximum exercises industrial room-type eligibility.",
+      "status": "GAP",
+      "detail": "room_area_summary: exact floor/type filter, largest polygon and area"
+    },
+    {
+      "question_id": "osm-way22744230-H02",
+      "building_id": "osm-way22744230",
+      "source_file": "data/dev/osm-way22744230/questions.jsonl",
+      "kind": "floor_area_total",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Area total covers 25 polygons, beyond the search display page.",
+      "status": "GAP",
+      "detail": "room_area_summary: sum every eligible matching polygon"
+    },
+    {
+      "question_id": "osm-way27917482-H02",
+      "building_id": "osm-way27917482",
+      "source_file": "data/dev/osm-way27917482/questions.jsonl",
+      "kind": "floor_area_total",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Large-map area total covers 250 polygons.",
+      "status": "GAP",
+      "detail": "room_area_summary: sum every eligible matching polygon"
+    },
+    {
+      "question_id": "osm-way27326387-H08",
+      "building_id": "osm-way27326387",
+      "source_file": "data/dev/osm-way27326387/questions.jsonl",
+      "kind": "straight_line_3d",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Centroid distance crosses a missing floor level and uses actual elevations.",
+      "status": "GAP",
+      "detail": "straight_line_distance_3d: polygon centroids at elevation_m"
+    },
+    {
+      "question_id": "osm-way27917482-H07",
+      "building_id": "osm-way27917482",
+      "source_file": "data/dev/osm-way27917482/questions.jsonl",
+      "kind": "straight_line_3d",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Long centroid link on the largest OSM map.",
+      "status": "GAP",
+      "detail": "straight_line_distance_3d: polygon centroids at elevation_m"
+    },
+    {
+      "question_id": "proc-factory-dev-011-H06",
+      "building_id": "proc-factory-dev-011",
+      "source_file": "data/dev/proc-factory-dev-011/questions.jsonl",
+      "kind": "straight_line_3d",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Second three-floor factory link checks centroids and industrial floor elevations.",
+      "status": "GAP",
+      "detail": "straight_line_distance_3d: polygon centroids at elevation_m"
+    },
+    {
+      "question_id": "osm-way27326387-H04",
+      "building_id": "osm-way27326387",
+      "source_file": "data/dev/osm-way27326387/questions.jsonl",
+      "kind": "room_stacked",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Downward overlap in a building with nonconsecutive floor levels.",
+      "status": "GAP",
+      "detail": "stacked_room: next available floor and maximum overlap"
+    },
+    {
+      "question_id": "osm-way27326387-H06",
+      "building_id": "osm-way27326387",
+      "source_file": "data/dev/osm-way27326387/questions.jsonl",
+      "kind": "room_stacked",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Second upward-overlap example tests a different source outline.",
+      "status": "GAP",
+      "detail": "stacked_room: next available floor and maximum overlap"
+    },
+    {
+      "question_id": "osm-way27917482-H03",
+      "building_id": "osm-way27917482",
+      "source_file": "data/dev/osm-way27917482/questions.jsonl",
+      "kind": "room_stacked",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Stacked room selection reaches a basement on the largest map.",
+      "status": "GAP",
+      "detail": "stacked_room: next available floor and maximum overlap"
+    },
+    {
+      "question_id": "osm-way27326387-H07",
+      "building_id": "osm-way27326387",
+      "source_file": "data/dev/osm-way27326387/questions.jsonl",
+      "kind": "shared_walls_count",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "OSM thick-wall adjacency adds a third geometry source family.",
+      "status": "GAP",
+      "detail": "shared_wall_neighbors: tolerant boundary length and per-kind eligibility"
+    },
+    {
+      "question_id": "proc-campus-dev-000-H03",
+      "building_id": "proc-campus-dev-000",
+      "source_file": "data/dev/proc-campus-dev-000/questions.jsonl",
+      "kind": "wide_delivery_count",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Same-floor trolley delivery complements cross-floor and home cases.",
+      "status": "GAP",
+      "detail": "reachable_rooms: step-free + minimum width + eligible target-room count"
+    },
+    {
+      "question_id": "osm-way22744230-H04",
+      "building_id": "osm-way22744230",
+      "source_file": "data/dev/osm-way22744230/questions.jsonl",
+      "kind": "errand",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Nearest pickup among several candidates before cross-floor delivery.",
+      "status": "GAP",
+      "detail": "plan_errand: nearest reachable pickup first, then largest destination"
+    },
+    {
+      "question_id": "osm-way360544293-H03",
+      "building_id": "osm-way360544293",
+      "source_file": "data/dev/osm-way360544293/questions.jsonl",
+      "kind": "errand",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Same-floor errand chooses among 53 assets in 22 rooms.",
+      "status": "GAP",
+      "detail": "plan_errand: nearest reachable pickup first, then largest destination"
+    },
+    {
+      "question_id": "osm-way360544293-Q08",
+      "building_id": "osm-way360544293",
+      "source_file": "data/dev/osm-way360544293/questions_basic.jsonl",
+      "kind": "route_step_free",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Reachable indoor step-free route complements unreachable examples.",
+      "status": "PASS",
+      "detail": "Local-model route 109.50 m; room sequence/stop order checked"
+    },
+    {
+      "question_id": "osm-way27917482-Q08",
+      "building_id": "osm-way27917482",
+      "source_file": "data/dev/osm-way27917482/questions_basic.jsonl",
+      "kind": "route_step_free",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Cross-floor step-free path explicitly leaves and re-enters outside.",
+      "status": "PASS",
+      "detail": "Local-model route 159.90 m; room sequence/stop order checked"
+    },
+    {
+      "question_id": "osm-way22744230-Q09",
+      "building_id": "osm-way22744230",
+      "source_file": "data/dev/osm-way22744230/questions_basic.jsonl",
+      "kind": "route_with_closure",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Reachable reroute after a staircase closure.",
+      "status": "PASS",
+      "detail": "Local-model route 70.20 m; room sequence/stop order checked"
+    },
+    {
+      "question_id": "swiss-450-Q09",
+      "building_id": "swiss-450",
+      "source_file": "data/dev/swiss-450/questions_basic.jsonl",
+      "kind": "route_with_closure",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Closure makes the destination unreachable; no unconstrained fallback.",
+      "status": "PASS",
+      "detail": "Explicit unreachable error with constraints preserved"
+    },
+    {
+      "question_id": "resplan-1677-Q09",
+      "building_id": "resplan-1677",
+      "source_file": "data/dev/resplan-1677/questions_basic.jsonl",
+      "kind": "tour",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Same-floor ordered tour adds a case without vertical or outside transitions.",
+      "status": "PASS",
+      "detail": "Local-model route 28.75 m; room sequence/stop order checked"
+    },
+    {
+      "question_id": "osm-way27326387-Q07",
+      "building_id": "osm-way27326387",
+      "source_file": "data/dev/osm-way27326387/questions_basic.jsonl",
+      "kind": "tour",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Ordered cross-floor tour spans a floor-level gap and a slash-bearing room reference.",
+      "status": "PASS",
+      "detail": "Local-model route 94.26 m; room sequence/stop order checked"
+    },
+    {
+      "question_id": "osm-way58216509-H03",
+      "building_id": "osm-way58216509",
+      "source_file": "data/train/osm-way58216509/questions.jsonl",
+      "kind": "step_free_reachable_count",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Close Lift 2 in isolated state; count step-free reachable type=room targets on floor 2. Expected 64; a lift outage does not imply zero reachability. Train supplement: all dev examples were already selected.",
+      "status": "GAP",
+      "detail": "reachable_rooms: isolated closure + step-free target-room count"
+    },
+    {
+      "question_id": "osm-way58216509-H07",
+      "building_id": "osm-way58216509",
+      "source_file": "data/train/osm-way58216509/questions.jsonl",
+      "kind": "what_if_door",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Insert the door at the shared-wall midpoint in isolated state; count floor-2 rooms with nearest-exit distance improving strictly more than 1 m. Expected 40; preserve local anchor-model semantics. Train supplement: all dev examples were already selected.",
+      "status": "GAP",
+      "detail": "simulate_door_exit_improvement: midpoint door and isolated before/after exit distances"
+    },
+    {
+      "question_id": "osm-way58216509-H08",
+      "building_id": "osm-way58216509",
+      "source_file": "data/train/osm-way58216509/questions.jsonl",
+      "kind": "what_if_door",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Insert the door at the shared-wall midpoint in isolated state; count floor-2 rooms with nearest-exit distance improving strictly more than 1 m. Expected 40; preserve local anchor-model semantics. Train supplement: all dev examples were already selected.",
+      "status": "GAP",
+      "detail": "simulate_door_exit_improvement: midpoint door and isolated before/after exit distances"
     }
   ]
 }

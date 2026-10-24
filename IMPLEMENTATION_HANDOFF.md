@@ -575,6 +575,11 @@ small step landmarks versus larger arrival context. Reuse resolved IDs and ask
 only necessary clarification. Keep current location separate from destination
 and preserve accessibility preferences after reroutes/destination changes.
 
+Integrate **L1-06** using [TASK_TARGET_OBJECT_HANDOFF.md](TASK_TARGET_OBJECT_HANDOFF.md):
+typed requests and patches, explicit session state and application-owned completion
+checks. Prompt evidence rules and use cases are already appended; the task classes,
+dispatcher and lifecycle verification remain implementation work.
+
 For benchmark questions, derive replies from actual data and question text.
 Train/dev `inputs` and `answer` are verification material only. They must not be
 read by the production answer function or used to hard-code responses.

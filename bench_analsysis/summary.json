@@ -1,14 +1,19 @@
 {
-  "buildings": 20,
+  "buildings": 21,
+  "base_dev_buildings": 20,
   "families": {
-    "osm": 4,
+    "osm": 5,
     "proc-campus": 4,
     "proc-factory": 4,
     "swiss": 4,
     "resplan": 4
   },
-  "questions": 280,
-  "scored": 93,
+  "questions": 283,
+  "scored": 96,
+  "questions_by_split": {
+    "dev": 280,
+    "train": 3
+  },
   "warmup": 187,
   "by_kind": {
     "count": 20,
@@ -21,18 +26,61 @@
     "route_step_free": 20,
     "route_with_closure": 15,
     "shared_walls_count": 13,
-    "step_free_reachable_count": 1,
+    "step_free_reachable_count": 2,
     "straight_line_3d": 10,
     "tour": 20,
-    "what_if_door": 2,
+    "what_if_door": 4,
     "wide_delivery_count": 11
   },
-  "representative_cases": 45,
+  "representative_cases": 71,
   "cases_by_tier": {
-    "easy": 15,
-    "medium": 15,
-    "hard": 15
+    "easy": 20,
+    "medium": 28,
+    "hard": 23
   },
-  "agent_mode_scored_cases": 23,
+  "cases_by_kind": {
+    "count": 5,
+    "errand": 5,
+    "floor_area_total": 5,
+    "largest_room": 5,
+    "locate": 5,
+    "room_stacked": 5,
+    "route": 5,
+    "route_step_free": 5,
+    "route_with_closure": 5,
+    "shared_walls_count": 5,
+    "step_free_reachable_count": 2,
+    "straight_line_3d": 5,
+    "tour": 5,
+    "what_if_door": 4,
+    "wide_delivery_count": 5
+  },
+  "target_cases_per_kind": 5,
+  "cases_by_split": {
+    "dev": 68,
+    "train": 3
+  },
+  "labelled_available_by_kind": {
+    "count": 239,
+    "errand": 93,
+    "floor_area_total": 181,
+    "largest_room": 96,
+    "locate": 553,
+    "room_stacked": 26,
+    "route": 720,
+    "route_step_free": 240,
+    "route_with_closure": 138,
+    "shared_walls_count": 143,
+    "step_free_reachable_count": 2,
+    "straight_line_3d": 30,
+    "tour": 240,
+    "what_if_door": 4,
+    "wide_delivery_count": 80
+  },
+  "shortfalls": {
+    "step_free_reachable_count": 3,
+    "what_if_door": 1
+  },
+  "agent_mode_scored_cases": 41,
   "unknown_kinds": []
 }
