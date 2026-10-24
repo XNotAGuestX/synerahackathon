@@ -275,7 +275,7 @@ class BadToolArgumentTests(unittest.TestCase):
             tool.call({"item": "key"})
 
     def test_schemas_unchanged_by_the_wrapper(self):
-        self.assertEqual(len(self.tools), 21)
+        self.assertEqual(len(self.tools), 24)
         for tool in self.tools.values():
             plain = anthropic.beta_tool(tool.func).to_dict()
             self.assertEqual(tool.to_dict(), plain)

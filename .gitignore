@@ -35,3 +35,7 @@ coverage.xml
 
 # macOS metadata
 .DS_Store
+
+# Local user reports and SQLite transaction files
+*.sqlite3
+*.sqlite3-*

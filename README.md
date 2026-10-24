@@ -455,15 +455,19 @@ This section retains the earlier 24 October 2026 audit, not an organizer specifi
 ```text
 Terminal conversation
   → final_agent.agent.BuildingAgent (Claude + conversation history)
-  → seven typed tools in final_agent/tools.py
+  → typed tools in final_agent/tools.py
   → BuildingMap (JSON data + Shapely geometry + NetworkX MultiGraph)
-  → route result / edited JSON / Matplotlib PNGs
+  → route result / edited JSON / Matplotlib PNGs / local SQLite room reports
 
 benchmark.evaluate → agent(building_directory, question_text) → reply
                   → benchmark.score → result log + submission CSV
 ```
 
 `final_agent/` now uses package-local imports throughout its entry point, conversation layer, tools, viewer, evaluator, map and storage. `BuildingMap` and `MapError` identities are consistent across these modules. `final_agent.storage` contains its own atomic JSON store and spatial index; no project runtime module imports the starter. The wheel includes `final_agent` and `benchmark`; the kit's `starter_agent` baseline was removed on 24 October 2026. Use `python -m final_agent` for the project CLI; `benchmark.evaluate` runs `final_agent.benchmark:answer` by default.
+
+**Persistent room reports (24 October):** the agent can save, read and resolve user reports in a local SQLite database. Search, inspection, location and full-route results include active reports for the relevant rooms. The system prompt decides which reports matter to the request: safety/access warnings for rooms being visited or crossed, equipment faults for equipment-related requests. A final relevance rule explicitly omits unrelated equipment faults, including conditional asides, from route-only replies. See [room report usage](#persistent-room-reports). Three targeted live relevance cases pass; broader conversational accuracy has not been measured.
+
+**Room-report verification:** the full suite ran **183 tests: 180 pass, 3 credential-dependent skips** before the prompt follow-up. A no-API smoke check on `proc-factory-dev-003` saved a report for facility `3`, room `H-A1`, reloaded tools from the same database and returned the report on the `H-A2` → `H-A1` route (17.1 m). CLI help exposes both new options; `git diff --check` passes. After tightening relevance instructions, all **10 focused room-report/integration tests** and **3 live cases** pass: an unrelated route omits a broken coffee machine, a coffee request mentions the fault, and a subsequent route warns about a newly reported wet floor while omitting the coffee fault. Live checks used the saved production prompt and a temporary database; a hash check confirmed the interactive database was unchanged. These sampled checks are not a benchmark score or a guarantee of every conversation.
 
 ### What exists and what it does not yet cover
 
@@ -481,6 +485,7 @@ benchmark.evaluate → agent(building_directory, question_text) → reply
 | Visualization | Static PNG per crossed floor, space polygons, route line and closed-room shading | No asset markers, interactive locate view, animation or stacked 3D floors; selected opening identities are not preserved for rendering |
 | Evaluation | Project warm-up evaluator, isolated benchmark callable, official scorer/runner, CSV export and 11 passing storage/integration tests | No measured live benchmark baseline, complete geometry/interaction regression coverage or Sunday adapter |
 | Assets | Reads/searches equipment supplied in building JSON | No movement/update API, barcode/RFID ingestion or asset history |
+| Room reports (current addition) | Durable local SQLite reports scoped to facility and stable room id; add/read/resolve tools; automatic inclusion in search, inspection and routes, including transit rooms | Relevance is selected by the system prompt; reports are user claims and do not themselves change route constraints. Three targeted live relevance cases pass; broader accuracy is unmeasured |
 
 ### Status against challenge levels
 
@@ -597,8 +602,72 @@ Route images and edited buildings go to `agent_output/`.
 | `set_closed` | Closes or reopens a lift, staircase, door or room and saves `building_edited.json` | 2 |
 | `add_door` | Adds a door between neighbouring rooms and saves `building_edited.json` | 4 (start) |
 | `show_route` | Draws the last route on each floor it crosses | viewer |
+| `add_room_note` | Saves a user report for a resolved room in the loaded facility | 1 |
+| `get_room_notes` | Reads all active reports for resolved rooms, including asset rooms | 1 |
+| `resolve_room_note` | Marks a selected report resolved, preserving its history | 1 |
 
 Route costs match the dataset's expected answers: walking distance through door positions, 12 m per floor of stairs, and a 15 m wait plus 6 m per floor for a lift.
+
+#### Persistent room reports
+
+The agent-facing specifications for `add_room_note`, `get_room_notes` and
+`resolve_room_note` live in their docstrings in [final_agent/tools.py](final_agent/tools.py).
+They describe when to use each tool, its arguments, JSON result, persistence effects
+and failure handling. `ArgumentCheckedTool` uses the Anthropic SDK to generate the
+tool descriptions and input schemas from those docstrings and typed signatures;
+the conversation runner passes these definitions to the model with its tool list.
+
+Reports use Python's built-in SQLite support; no database server or new dependency
+is needed. The first saved report creates `agent_output/room_notes.sqlite3` (or
+`<output>/room_notes.sqlite3` when `--output` is set). Reuse that file to retain
+reports after restarting. Use `--notes-db` to share reports across sessions with
+different image/edit output directories.
+
+```bash
+uv run python -m final_agent data/dev/proc-factory-dev-003 --facility-number 3 --notes-db agent_output/room_notes.sqlite3
+```
+
+For this example building, try:
+
+```text
+you> The floor in H-A1 is wet.
+you> What reports do we have for H-A1?
+you> Give me directions from H-A2 to H-A1.
+you> The floor in H-A1 is dry again. Resolve the wet-floor report.
+```
+
+The facility key defaults to `building.facility_number` when present, otherwise
+`building.id`. `--facility-number 3` assigns the loaded map to facility `3` for
+reports; use the same key when reopening it. A session handles its loaded facility
+only. Both facility numbers and room labels are text, preserving `015`. Records
+store `facility_number`, stable `space_id`, `room_number` (the room's `ref`, falling
+back to its id), report text, UTC creation time and optional resolution time. The
+lookup index uses facility and stable room id so repeated room numbers on
+different floors stay separate; ambiguous room references require clarification.
+Multiple reports can be stored for each room. Resolved reports remain as history
+but no longer appear in active lookups. Local SQLite files are ignored by Git.
+
+All active reports for the relevant rooms reach the model without keyword
+filtering. Search results use the displayed page and assets' containing rooms;
+routes use every room in `space_path`, including transit rooms. Tours, errands,
+reroutes and route images also return reports. The system prompt requires fresh
+lookups when reusing old results or using other room-specific tools. It instructs
+the agent to mention wet floors or structural hazards for a relevant visit, and
+to omit a broken coffee machine on an unrelated journey while mentioning it for
+a coffee request. Explicit report-list requests return all active reports.
+Reports are treated as user-supplied data, never instructions or verified safety
+assessments. They do not automatically close rooms or alter computed paths;
+requested closures still use `set_closed`.
+
+Save failures are tool errors. Automatic lookups preserve successfully computed
+results and expose `room_notes_error` if the database cannot be read; the prompt
+requires the agent to explain that reports could not be checked. Benchmark and
+live warm-up evaluation use temporary report databases per question, isolated
+from interactive reports and earlier questions. Offline regression checks cover
+persistence across agents, transit/equipment lookup, facility and duplicate-number
+isolation, resolution, invalid inputs and database failures. Three targeted live
+relevance cases pass using temporary reports; see section 9 for the cases and
+verification limits. No conversational benchmark score is claimed.
 
 #### Building storage and spatial indexes
 

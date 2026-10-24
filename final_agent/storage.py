@@ -1,13 +1,98 @@
-"""JSON persistence and Cartesian spatial indexes for indoor building data."""
+"""Local JSON/SQLite persistence and Cartesian spatial indexes for indoor building data."""
 
+from contextlib import contextmanager
 import json
 import math
 import os
+import sqlite3
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 from shapely import STRtree
 from shapely.geometry import Point, Polygon
+
+
+MAX_ROOM_NOTE_LENGTH = 4000
+
+
+class RoomNoteStore:
+    """User reports scoped to a facility and stable room id, shared across sessions.
+
+    Room numbers are display labels (kept as text, including leading zeroes).
+    Stable space ids distinguish repeated room numbers on different floors.
+    The database is created on the first write; reads never create an empty file.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = Path(path)
+
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        connection = sqlite3.connect(self.path)
+        connection.row_factory = sqlite3.Row
+        try:
+            with connection:
+                connection.execute("""
+                    CREATE TABLE IF NOT EXISTS room_notes (
+                        note_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        facility_number TEXT NOT NULL,
+                        space_id TEXT NOT NULL,
+                        room_number TEXT NOT NULL,
+                        text TEXT NOT NULL,
+                        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+                        resolved_at TEXT
+                    )
+                """)
+                connection.execute("""
+                    CREATE INDEX IF NOT EXISTS room_notes_room
+                    ON room_notes (facility_number, space_id, resolved_at)
+                """)
+                yield connection
+        finally:
+            connection.close()
+
+    def add(self, facility_number: str, space_id: str, room_number: str, text: str) -> dict:
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("Give a non-empty room report.")
+        text = text.strip()
+        if len(text) > MAX_ROOM_NOTE_LENGTH:
+            raise ValueError(f"Room reports must be at most {MAX_ROOM_NOTE_LENGTH} characters.")
+        with self._connect() as connection:
+            cursor = connection.execute(
+                "INSERT INTO room_notes (facility_number, space_id, room_number, text) VALUES (?, ?, ?, ?)",
+                (facility_number, space_id, room_number, text),
+            )
+            note = connection.execute("SELECT * FROM room_notes WHERE note_id = ?", (cursor.lastrowid,)).fetchone()
+        return dict(note)
+
+    def active(self, facility_number: str, space_ids: list[str]) -> list[dict]:
+        space_ids = list(dict.fromkeys(space_ids))
+        if not space_ids or not self.path.exists():
+            return []
+        placeholders = ",".join("?" for _ in space_ids)
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"SELECT * FROM room_notes WHERE facility_number = ? AND space_id IN ({placeholders}) "
+                "AND resolved_at IS NULL ORDER BY note_id",
+                [facility_number, *space_ids],
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def resolve(self, facility_number: str, space_id: str, note_id: int) -> dict:
+        if not self.path.exists():
+            raise ValueError("No reports saved yet. Use get_room_notes to find an active report.")
+        with self._connect() as connection:
+            cursor = connection.execute(
+                "UPDATE room_notes SET resolved_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
+                "WHERE facility_number = ? AND space_id = ? AND note_id = ? AND resolved_at IS NULL",
+                (facility_number, space_id, note_id),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("No active report with that id in this facility and room. Use get_room_notes first.")
+            note = connection.execute("SELECT * FROM room_notes WHERE note_id = ?", (note_id,)).fetchone()
+        return dict(note)
 
 
 class JsonBuildingStore:

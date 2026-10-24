@@ -15,6 +15,7 @@ from anthropic.lib.tools import ToolError
 from benchmark.evaluate import load_agent
 from final_agent.agent import BuildingAgent
 from final_agent.building_map import BuildingMap
+from final_agent.evaluate import evaluate
 from test_storage import example_building
 
 
@@ -105,6 +106,10 @@ class FinalAgentIntegrationTests(unittest.TestCase):
         def ask(agent, question):
             self.assertEqual(agent.map.closed, set())
             self.assertEqual(agent.messages, [])
+            tools = {tool.name: tool for tool in agent.tools}
+            reports = json.loads(tools["get_room_notes"].call({"spaces": ["left"]}))
+            self.assertEqual(reports["room_notes"], [])
+            tools["add_room_note"].call({"space": "left", "text": question})
             agent.map.set_closed("left", True)
             # Exercise the actual tool save into the adapter's per-question output directory.
             tool = next(tool for tool in agent.tools if tool.name == "set_closed")
@@ -130,6 +135,30 @@ class FinalAgentIntegrationTests(unittest.TestCase):
             self.assertNotEqual(outputs[0].parent, outputs[1].parent)
             self.assertTrue(all(not output.parent.exists() for output in outputs))
             self.assertEqual(building.read_bytes(), original)
+
+    def test_live_warmup_uses_separate_report_storage_per_question(self):
+        databases = []
+
+        def ask(agent, question):
+            tools = {tool.name: tool for tool in agent.tools}
+            reports = json.loads(tools["get_room_notes"].call({"spaces": ["left"]}))
+            self.assertEqual(reports["room_notes"], [])
+            saved = json.loads(tools["add_room_note"].call({"space": "left", "text": question}))
+            databases.append(Path(saved["saved_to"]))
+            return "Answer: 1"
+
+        with tempfile.TemporaryDirectory() as temporary:
+            building = Path(temporary) / "building.json"
+            self.make_map().save(building)
+            questions = [(building.parent, {"id": str(i), "kind": "count", "question": str(i)}) for i in range(2)]
+            with patch("final_agent.agent.anthropic.Anthropic", return_value=object()), patch.object(
+                BuildingAgent, "ask", ask
+            ), patch("final_agent.evaluate.load_questions", return_value=questions), patch(
+                "final_agent.evaluate.score", return_value=True
+            ), patch("builtins.print"):
+                evaluate(building.parent, limit=2, oracle=False)
+        self.assertNotEqual(databases[0], databases[1])
+        self.assertTrue(all(not database.exists() for database in databases))
 
 
 if __name__ == "__main__":
