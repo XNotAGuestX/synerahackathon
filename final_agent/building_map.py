@@ -3,6 +3,7 @@
 The agent (agent.py) is only the conversation layer; every fact it states comes from this module.
 The route cost model matches the one used to compute the dataset's expected answers."""
 
+import copy
 import itertools
 import math
 from dataclasses import dataclass, field
@@ -23,6 +24,7 @@ LIFT_COST_PER_FLOOR_M = 6.0
 MAX_SEARCH_RESULTS = 15
 ADJACENT_DISTANCE_M = 0.6
 NEW_DOOR_WIDTH_M = 0.9
+MAX_INSPECTED_ASSET_IDS = 50
 
 
 class MapError(ValueError):
@@ -355,6 +357,106 @@ class BuildingMap:
         return steps
 
     # ---------- inspection ----------
+
+    def inspect_space(self, reference: str) -> dict:
+        """Complete inspection of one space: source record, derived geometry, floor, openings, connectors, assets."""
+        space_id = self.resolve_space(reference)
+        space = self.spaces[space_id]
+        polygon = self.space_polygon(space_id)
+        centroid, anchor = polygon.centroid, self.anchor(space_id)
+        min_x, min_y, max_x, max_y = polygon.bounds
+        result = {
+            "space": copy.deepcopy(space),
+            "derived": {
+                "area_m2": round(polygon.area, 3),
+                "perimeter_m": round(polygon.length, 3),
+                "centroid": [round(centroid.x, 3), round(centroid.y, 3)],
+                "representative_point": [round(anchor[0], 3), round(anchor[1], 3)],
+                "bounds": {"min_x": round(min_x, 3), "min_y": round(min_y, 3),
+                           "max_x": round(max_x, 3), "max_y": round(max_y, 3)},
+            },
+            "floor": self.inspected_floor(space["floor_id"]),
+            "closed": space_id in self.closed,
+            "openings": [
+                self.inspected_opening(opening, space_id)
+                for opening in sorted(self.openings.values(), key=lambda item: item["id"])
+                if space_id in opening["space_ids"]
+            ],
+            "connectors": [
+                self.inspected_connector(connector)
+                for connector in sorted(self.connectors.values(), key=lambda item: item["id"])
+                if space_id in connector["space_ids"]
+            ],
+            "assets": self.inspected_assets(space_id),
+        }
+        asset = self.asset_behind_reference(reference, space_id)
+        if asset:
+            result["resolved_from_asset"] = {"id": asset["id"], "name": asset["name"]}
+        return result
+
+    def asset_behind_reference(self, reference: str, space_id: str) -> dict | None:
+        """The asset a reference named, when it resolved to its containing space rather than a space."""
+        if reference in self.spaces:
+            return None
+        if reference in self.assets:
+            return self.assets[reference]
+        lowered = reference.strip().lower()
+        if any(lowered in ((space.get("ref") or "").lower(), space["name"].lower()) for space in self.spaces.values()):
+            return None
+        return next(
+            (asset for asset in self.assets.values()
+             if asset["name"].lower() == lowered and asset["space_id"] == space_id),
+            None,
+        )
+
+    def inspected_floor(self, floor_id: str) -> dict:
+        floor = self.floors[floor_id]
+        info = {key: floor.get(key) for key in ("id", "level", "name", "elevation_m", "height_m")}
+        missing = [key for key in ("elevation_m", "height_m") if floor.get(key) is None]
+        if missing:
+            info["note"] = f"Not stored for this floor: {', '.join(missing)}."
+        return info
+
+    def inspected_opening(self, opening: dict, space_id: str) -> dict:
+        other = self.other_side(opening, space_id)
+        return {
+            "id": opening["id"],
+            "kind": opening["kind"],
+            "width_m": opening.get("width_m"),
+            "step_free": opening.get("step_free"),
+            "position": opening["position"],
+            "synthetic": opening.get("synthetic", False),
+            "closed": opening["id"] in self.closed,
+            "other_side": OUTSIDE if other == OUTSIDE else self.space_summary(other),
+        }
+
+    def inspected_connector(self, connector: dict) -> dict:
+        stops = sorted(
+            zip(connector["floor_ids"], connector["space_ids"], strict=True),
+            key=lambda stop: self.floor_level(stop[0]),
+        )
+        return {
+            "id": connector["id"],
+            "kind": connector["kind"],
+            "name": connector.get("name"),
+            "step_free": connector.get("step_free"),
+            "closed": connector["id"] in self.closed,
+            "stops": [
+                {"floor_level": self.floor_level(floor_id), "space_id": stop_space,
+                 "space_name": self.spaces[stop_space]["name"]}
+                for floor_id, stop_space in stops
+            ],
+        }
+
+    def inspected_assets(self, space_id: str) -> dict:
+        ids = sorted(asset["id"] for asset in self.assets.values() if asset["space_id"] == space_id)
+        info = {"count": len(ids), "ids": ids[:MAX_INSPECTED_ASSET_IDS], "truncated": len(ids) > MAX_INSPECTED_ASSET_IDS}
+        if info["truncated"]:
+            info["note"] = (
+                f"Only the first {MAX_INSPECTED_ASSET_IDS} of {len(ids)} asset ids are listed; "
+                "page through search_building for the rest."
+            )
+        return info
 
     # ---------- reachability ----------
 
