@@ -188,6 +188,38 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
     # ---------- reachability ----------
 
+    @register
+    def reachable_rooms(
+        start: str, floor_level: int | None = None, step_free: bool = False, min_width_m: float = 0.0,
+        entrance: str | None = None, closed_elements: list[str] | None = None, room_type: str | None = None,
+    ) -> str:
+        """Count and list the rooms a person or delivery can reach from a start room under constraints.
+
+        Answers "how many rooms can X reach?" and "into how many rooms can it be delivered?". The scored
+        answer line is exactly one integer: the `count`. The result also gives sorted `room_ids`, compact
+        `rooms`, the applied `constraints`, the `entry` used and `excluded_reachable` (reachable spaces
+        that are not counted, by type). Only spaces of type "room" count; halls, corridors, stairs and
+        lifts are passed through but not counted. The start room counts. Nothing is changed or saved.
+
+        Args:
+            start: Space id, asset id, or exact room number/name where the person or load starts.
+            floor_level: Count only rooms on this floor (0 = ground floor). Omit for all floors.
+            step_free: True for "no stairs or steps (lifts are fine)", wheelchairs and trolleys.
+            min_width_m: Every door passed must be at least this wide, e.g. a 1.1 m trolley -> 1.1.
+            entrance: Entrance opening id (must satisfy step_free and min_width_m, else an error), or the
+                start room itself for "it arrives through the entrance into <room>". For a room, a closed
+                or stepped entrance is an error; a too-narrow one only adds a warning (benchmark convention).
+            closed_elements: Extra closures for this query only (lift/stair names, door or room ids),
+                e.g. ["Lift 1"] for "Lift 1 is out of service".
+            room_type: Optional exact room type (office, meeting_room, ...) to count only those rooms.
+        """
+        try:
+            return as_json(building_map.reachable_rooms(
+                start, floor_level, step_free, min_width_m, entrance, closed_elements, room_type
+            ))
+        except MapError as error:
+            raise ToolError(str(error)) from error
+
     # ---------- largest room ----------
 
     @register
