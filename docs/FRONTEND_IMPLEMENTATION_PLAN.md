@@ -138,3 +138,11 @@ Der visuelle Fokus ist das Route Tape. Schatten, Blur und dekorative Flächen bl
 - [ ] Places-Suche als sichtbare Vorschlagsliste.
 - [ ] Vollständige HTTP-Integration für Session-Preferences und Revision-Refresh.
 - [ ] Playwright-/Axe-Smoke-Checks.
+
+## 11. Nächster Lieferstand
+
+- [x] Sichtbarer Building Picker über `gateway.listBuildings()`.
+- [x] Gebäudewahl startet eine neue Session und lädt Etagen sowie Grundrisse neu.
+- [x] Places Search über `gateway.searchPlaces()`.
+- [x] Suchergebnisse zeigen Raum/Gerät und Etage.
+- [x] Auswahl eines Suchergebnisses fokussiert die Etage und markiert das Ziel.
