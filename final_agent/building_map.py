@@ -23,6 +23,9 @@ LIFT_COST_PER_FLOOR_M = 6.0
 MAX_SEARCH_RESULTS = 15
 ADJACENT_DISTANCE_M = 0.6
 NEW_DOOR_WIDTH_M = 0.9
+SHARED_WALL_GAP_M = 0.35
+SHARED_WALL_MIN_M = 1.0
+NON_ROOM_TYPES = {"corridor", "stairwell", "stairs", "stair", "lift", "outdoor", "balcony"}
 
 
 class MapError(ValueError):
@@ -189,13 +192,15 @@ class BuildingMap:
         point = Polygon(self.spaces[space_id]["polygon"]).representative_point()
         return (point.x, point.y)
 
-    def graph(self, step_free: bool) -> nx.MultiGraph:
+    def graph(self, step_free: bool, min_width_m: float = 0.0) -> nx.MultiGraph:
         # MultiGraph: a stair and a lift may join the same two spaces; both edges must be kept.
         graph = nx.MultiGraph()
         anchors = {space_id: self.anchor(space_id) for space_id in self.spaces if space_id not in self.closed}
         graph.add_nodes_from(anchors)
         for opening in self.openings.values():
             if opening["id"] in self.closed or (step_free and not opening["step_free"]):
+                continue
+            if float(opening.get("width_m", 0)) < min_width_m:
                 continue
             door = DOOR_PREFIX + opening["id"]
             for space_id in opening["space_ids"]:
@@ -332,6 +337,218 @@ class BuildingMap:
         self.data["openings"].append(opening)
         self._spatial_index = None
         return opening
+
+    def polygon_of(self, space_id: str) -> Polygon:
+        shape = Polygon(self.spaces[space_id]["polygon"])
+        return shape if shape.is_valid else shape.buffer(0)
+
+    def area_m2(self, space_id: str) -> float:
+        return float(self.polygon_of(space_id).area)
+
+    def centroid_xy(self, space_id: str) -> tuple[float, float]:
+        point = self.polygon_of(space_id).centroid
+        return (point.x, point.y)
+
+    def resolve_floor(self, reference: str | int) -> str:
+        text = str(reference)
+        if text in self.floors:
+            return text
+        lowered = text.strip().lower()
+        named = [floor["id"] for floor in self.floors.values() if floor["name"].lower() == lowered]
+        if len(named) == 1:
+            return named[0]
+        try:
+            level = int(text)
+        except ValueError as error:
+            raise MapError(f"No floor matches '{reference}'.") from error
+        matched = [floor["id"] for floor in self.floors.values() if floor["level"] == level]
+        if len(matched) == 1:
+            return matched[0]
+        raise MapError(f"No floor matches '{reference}'.")
+
+    def matching_spaces(self, floor_id: str, room_type: str | None = None) -> list[dict]:
+        floor_id = self.resolve_floor(floor_id)
+        spaces = [space for space in self.spaces.values() if space["floor_id"] == floor_id]
+        if room_type:
+            spaces = [space for space in spaces if space.get("room_type") == room_type]
+        return spaces
+
+    def largest_room(self, floor_id: str, room_type: str) -> dict:
+        spaces = self.matching_spaces(floor_id, room_type)
+        if not spaces:
+            raise MapError(f"No {room_type} on {floor_id}.")
+        space = max(spaces, key=lambda item: self.area_m2(item["id"]))
+        return self._room_record(space)
+
+    def floor_area_total(self, floor_id: str, room_type: str) -> dict:
+        spaces = self.matching_spaces(floor_id, room_type)
+        area = sum(self.area_m2(space["id"]) for space in spaces)
+        return {"floor_id": self.resolve_floor(floor_id), "room_type": room_type, "count": len(spaces), "area_m2": round(area, 2)}
+
+    def straight_line_3d(self, first: str, second: str) -> dict:
+        first_id, second_id = self.resolve_space(first), self.resolve_space(second)
+        first_xyz = (*self.centroid_xy(first_id), self.floors[self.spaces[first_id]["floor_id"]]["elevation_m"])
+        second_xyz = (*self.centroid_xy(second_id), self.floors[self.spaces[second_id]["floor_id"]]["elevation_m"])
+        return {
+            "first": first_id,
+            "second": second_id,
+            "distance_m": round(math.dist(first_xyz, second_xyz), 2),
+        }
+
+    def room_stacked(self, start: str, direction: str) -> dict:
+        source_id = self.resolve_space(start)
+        source = self.spaces[source_id]
+        current = self.floors[source["floor_id"]]["level"]
+        ordered = sorted(self.floors.values(), key=lambda floor: floor["level"])
+        if direction == "above":
+            neighbours = [floor for floor in ordered if floor["level"] > current]
+            target = neighbours[0] if neighbours else None
+        elif direction == "below":
+            neighbours = [floor for floor in ordered if floor["level"] < current]
+            target = neighbours[-1] if neighbours else None
+        else:
+            raise MapError("direction must be above or below.")
+        if target is None:
+            raise MapError(f"No floor {direction} {source['name']}.")
+        source_shape = self.polygon_of(source_id)
+        best = None
+        best_overlap = 0.0
+        for space in self.spaces.values():
+            if space["floor_id"] != target["id"]:
+                continue
+            overlap = source_shape.intersection(self.polygon_of(space["id"])).area
+            if overlap > best_overlap:
+                best = space
+                best_overlap = overlap
+        if best is None or best_overlap <= 0:
+            raise MapError(f"No room {direction} {source['name']} overlaps it.")
+        record = self._room_record(best)
+        record["overlap_m2"] = round(best_overlap, 2)
+        return record
+
+    def shared_walls_count(self, start: str) -> dict:
+        source_id = self.resolve_space(start)
+        source = self.spaces[source_id]
+        neighbours = [
+            space["id"]
+            for space in self.spaces.values()
+            if space["floor_id"] == source["floor_id"]
+            and space["id"] != source_id
+            and not self._non_room(space)
+            and self._shares_wall(source_id, space["id"])
+        ]
+        return {"space_id": source_id, "count": len(neighbours), "neighbours": neighbours}
+
+    def wide_delivery_count(self, start: str, floor_id: str, min_width_m: float) -> dict:
+        return self._reachable_room_count(start, floor_id, step_free=True, min_width_m=min_width_m, require_type="room")
+
+    def step_free_reachable_count(self, start: str, floor_id: str, closed: str | None = None) -> dict:
+        clone = self.clone()
+        if closed:
+            clone.set_closed(closed, True)
+        return clone._reachable_room_count(start, floor_id, step_free=True)
+
+    def errand(self, start: str, asset_type: str, floor_id: str, room_type: str, step_free: bool = False) -> dict:
+        start_id = self.resolve_space(start)
+        pickups = sorted({asset["space_id"] for asset in self.assets.values() if asset["type"] == asset_type})
+        if not pickups:
+            raise MapError(f"No {asset_type} in this building.")
+        graph = self.graph(step_free)
+        nearest = None
+        nearest_length = None
+        for pickup in pickups:
+            length = self._path_length(graph, start_id, pickup)
+            if length is None:
+                continue
+            if nearest_length is None or length < nearest_length:
+                nearest = pickup
+                nearest_length = length
+        if nearest is None or nearest_length is None:
+            raise MapError(f"No reachable {asset_type} from {self.describe_space(start_id)}.")
+        target = self.largest_room(floor_id, room_type)
+        second = self._path_length(graph, nearest, target["space_id"])
+        if second is None:
+            raise MapError(f"No route from the pickup to {target['name']}.")
+        return {
+            "start": start_id,
+            "pickup": nearest,
+            "destination": target["space_id"],
+            "length_m": round(nearest_length + second, 2),
+            "step_free": step_free,
+        }
+
+    def what_if_door(self, first: str, second: str, floor_id: str) -> dict:
+        floor_id = self.resolve_floor(floor_id)
+        rooms = [space["id"] for space in self.matching_spaces(floor_id) if not self._non_room(space)]
+        before = {space_id: self._exit_distance(space_id) for space_id in rooms}
+        clone = self.clone()
+        clone.add_door(first, second)
+        improved = []
+        for space_id, old in before.items():
+            new = clone._exit_distance(space_id)
+            old_distance = math.inf if old is None else old
+            new_distance = math.inf if new is None else new
+            if old_distance - new_distance > 1.0:
+                improved.append(space_id)
+        return {"floor_id": floor_id, "count": len(improved), "improved": improved}
+
+    def clone(self) -> "BuildingMap":
+        import copy
+        return BuildingMap(copy.deepcopy(self.data))
+
+    def _room_record(self, space: dict) -> dict:
+        return {
+            "space_id": space["id"],
+            "name": space["name"],
+            "ref": space.get("ref"),
+            "room_type": space.get("room_type"),
+            "floor_id": space["floor_id"],
+            "area_m2": round(self.area_m2(space["id"]), 2),
+        }
+
+    def _non_room(self, space: dict) -> bool:
+        return space.get("type") in NON_ROOM_TYPES or space.get("room_type") in NON_ROOM_TYPES
+
+    def _shares_wall(self, first_id: str, second_id: str) -> bool:
+        near = self.polygon_of(second_id).buffer(SHARED_WALL_GAP_M)
+        shared = self.polygon_of(first_id).boundary.intersection(near)
+        return shared.length >= SHARED_WALL_MIN_M
+
+    def _path_length(self, graph: nx.MultiGraph, start: str, destination: str) -> float | None:
+        try:
+            length, _nodes = nx.single_source_dijkstra(graph, start, destination, weight="weight")
+        except (nx.NetworkXNoPath, nx.NodeNotFound):
+            return None
+        return float(length)
+
+    def _exit_distance(self, space_id: str) -> float | None:
+        if OUTSIDE not in self.graph(False):
+            return None
+        return self._path_length(self.graph(False), self.resolve_space(space_id), OUTSIDE)
+
+    def _reachable_room_count(
+        self,
+        start: str,
+        floor_id: str,
+        step_free: bool,
+        min_width_m: float = 0.0,
+        require_type: str | None = None,
+    ) -> dict:
+        start_id = self.resolve_space(start)
+        floor_id = self.resolve_floor(floor_id)
+        graph = self.graph(step_free, min_width_m)
+        try:
+            lengths = nx.single_source_dijkstra_path_length(graph, start_id, weight="weight")
+        except nx.NodeNotFound:
+            lengths = {}
+        rooms = [
+            space["id"]
+            for space in self.matching_spaces(floor_id)
+            if space["id"] in lengths
+            and not self._non_room(space)
+            and (require_type is None or space.get("type") == require_type)
+        ]
+        return {"start": start_id, "floor_id": floor_id, "count": len(rooms), "rooms": rooms}
 
     def save(self, path: Path) -> None:
         snapshot = {

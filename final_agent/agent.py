@@ -17,6 +17,8 @@ MAX_TOKENS = 16000
 MAX_TOOL_ITERATIONS = 20
 EFFORT = "medium"
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
+# Local proxy. The SDK appends /v1/messages. Key stays in ANTHROPIC_API_KEY.
+API_BASE_URL = "https://home-proxy.owol.cc"
 DEFAULT_OUTPUT_DIRECTORY = Path("agent_output")
 EXIT_WORDS = {"exit", "quit", "bye"}
 
@@ -32,6 +34,8 @@ it, ask one short question listing the options. If one match is clearly meant, g
 then give the directions as a short numbered list using room names and floor names, and the total distance.
 - Use step_free=true when the person mentions a wheelchair, pram, trolley, crutches or "no stairs".
 - When told something is closed or added, apply it with the tools and say what changes for routes.
+- For area, stacked rooms, shared walls, 3D distance, door width, step-free reachability, errands and what-if doors, call the matching geometry tool. Do not estimate those from search results.
+- When the person asks for a final answer line, end with exactly one line that starts with "Answer:" and contains exactly one number when a number is requested. Name the selected room first when a room is requested.
 
 Building overview:
 {overview}"""
@@ -44,7 +48,7 @@ class BuildingAgent:
         self, building_map: BuildingMap, output_directory: Path, client: anthropic.Anthropic | None = None
     ) -> None:
         self.map = building_map
-        self.client = client or anthropic.Anthropic()
+        self.client = client or make_client()
         self.tools = make_tools(building_map, output_directory)
         self.system = [
             {
@@ -99,6 +103,11 @@ class BuildingAgent:
         self.usage["cache_creation_input_tokens"] += usage.cache_creation_input_tokens or 0
 
 
+def make_client() -> anthropic.Anthropic:
+    """Client for the local proxy. The API key comes from the environment."""
+    return anthropic.Anthropic(base_url=API_BASE_URL)
+
+
 def chat(building_directory: Path, output_directory: Path) -> None:
     agent = BuildingAgent(BuildingMap.load(building_directory), output_directory)
     print(f"Guide for {agent.map.data['building']['name']}. Ask me anything (type 'exit' to stop).")
@@ -114,12 +123,12 @@ def chat(building_directory: Path, output_directory: Path) -> None:
         try:
             print(f"\nguide> {agent.ask(user_text)}")
         except anthropic.AuthenticationError:
-            print("No valid API credentials: set ANTHROPIC_API_KEY or run `ant auth login`.")
+            print(f"No valid API credentials for {API_BASE_URL}: set ANTHROPIC_API_KEY.")
             return
         except anthropic.RateLimitError:
             print("Rate limited - wait a moment and try again.")
         except anthropic.APIConnectionError:
-            print("Network error - check your connection.")
+            print(f"Network error - could not reach {API_BASE_URL}.")
         except anthropic.APIStatusError as error:
             print(f"API error {error.status_code}: {error.message}")
     print(f"\nTokens used: {agent.usage}")

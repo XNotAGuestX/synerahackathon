@@ -118,4 +118,143 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
             raise ToolError("No route yet. Call find_route first.")
         return as_json({"images": [str(path) for path in draw_route(building_map, output_directory)]})
 
-    return [building_overview, search_building, spatial_search, find_route, set_closed, add_door, show_route]
+    @beta_tool
+    def largest_room(floor_id: str, room_type: str) -> str:
+        """Largest room of one type on one floor, with its polygon area in square metres.
+
+        Args:
+            floor_id: Floor id, floor name, or floor level such as "0".
+            room_type: Exact room_type, such as office or kitchen.
+        """
+        try:
+            return as_json(building_map.largest_room(floor_id, room_type))
+        except MapError as error:
+            raise ToolError(str(error)) from error
+
+    @beta_tool
+    def floor_area_total(floor_id: str, room_type: str) -> str:
+        """Sum the polygon area of every room of one type on one floor. Not a search page.
+
+        Args:
+            floor_id: Floor id, floor name, or floor level.
+            room_type: Exact room_type to include.
+        """
+        try:
+            return as_json(building_map.floor_area_total(floor_id, room_type))
+        except MapError as error:
+            raise ToolError(str(error)) from error
+
+    @beta_tool
+    def straight_line_3d(first: str, second: str) -> str:
+        """Straight-line metres between two room centroids at their floor elevations.
+
+        Args:
+            first: Space id or exact room name.
+            second: Space id or exact room name.
+        """
+        try:
+            return as_json(building_map.straight_line_3d(first, second))
+        except MapError as error:
+            raise ToolError(str(error)) from error
+
+    @beta_tool
+    def room_stacked(start: str, direction: str) -> str:
+        """Room on the next floor up or down with the largest polygon overlap.
+
+        Args:
+            start: Space id or exact room name.
+            direction: above or below.
+        """
+        try:
+            return as_json(building_map.room_stacked(start, direction))
+        except MapError as error:
+            raise ToolError(str(error)) from error
+
+    @beta_tool
+    def shared_walls_count(start: str) -> str:
+        """Count same-floor rooms sharing at least 1 m of wall within 0.35 m. Skips corridors, stairs, lifts and balconies.
+
+        Args:
+            start: Space id or exact room name.
+        """
+        try:
+            return as_json(building_map.shared_walls_count(start))
+        except MapError as error:
+            raise ToolError(str(error)) from error
+
+    @beta_tool
+    def wide_delivery_count(start: str, floor_id: str, min_width_m: float) -> str:
+        """Count rooms on a floor reachable step-free through openings at least min_width_m wide.
+
+        Args:
+            start: Arrival space id or exact room name.
+            floor_id: Floor id, name, or level to count.
+            min_width_m: Minimum opening width in metres.
+        """
+        try:
+            return as_json(building_map.wide_delivery_count(start, floor_id, min_width_m))
+        except MapError as error:
+            raise ToolError(str(error)) from error
+
+    @beta_tool
+    def step_free_reachable_count(start: str, floor_id: str, closed: str | None = None) -> str:
+        """Count step-free reachable rooms on a floor. The closure applies only to this call.
+
+        Args:
+            start: Arrival space id or exact room name.
+            floor_id: Floor id, name, or level to count.
+            closed: Optional lift, stair, door or room to treat as closed.
+        """
+        try:
+            return as_json(building_map.step_free_reachable_count(start, floor_id, closed))
+        except MapError as error:
+            raise ToolError(str(error)) from error
+
+    @beta_tool
+    def errand(start: str, asset_type: str, floor_id: str, room_type: str, step_free: bool = False) -> str:
+        """Walk to the nearest reachable room with an asset, then to the largest requested room. Returns total metres.
+
+        Args:
+            start: Current space id or exact room name.
+            asset_type: Asset type to pick up, such as stove.
+            floor_id: Floor of the destination room.
+            room_type: Destination room_type.
+            step_free: True when stairs cannot be used.
+        """
+        try:
+            return as_json(building_map.errand(start, asset_type, floor_id, room_type, step_free))
+        except MapError as error:
+            raise ToolError(str(error)) from error
+
+    @beta_tool
+    def what_if_door(first: str, second: str, floor_id: str) -> str:
+        """Count rooms on a floor whose walk to the nearest exit shortens by more than 1 m if a door is added. Does not save the door.
+
+        Args:
+            first: One side of the new door.
+            second: The other side.
+            floor_id: Floor whose rooms are counted, which may differ from the door floor.
+        """
+        try:
+            return as_json(building_map.what_if_door(first, second, floor_id))
+        except MapError as error:
+            raise ToolError(str(error)) from error
+
+    return [
+        building_overview,
+        search_building,
+        spatial_search,
+        find_route,
+        set_closed,
+        add_door,
+        show_route,
+        largest_room,
+        floor_area_total,
+        straight_line_3d,
+        room_stacked,
+        shared_walls_count,
+        wide_delivery_count,
+        step_free_reachable_count,
+        errand,
+        what_if_door,
+    ]

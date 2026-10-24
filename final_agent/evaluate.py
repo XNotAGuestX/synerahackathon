@@ -14,7 +14,7 @@ from pathlib import Path
 
 import anthropic
 
-from .agent import BuildingAgent
+from .agent import BuildingAgent, make_client
 from .building_map import BuildingMap, MapError
 
 QUESTIONS_FILENAME = "questions_basic.jsonl"
@@ -90,7 +90,7 @@ def oracle_answer(question: dict, building_map: BuildingMap) -> str:
 def evaluate(directory: Path, limit: int | None, oracle: bool) -> None:
     results: Counter[tuple[str, bool]] = Counter()
     usage: Counter[str] = Counter()
-    client = None if oracle else anthropic.Anthropic()
+    client = None if oracle else make_client()
     for building_directory, question in load_questions(directory, limit):
         building_map = BuildingMap.load(building_directory)
         if oracle:
