@@ -89,6 +89,8 @@ class BuildingMap:
         self.last_route: RouteResult | None = None
         self.active_request: dict | None = None
         self.located_asset_ids: list[str] = []
+        # Set only by select() (a locate action); search, landmarks, previews and analyses never touch it.
+        self.selection: dict | None = None
 
     @classmethod
     def load(cls, path: Path) -> "BuildingMap":
@@ -1572,8 +1574,6 @@ class BuildingMap:
 
     # ---------- map selection and context ----------
 
-    # Set only by select() (a locate action); search, landmarks, previews and analyses never touch it.
-    selection: dict | None = None
     CONTEXT_EXCLUDED_TYPES = ("corridor", "stair", "lift", "outdoor")
     CONTEXT_EXCLUDED_ROOM_TYPES = ("corridor", "stairwell", "lift")
     MAX_CONTEXT_ROOMS = 5
