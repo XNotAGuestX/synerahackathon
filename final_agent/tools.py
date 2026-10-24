@@ -98,6 +98,24 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
     # ---------- floor area totals ----------
 
+    @register
+    def sum_floor_area(room_type: str, floor_level: int) -> str:
+        """Total floor area in m² of all rooms of one exact room type on one floor (sum of room areas).
+
+        Includes every matching space, also halls such as warehouse zones. No matches gives count 0 and
+        area 0 with the room types that exist on that floor. For a scored answer, the Answer line must
+        contain exactly one number: the total area_m2 in m², with no room references or floor numbers.
+
+        Args:
+            room_type: Exact room type, e.g. "office", "toilet", "warehouse_zone" (not a substring match).
+            floor_level: Floor level (0 = ground floor, -1 = basement).
+        """
+        try:
+            result = building_map.sum_floor_area(room_type, floor_level)
+        except MapError as error:
+            raise ToolError(str(error)) from error
+        return as_json(result)
+
     # ---------- straight-line 3D distance ----------
 
     # ---------- stacked rooms ----------
