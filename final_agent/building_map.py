@@ -520,6 +520,60 @@ class BuildingMap:
 
     # ---------- straight-line 3D distance ----------
 
+    SWISS_DWELLINGS_SOURCE = "swiss_dwellings"
+
+    def centroid_point_3d(self, reference: str) -> dict:
+        """Space identity plus its polygon centroid and floor elevation as an XYZ point (metres)."""
+        space_id = self.resolve_space(reference)
+        floor = self.floors[self.spaces[space_id]["floor_id"]]
+        elevation = floor.get("elevation_m")
+        try:
+            elevation = check_number("elevation_m", elevation)
+        except MapError as error:
+            raise MapError(
+                f"Floor {floor['name']} has no usable elevation_m ({elevation!r}); "
+                "a 3D distance would need an invented height."
+            ) from error
+        centroid = self.space_polygon(space_id).centroid
+        summary = self.space_summary(space_id)
+        if reference != space_id and not self.is_exact_space_reference(reference):
+            summary["resolved_from_asset"] = reference
+            summary["note"] = f"'{reference}' is an asset; its containing room {space_id} was used."
+        return {
+            **summary, "centroid": [centroid.x, centroid.y],
+            "elevation_m": elevation, "point": [centroid.x, centroid.y, elevation],
+        }
+
+    def is_exact_space_reference(self, reference: str) -> bool:
+        lowered = reference.strip().lower()
+        return reference in self.spaces or any(
+            lowered in ((space.get("ref") or "").lower(), space["name"].lower())
+            for space in self.spaces.values()
+        )
+
+    def straight_line_distance_3d(self, first: str, second: str) -> dict:
+        """Euclidean XYZ distance between two spaces' polygon centroids at their floors' elevation_m.
+
+        Not a walking distance and not the route anchor model. Values are unrounded.
+        """
+        first_point, second_point = self.centroid_point_3d(first), self.centroid_point_3d(second)
+        horizontal = math.dist(first_point["centroid"], second_point["centroid"])
+        vertical = abs(first_point["elevation_m"] - second_point["elevation_m"])
+        result = {
+            "first": first_point, "second": second_point,
+            "distance_m": math.hypot(horizontal, vertical),
+            "horizontal_m": horizontal, "vertical_m": vertical,
+        }
+        if (
+            self.data["building"].get("source") == self.SWISS_DWELLINGS_SOURCE
+            and first_point["floor_level"] != second_point["floor_level"]
+        ):
+            result["frame_note"] = (
+                "Swiss Dwellings floors may be centred per floor rather than aligned, so the "
+                "horizontal part between different floors can be approximate."
+            )
+        return result
+
     # ---------- stacked rooms ----------
 
     # ---------- shared walls ----------
