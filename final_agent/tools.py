@@ -4,11 +4,12 @@ import json
 from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 from anthropic import beta_tool
 from anthropic.lib.tools import ToolError
 
-from .building_map import MAX_SEARCH_RESULTS, BuildingMap, MapError
+from .building_map import MAX_SEARCH_RESULTS, NEW_DOOR_WIDTH_M, BuildingMap, MapError, RouteResult
 from .viewer import draw_route
 
 JSON_INDENT = 1
@@ -16,6 +17,14 @@ JSON_INDENT = 1
 
 def as_json(value: object) -> str:
     return json.dumps(value, indent=JSON_INDENT, ensure_ascii=False)
+
+
+def route_json(route: RouteResult) -> dict:
+    """Route as a plain dict for tool output; lengths are rounded only here."""
+    result = asdict(route)
+    result["length_m"] = round(route.length_m, 2)
+    result["legs"] = [{**leg, "length_m": round(leg["length_m"], 2)} for leg in route.legs]
+    return result
 
 
 def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
@@ -76,21 +85,28 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
     @register
     def find_route(
-        start: str, destination: str, step_free: bool = False, via: list[str] | None = None
+        start: str, destination: str, step_free: bool = False, via: list[str] | None = None,
+        min_width_m: float = 0.0, entrance: str | None = None,
     ) -> str:
         """Shortest walking route between two places, with step-by-step directions and length in metres.
+
+        The result lists the doors and lifts/stairs used (element_path), each leg between stops and the
+        floor segments. It becomes the route that show_route draws.
 
         Args:
             start: Space id, asset id, or exact room number/name of where the person is.
             destination: Space id, asset id, or exact room number/name of where they want to go.
             step_free: True to avoid stairs and steps (wheelchair, trolley, pram).
             via: Optional list of places to visit in order between start and destination (multi-stop tour).
+            min_width_m: Only use doors at least this wide in metres (e.g. a 1.1 m wide trolley). 0 = any.
+            entrance: Optional entrance opening id the person came in through; it must open into the start
+                room and itself satisfy step_free and min_width_m.
         """
         try:
-            result = building_map.route(start, destination, step_free, via)
+            result = building_map.route(start, destination, step_free, via, min_width_m, entrance)
         except MapError as error:
             raise ToolError(str(error)) from error
-        return as_json(asdict(result))
+        return as_json(route_json(result))
 
     # ---------- reachability ----------
 
@@ -114,40 +130,65 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
     # ---------- changes ----------
 
+    def apply_edit(edit: Callable[[], Any]) -> tuple[Any, Path]:
+        """Run an edit and save it; if saving fails the map is restored and the change reported as not applied."""
+        saved_path = output_directory / "building_edited.json"
+        try:
+            with building_map.transaction():
+                result = edit()
+                building_map.save(saved_path)
+        except MapError as error:
+            raise ToolError(str(error)) from error
+        except (OSError, TypeError, ValueError) as error:
+            raise ToolError(f"The change was NOT applied: saving {saved_path} failed ({error}).") from error
+        return result, saved_path
+
+    def active_route_update() -> dict:
+        """After an edit: the recomputed active route, or why it is gone. Empty when no route is active."""
+        if building_map.active_request is None:
+            return {}
+        try:
+            return {"active_route": route_json(building_map.recompute_active_route())}
+        except MapError as error:
+            return {"active_route_error": str(error)}
+
     @register
     def set_closed(element: str, closed: bool) -> str:
         """Close or reopen a lift, staircase, door or room, e.g. for maintenance. Affects all later routes.
+
+        If a route is active it is recomputed with its original constraints: the result contains
+        active_route (the new route) or active_route_error (why it is no longer possible).
 
         Args:
             element: Name or id of a lift/staircase ("Lift 1"), a door/opening id, or a room.
             closed: True to close it, False to reopen it.
         """
-        try:
-            element_id = building_map.set_closed(element, closed)
-        except MapError as error:
-            raise ToolError(str(error)) from error
-        saved_path = output_directory / "building_edited.json"
-        building_map.save(saved_path)
+        element_id, saved_path = apply_edit(lambda: building_map.set_closed(element, closed))
         return as_json({
             "element_id": element_id, "closed": closed,
             "all_closed": sorted(building_map.closed), "saved_to": str(saved_path),
+            **active_route_update(),
         })
 
     @register
-    def add_door(first_space: str, second_space: str, step_free: bool = True) -> str:
-        """Add a door between two neighbouring rooms on the same floor (edits the building).
+    def add_door(
+        first_space: str, second_space: str, step_free: bool = True, width_m: float = NEW_DOOR_WIDTH_M
+    ) -> str:
+        """Add a door in the middle of the wall two neighbouring rooms on the same floor share (edits the building).
+
+        If a route is active it is recomputed: the result contains active_route or active_route_error.
 
         Args:
             first_space: Space id or exact room number/name.
             second_space: Space id or exact room number/name.
             step_free: Whether the new door has no step.
+            width_m: Door width in metres; the shared wall must be at least this long.
         """
-        try:
-            opening = building_map.add_door(first_space, second_space, step_free)
-        except MapError as error:
-            raise ToolError(str(error)) from error
-        building_map.save(output_directory / "building_edited.json")
-        return as_json({"added": opening, "saved_to": str(output_directory / "building_edited.json")})
+        opening, saved_path = apply_edit(
+            lambda: building_map.add_door(first_space, second_space, step_free, width_m)
+        )
+        shown = {**opening, "position": [round(value, 3) for value in opening["position"]]}
+        return as_json({"added": shown, "saved_to": str(saved_path), **active_route_update()})
 
     # ---------- map display ----------
 

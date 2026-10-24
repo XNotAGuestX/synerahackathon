@@ -3,14 +3,16 @@
 The agent (agent.py) is only the conversation layer; every fact it states comes from this module.
 The route cost model matches the one used to compute the dataset's expected answers."""
 
+import contextlib
 import itertools
 import math
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import networkx as nx
-from shapely.geometry import Polygon
-from shapely.ops import nearest_points
+from shapely.geometry import LineString, Point, Polygon
+from shapely.ops import linemerge, nearest_points
 
 from .storage import BuildingSpatialIndex, JsonBuildingStore
 
@@ -21,8 +23,10 @@ STAIRS_COST_PER_FLOOR_M = 12.0
 LIFT_WAIT_COST_M = 15.0
 LIFT_COST_PER_FLOOR_M = 6.0
 MAX_SEARCH_RESULTS = 15
-ADJACENT_DISTANCE_M = 0.6
+SHARED_WALL_TOLERANCE_M = 0.35
 NEW_DOOR_WIDTH_M = 0.9
+KIT_DISTANCE_MODEL = "kit"
+GEOMETRY_EPSILON = 1e-9
 
 
 class MapError(ValueError):
@@ -45,6 +49,14 @@ def normalize_type(value: str) -> str:
 
 @dataclass
 class RouteResult:
+    """A computed route. Lengths are unrounded; round only when presenting.
+
+    node_path holds the graph nodes (spaces, 'door:<opening id>', 'outside'). element_path has one entry
+    per traversed edge: the opening id for space/door and outside/door edges, the connector id for
+    stair/lift edges. min_width_m and entrance are the requested constraints. The length follows the
+    kit model (anchor-to-door distances); an entrance only has to be valid, it adds no length.
+    """
+
     start_space_id: str
     destination_space_id: str
     length_m: float
@@ -52,6 +64,14 @@ class RouteResult:
     steps: list[str]
     step_free: bool
     closed: list[str] = field(default_factory=list)
+    stops: list[str] = field(default_factory=list)
+    node_path: list[str] = field(default_factory=list)
+    element_path: list[str] = field(default_factory=list)
+    legs: list[dict] = field(default_factory=list)
+    floor_segments: list[dict] = field(default_factory=list)
+    min_width_m: float = 0.0
+    entrance: str | None = None
+    distance_model: str = KIT_DISTANCE_MODEL
 
 
 class BuildingMap:
@@ -65,6 +85,7 @@ class BuildingMap:
         self.closed: set[str] = set(building.get("navigation_state", {}).get("closed", []))
         self._spatial_index: BuildingSpatialIndex | None = None
         self.last_route: RouteResult | None = None
+        self.active_request: dict | None = None
         self.located_asset_ids: list[str] = []
 
     @classmethod
@@ -256,13 +277,22 @@ class BuildingMap:
         point = Polygon(self.spaces[space_id]["polygon"]).representative_point()
         return (point.x, point.y)
 
-    def graph(self, step_free: bool) -> nx.MultiGraph:
+    def graph(self, step_free: bool = False, min_width_m: float = 0.0) -> nx.MultiGraph:
+        """Kit routing graph without closed elements, steps (if step_free) or openings narrower than min_width_m.
+
+        Connectors have no width: only the doors that give access to them are filtered by width.
+        """
+        min_width_m = check_number("min_width_m", min_width_m, 0)
         # MultiGraph: a stair and a lift may join the same two spaces; both edges must be kept.
         graph = nx.MultiGraph()
         anchors = {space_id: self.anchor(space_id) for space_id in self.spaces if space_id not in self.closed}
         graph.add_nodes_from(anchors)
         for opening in self.openings.values():
-            if opening["id"] in self.closed or (step_free and not opening["step_free"]):
+            if (
+                opening["id"] in self.closed
+                or (step_free and not opening["step_free"])
+                or opening["width_m"] < min_width_m
+            ):
                 continue
             door = DOOR_PREFIX + opening["id"]
             for space_id in opening["space_ids"]:
@@ -291,48 +321,167 @@ class BuildingMap:
                 graph.add_edge(low_space, high_space, weight=cost, via=connector["id"])
         return graph
 
-    def route(
-        self, start: str, destination: str, step_free: bool = False, via: list[str] | None = None
+    def constraints_text(self, step_free: bool, min_width_m: float, entrance: str | None) -> str:
+        """Every requested route constraint, repeated in failure messages."""
+        return (
+            f"Constraints: step_free={step_free}, min_width_m={min_width_m:g}, "
+            f"entrance={entrance or 'any'}, closed={sorted(self.closed)}."
+        )
+
+    def entrances_into(self, space_id: str) -> list[dict]:
+        """Openings that join the outside directly to this space, sorted by id."""
+        return sorted(
+            (
+                opening for opening in self.openings.values()
+                if OUTSIDE in opening["space_ids"] and space_id in opening["space_ids"]
+            ),
+            key=lambda opening: opening["id"],
+        )
+
+    def validate_entrance(
+        self, entrance_id: str, space_id: str, step_free: bool = False, min_width_m: float = 0.0
+    ) -> dict:
+        """The entrance opening, if it opens into the space and satisfies the route constraints.
+
+        Raises MapError with the concrete reason otherwise. Being inside the room does not bypass these
+        checks: an entrance that is closed, has steps (when step_free) or is too narrow is unusable.
+        """
+        min_width_m = check_number("min_width_m", min_width_m, 0)
+        opening = self.openings.get(entrance_id)
+        if opening is None:
+            raise MapError(f"Unknown entrance '{entrance_id}'.")
+        if OUTSIDE not in opening["space_ids"]:
+            raise MapError(f"{entrance_id} is not an entrance: it does not lead outside.")
+        if space_id not in opening["space_ids"]:
+            valid = [entrance["id"] for entrance in self.entrances_into(space_id)]
+            raise MapError(
+                f"Entrance {entrance_id} does not open into {self.describe_space(space_id)}. "
+                f"Entrances into it: {valid}."
+            )
+        if entrance_id in self.closed:
+            raise MapError(f"Entrance {entrance_id} is closed.")
+        if step_free and not opening["step_free"]:
+            raise MapError(f"Entrance {entrance_id} has steps, but a step-free route is required.")
+        if opening["width_m"] < min_width_m:
+            raise MapError(
+                f"Entrance {entrance_id} is {opening['width_m']:g} m wide, narrower than the "
+                f"required {min_width_m:g} m."
+            )
+        return opening
+
+    def floor_segments(self, space_path: list[str]) -> list[dict]:
+        """Contiguous runs of the path on one floor; 'outside' is its own segment, revisits stay separate."""
+        segments: list[dict] = []
+        for space_id in space_path:
+            floor_id = self.spaces[space_id]["floor_id"] if space_id in self.spaces else None
+            if floor_id is not None and segments and segments[-1]["floor_id"] == floor_id:
+                segments[-1]["space_ids"].append(space_id)
+            else:
+                level = self.floor_level(floor_id) if floor_id is not None else None
+                segments.append({"floor_level": level, "floor_id": floor_id, "space_ids": [space_id]})
+        return segments
+
+    @staticmethod
+    def select_edges(graph: nx.MultiGraph, nodes: list[str]) -> list[tuple[str, float]]:
+        """The (element id, weight) of the edge used between each consecutive node pair.
+
+        Parallel edges (two doors, a stair and a lift) are resolved once here: minimum weight, ties by id.
+        """
+        selected = []
+        for previous, current in itertools.pairwise(nodes):
+            weight, element = min((edge["weight"], edge["via"]) for edge in graph[previous][current].values())
+            selected.append((element, weight))
+        return selected
+
+    def compute_route(
+        self, start: str, destination: str, step_free: bool = False, via: list[str] | None = None,
+        min_width_m: float = 0.0, entrance: str | None = None,
     ) -> RouteResult:
-        stops = [
-            self.resolve_space(start),
-            *[self.resolve_space(stop) for stop in via or []],
-            self.resolve_space(destination),
-        ]
-        graph = self.graph(step_free)
+        """Shortest kit route through the stops in order. Pure: changes no state, so it is safe for comparisons.
+
+        entrance, if given, must be a usable entrance into the start space (see validate_entrance).
+        """
+        min_width_m = check_number("min_width_m", min_width_m, 0)
+        stops = [self.resolve_space(reference) for reference in [start, *(via or []), destination]]
+        constraints = self.constraints_text(step_free, min_width_m, entrance)
+        for stop in stops:
+            if stop in self.closed:
+                raise MapError(f"{self.describe_space(stop)} is closed. {constraints}")
+        if entrance is not None:
+            try:
+                self.validate_entrance(entrance, stops[0], step_free, min_width_m)
+            except MapError as error:
+                raise MapError(f"{error} {constraints}") from error
+        graph = self.graph(step_free, min_width_m)
+        legs: list[dict] = []
         nodes: list[str] = []
-        length = 0.0
-        for leg_start, leg_end in itertools.pairwise(stops):
+        edges: list[tuple[str, float]] = []
+        for number, (leg_start, leg_end) in enumerate(itertools.pairwise(stops), start=1):
             try:
                 leg_length, leg_nodes = nx.single_source_dijkstra(graph, leg_start, leg_end, weight="weight")
-            except (nx.NetworkXNoPath, nx.NodeNotFound) as error:
-                reason = "step-free " if step_free else ""
+            except nx.NetworkXNoPath as error:
                 raise MapError(
-                    f"No {reason}route from {self.describe_space(leg_start)} to "
-                    f"{self.describe_space(leg_end)} with the current closures {sorted(self.closed)}."
+                    f"No route from {self.describe_space(leg_start)} to {self.describe_space(leg_end)} "
+                    f"(leg {number} of {len(stops) - 1}). {constraints}"
                 ) from error
-            length += leg_length
+            leg_edges = self.select_edges(graph, leg_nodes)
+            legs.append({
+                "from_space_id": leg_start, "to_space_id": leg_end, "length_m": leg_length,
+                "space_path": [node for node in leg_nodes if not node.startswith(DOOR_PREFIX)],
+                "element_path": [element for element, _ in leg_edges],
+            })
             nodes += leg_nodes if not nodes else leg_nodes[1:]
-        result = RouteResult(
+            edges += leg_edges
+        space_path = [node for node in nodes if not node.startswith(DOOR_PREFIX)]
+        return RouteResult(
             start_space_id=stops[0],
             destination_space_id=stops[-1],
-            length_m=round(length, 2),
-            space_path=[node for node in nodes if not node.startswith(DOOR_PREFIX)],
-            steps=self.directions(graph, nodes),
+            length_m=sum(leg["length_m"] for leg in legs),
+            space_path=space_path,
+            steps=self.directions(nodes, edges),
             step_free=step_free,
             closed=sorted(self.closed),
+            stops=stops,
+            node_path=nodes,
+            element_path=[element for element, _ in edges],
+            legs=legs,
+            floor_segments=self.floor_segments(space_path),
+            min_width_m=min_width_m,
+            entrance=entrance,
         )
+
+    def route(
+        self, start: str, destination: str, step_free: bool = False, via: list[str] | None = None,
+        min_width_m: float = 0.0, entrance: str | None = None,
+    ) -> RouteResult:
+        """compute_route, then make the result the active route. Any earlier route is cleared first."""
+        self.last_route = None
+        self.active_request = None
+        result = self.compute_route(start, destination, step_free, via, min_width_m, entrance)
         self.last_route = result
+        self.active_request = {
+            "start": start, "destination": destination, "step_free": step_free,
+            "via": list(via) if via else None, "min_width_m": min_width_m, "entrance": entrance,
+        }
         return result
 
-    def directions(self, graph: nx.MultiGraph, nodes: list[str]) -> list[str]:
-        """Turn a node path into followable steps: one line per room change or floor change."""
+    def recompute_active_route(self) -> RouteResult:
+        """Re-run the active request with its original references and constraints after a map change.
+
+        On failure last_route stays None and the request is kept, so a later change can revive it.
+        """
+        if self.active_request is None:
+            raise MapError("There is no active route to recompute.")
+        self.last_route = None
+        self.last_route = self.compute_route(**self.active_request)
+        return self.last_route
+
+    def directions(self, nodes: list[str], edges: list[tuple[str, float]]) -> list[str]:
+        """Turn a node path and its selected edges into followable steps: one line per room or floor change."""
         steps = [f"Start in {self.describe_space(nodes[0])}."]
         walked = 0.0
-        for previous, current in itertools.pairwise(nodes):
-            edge = min(graph[previous][current].values(), key=lambda candidate: candidate["weight"])
-            walked += edge["weight"]
-            element = edge["via"]
+        for current, (element, weight) in zip(nodes[1:], edges, strict=True):
+            walked += weight
             if element in self.connectors:
                 connector = self.connectors[element]
                 verb = "Take" if connector["kind"] == LIFT else "Use"
@@ -390,36 +539,123 @@ class BuildingMap:
             return named[0]
         return self.resolve_space(reference)
 
+    @contextlib.contextmanager
+    def transaction(self) -> Iterator[None]:
+        """Undo closures, added openings, the active route and the spatial index if the block raises.
+
+        Wrap an edit together with its save: a failed save then leaves the map exactly as it was.
+        """
+        closed, openings = set(self.closed), dict(self.openings)
+        opening_list, last_route = list(self.data["openings"]), self.last_route
+        try:
+            yield
+        except BaseException:
+            self.closed.clear()
+            self.closed.update(closed)
+            self.openings.clear()
+            self.openings.update(openings)
+            self.data["openings"][:] = opening_list
+            self.last_route = last_route
+            self._spatial_index = None
+            raise
+
     def set_closed(self, reference: str, closed: bool) -> str:
         element = self.find_element(reference)
         if closed:
             self.closed.add(element)
         else:
             self.closed.discard(element)
+        self.last_route = None
         return element
 
-    def add_door(self, first: str, second: str, step_free: bool = True) -> dict:
+    def shared_wall(
+        self, first_id: str, second_id: str, tolerance_m: float = SHARED_WALL_TOLERANCE_M
+    ) -> dict:
+        """The part of the first space's outline that lies within tolerance_m of the second space.
+
+        Walls have thickness, so rooms that share a wall have outlines up to about tolerance_m apart.
+        Returns total_length_m, runs (contiguous stretches with length_m, start and end, longest first)
+        and midpoint: the middle of the longest run, halfway between both polygons (None if no contact).
+        Corner-only contact gives only short runs. Both spaces must be on the same floor.
+        """
+        tolerance_m = check_number("tolerance_m", tolerance_m, 0)
+        if first_id == second_id:
+            raise MapError("A space does not share a wall with itself.")
+        if self.spaces[first_id]["floor_id"] != self.spaces[second_id]["floor_id"]:
+            raise MapError("Spaces on different floors cannot share a wall or a door.")
+        first, second = self.valid_polygon(first_id), self.valid_polygon(second_id)
+        near = first.exterior.intersection(second.buffer(tolerance_m))
+        parts = getattr(near, "geoms", [near])
+        lines = [part for part in parts if isinstance(part, LineString) and part.length > 0]
+        merged = linemerge(lines) if lines else None
+        pieces = list(getattr(merged, "geoms", [merged])) if merged is not None else []
+        pieces.sort(key=lambda piece: (-piece.length, piece.coords[0]))
+        runs = [
+            {"length_m": piece.length, "start": list(piece.coords[0]), "end": list(piece.coords[-1])}
+            for piece in pieces
+        ]
+        midpoint = None
+        if pieces:
+            on_first = pieces[0].interpolate(0.5, normalized=True)
+            on_second = nearest_points(second, on_first)[0]
+            midpoint = [(on_first.x + on_second.x) / 2, (on_first.y + on_second.y) / 2]
+        return {
+            "first_space_id": first_id, "second_space_id": second_id, "tolerance_m": tolerance_m,
+            "total_length_m": sum(run["length_m"] for run in runs), "runs": runs, "midpoint": midpoint,
+        }
+
+    def valid_polygon(self, space_id: str) -> Polygon:
+        try:
+            polygon = self.space_polygon(space_id)
+        except ValueError as error:
+            raise MapError(f"The outline of {self.describe_space(space_id)} is malformed: {error}") from error
+        if polygon.is_empty or not polygon.is_valid or polygon.area <= 0:
+            raise MapError(f"The outline of {self.describe_space(space_id)} is not a valid polygon.")
+        return polygon
+
+    def add_door(
+        self, first: str, second: str, step_free: bool = True, width_m: float = NEW_DOOR_WIDTH_M
+    ) -> dict:
+        """Add a door at the middle of the wall two neighbouring same-floor spaces share."""
         first_id, second_id = self.resolve_space(first), self.resolve_space(second)
-        first_space, second_space = self.spaces[first_id], self.spaces[second_id]
-        if first_space["floor_id"] != second_space["floor_id"]:
-            raise MapError("A door can only join two spaces on the same floor.")
-        first_polygon, second_polygon = Polygon(first_space["polygon"]), Polygon(second_space["polygon"])
-        if first_polygon.distance(second_polygon) > ADJACENT_DISTANCE_M:
-            raise MapError(f"{first_space['name']} and {second_space['name']} do not share a wall.")
-        point_a, point_b = nearest_points(first_polygon, second_polygon)
+        if first_id == second_id:
+            raise MapError("A door must join two different spaces.")
+        width_m = check_number("width_m", width_m)
+        if width_m <= 0:
+            raise MapError(f"width_m must be greater than 0, got {width_m}.")
+        wall = self.shared_wall(first_id, second_id)
+        longest = wall["runs"][0]["length_m"] if wall["runs"] else 0.0
+        if longest < width_m - GEOMETRY_EPSILON:
+            raise MapError(
+                f"{self.describe_space(first_id)} and {self.describe_space(second_id)} do not share a wall "
+                f"long enough for a {width_m:g} m door (longest shared stretch {longest:.2f} m)."
+            )
+        # Micrometre precision drops floating-point noise such as -4e-16 from the stored coordinates.
+        position = [round(value, 6) + 0.0 for value in wall["midpoint"]]
+        for existing in self.openings.values():
+            if set(existing["space_ids"]) == {first_id, second_id} and (
+                math.dist(position, existing["position"]) <= width_m
+            ):
+                raise MapError(f"{existing['id']} already joins these spaces within {width_m:g} m of that spot.")
+        floor_id = self.spaces[first_id]["floor_id"]
+        taken = {*self.openings, *self.spaces, *self.assets, *self.connectors, *self.floors}
+        number = len(self.openings) + 1
+        while f"{floor_id}-O-new{number}" in taken:
+            number += 1
         opening = {
-            "id": f"{first_space['floor_id']}-O-new{len(self.openings) + 1}",
-            "floor_id": first_space["floor_id"],
+            "id": f"{floor_id}-O-new{number}",
+            "floor_id": floor_id,
             "space_ids": [first_id, second_id],
             "kind": "door",
-            "position": [round((point_a.x + point_b.x) / 2, 3), round((point_a.y + point_b.y) / 2, 3)],
-            "width_m": NEW_DOOR_WIDTH_M,
+            "position": position,
+            "width_m": width_m,
             "step_free": step_free,
             "synthetic": True,
         }
         self.openings[opening["id"]] = opening
         self.data["openings"].append(opening)
         self._spatial_index = None
+        self.last_route = None
         return opening
 
     def save(self, path: Path) -> None:
