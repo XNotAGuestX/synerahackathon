@@ -17,13 +17,23 @@
 
 **Current status:** `final_agent` is the only agent package; `benchmark.evaluate` runs `final_agent.benchmark:answer` by default with fresh state and temporary outputs per question. The 24 October kit **1.1.0** update is integrated (source commit `dc03c44`): corrected train/dev answers, door-to-door walking with wall clearance, height-based stairs/lifts, direct multi-floor lift rides and no outside shortcut. Tools for all nine scored kinds are present; no live benchmark score or generated test answers are claimed. Sunday output format and release time remain organizer-dependent.
 
+**Training-run diagnosis — 25 October 2026:** The current retrieved-example library contains 519 saved runs (517 train, two dev): 511 accepted and eight rejected. Re-scoring the saved replies yields 514 correct; three rejections have correct answers but the wrong declared kind, and five ask for clarification because room references are ambiguous. Two ambiguous questions have identical text and conflicting labels. All eight pass offline tools with resolved fixture inputs; the representative runner passes 71/71 plus six format checks. [Per-case causes, required information and reproduction](bench_analsysis/failure_analysis.md). This is saved-run analysis and offline verification; no new model evaluation was run.
+
+**Latest implementation audit — 24 October 2026:** [CODEBASE_AUDIT.md](CODEBASE_AUDIT.md) compares every required level, all nine scored kinds and delivery requirements with current code. After the tool-contract/pagination integration, **202 tests run: 199 pass, 3 skip**; resolved-input scored dev components pass **138/138** and the warm-up oracle passes **369/369**. These are offline checks, not live conversational accuracy. Search/inspection, highlights, width constraints, route identities, transactional edits and tours are substantially implemented; several older section 9 rows and backlog descriptions understate them. The largest remaining gaps are the connected conversation/map workflow, multi-building walkways and plan-to-building creation; the audit ranks these and records reproduced correctness defects.
+
+**Implementation handoffs — 25 October 2026:** [Level 3: multiple floors, buildings and walkways](LEVEL_3_HANDOFF.md) and [Level 4: create and correct buildings from plans](LEVEL_4_HANDOFF.md) specify the remaining work, shared contracts, acceptance flows and verification. They reuse the existing deterministic core and keep frontend ownership explicit; they do not mark either level complete.
+
+**Level 3/4 implementation — 25 October 2026:** The CLI now includes an isolated multi-building workspace, explicit measured walkways, constrained campus routes and ordered floor/link views; closures reroute the retained request. PNG/JPEG plans become calibrated, validated drafts with source overlays, metre/pixel corrections, apply/cancel/undo, export and exact-session resume. Start with `uv run python -m final_agent --plan /absolute/plan.png`, or load several buildings with `uv run python -m final_agent.workspace --building BUILDING_A --building BUILDING_B`. Printed dimensions are metres; images without scale remain explicitly uncalibrated. User-approved AI integration is confined to the workspace; the single-building benchmark adapter remains isolated. [Launch commands, supported inputs, attributed fixtures and actual live evidence](examples/level34/README.md) document a 9.07-second image extraction and corrected/reloaded 5 m step-free route, plus a real 35 m cross-building conversational route. Multi-floor plan extraction has not been exercised live; these small demos are not general extraction-accuracy or benchmark scores. The older audit/status tables below describe the earlier baseline where they conflict with this dated entry.
+
+The original `uv run python -m final_agent BUILDING` chat command also starts a workspace, so buildings/plans can be added during that conversation. It prints the exact resume directory; source datasets stay unchanged.
+
+**Emergency-roll-call mock — merged 25 October 2026:** interactive chats include simulated people, a 120-second confirmation window, manual safe confirmation and coloured floor maps. State is isolated per building/session and is not persisted; no real alerts, phone tracking or badge integration is connected. Benchmark agents do not expose these tools. See [usage](usage.md) and the imported [handoff](EMERGENCY_ROLL_CALL_HANDOFF.md). No tests were rerun for this merge, as requested; this is not a verified completion claim for the optional extension.
+
 **Kit 1.1.0 data refresh:** [CHANGELOG.md](CHANGELOG.md) preserves the upstream release notes. All 3,474 files in `data/` match the supplied release. The update changes **1,314 expected answers in 334 files**: 1,217 warm-up answers and 97 scored answers (errands and what-if doors). Question IDs, wording and inputs, building geometry, equipment, images, manifest and all 145 public test questions are unchanged. The existing `data_old/` backup is preserved. Previous 1.0.0 evaluation evidence and handoff examples are historical; use `data/` for current checks. The router reports `distance_model="kit-1.1.0"`.
 
-**Verification of this refresh:** the corrected dev warm-up passes **369/369** with the oracle. The unit/integration suite runs **176 tests: 173 pass, 3 skip** (credential-dependent cases); release consistency checks are reported in section 9. Oracle results establish deterministic compatibility, not live conversational accuracy.
+**Verification of this refresh:** the corrected dev warm-up passes **369/369** with the oracle. The unit/integration suite runs **177 tests: 174 pass, 3 skip** (credential-dependent cases); release consistency checks are reported in section 9. Oracle results establish deterministic compatibility, not live conversational accuracy.
 
 [FEATURE_SHORTLIST.md](FEATURE_SHORTLIST.md) records proposed features, prompt-related implementation gaps and the future switch to automatic mobile location updates; these capabilities remain unimplemented.
-
-[IMPLEMENTATION_HANDOFF.md](IMPLEMENTATION_HANDOFF.md) specifies the requested paginated search, room inspection, reachability, all nine analysis kinds, optimal tours, navigation landmarks and map highlights. It assigns one Sonnet implementation agent per feature and requires independent verification afterwards; it is an implementation specification, not a claim that these features are complete.
 
 [TASK_TARGET_OBJECT_HANDOFF.md](TASK_TARGET_OBJECT_HANDOFF.md) specifies typed user tasks, follow-up patches, session context and application-owned completion checks (L1-06). The system prompt includes completion-evidence rules and use cases; task classes and the controller are not implemented, and these prompt changes have no live interpretation result yet.
 
@@ -445,9 +455,10 @@ This section retains the earlier 24 October 2026 audit, not an organizer specifi
 ### Kit 1.1.0 refresh verification
 
 - `.venv/bin/python -m final_agent.evaluate data/dev --oracle`: **369/369**, using the corrected 1.1.0 labels (count 40, locate 100, route 120, step-free 40, closures 29, tours 40).
-- `.venv/bin/python -m unittest discover -s tests -v`: **176 tests run, 173 passed, 3 skipped** because credentials are configured; covers real tool calls and PNG rendering without API credits.
+- `.venv/bin/python -m unittest discover -s tests -v`: **177 tests run, 174 passed, 3 skipped** because credentials are configured; covers real tool calls and PNG rendering without API credits.
 - Every `data/` file matches the source kit byte for byte; 1,314 answer changes verified against `data_old/`, with all non-answer question fields unchanged. The official `benchmark/score.py` is unchanged.
 - New regressions cover door-to-door corridor traversal, direct lift rides and L-shaped walks around corners. Fixtures now supply actual floor elevations and expect entrances to remain disconnected outside.
+- The warm-up evaluator reuses upstream per-building walking-length caches while loading fresh map state for every question; a regression verifies cache/state isolation.
 - Eight labelled deterministic checks pass: four sampled dev errands and all four train/dev what-if doors. A real two-floor errand route was rendered and visually inspected. These checks use labelled inputs and do not measure conversational accuracy.
 
 ### Architecture and repository state
@@ -488,8 +499,8 @@ benchmark.evaluate → agent(building_directory, question_text) → reply
 |---|---|---|
 | 1 — Locate | Search and conversation exist | Show and highlight the selected room/equipment on a usable map; handle ambiguous/nonexistent references |
 | 2 — Route | Core routing, in-memory closures, step-free routing and ordered tours exist | Reliable visualization, route invalidation, closure persistence and stronger interaction checks; width filtering is also needed for scored delivery questions |
-| 3 — Scale | Multiple floors within one building work | Multiple buildings, building disambiguation and walkway connections |
-| 4 — Build | One limited door-edit operation exists | Floor-plan ingestion, calibrated geometry, generated rooms/openings/connectors, validation, conversational correction and dependable export/reload |
+| 3 — Scale | Workspace registry, scoped IDs, measured walkways, retained requests, constrained cross-building/floor routes and ordered views; CLI and live conversational demo pass | Outdoor links are explicit measured schematic links; no shared campus XY transform |
+| 4 — Build | PNG/JPEG vision import, visible metric calibration, validation, source overlay, draft corrections, apply/cancel/undo, export/reload and usable locate/route; small live image-to-route demo passes | No PDF converter; unscaled or unobservable access facts need review; multi-floor extraction is supported with explicit alignment/elevations but not live-verified |
 | 5 — Extend | No complete optional extension is demonstrated | Select and finish one extension after the core workflow works |
 
 ### Evaluation evidence and limits
@@ -588,17 +599,73 @@ Route images and edited buildings go to `agent_output/`.
 
 #### Tools
 
-| Tool | What it does | Level |
-|---|---|---|
-| `building_overview` | Floors, stairs and lifts, entrances, current closures | 1 |
-| `search_building` | Finds rooms and things by name, room number or type, optionally on one floor | 1 |
-| `spatial_search` | Finds rooms, assets and doors within a radius on one floor, using a spatial index | 1 |
-| `find_route` | Shortest route with step-by-step directions and metres. Supports `step_free` and `via` stops for tours | 2–3 |
-| `set_closed` | Closes or reopens a lift, staircase, door or room and saves `building_edited.json` | 2 |
-| `add_door` | Adds a door between neighbouring rooms and saves `building_edited.json` | 4 (start) |
-| `show_route` | Draws the last route on each floor it crosses | viewer |
+The main agent receives descriptions and typed argument schemas generated from
+the registered functions in `final_agent/tools.py`. These describe operation
+selection, outputs, constraints, side effects and failure behavior.
 
-Route costs match the dataset's expected answers: walking distance through door positions, 12 m per floor of stairs, and a 15 m wait plus 6 m per floor for a lift.
+| Tool | Contract |
+|---|---|
+| `building_overview` | Floors, connectors, entrances and current closures; not a full inventory |
+| `search_building` | Literal case-insensitive substring search, with separate normalized exact type/floor filters; paged |
+| `list_spaces` | Exact space inventory by floor/type; paged |
+| `spatial_search` | Spaces, assets and openings near a point on one floor; paged |
+| `inspect_space` | Source record, geometry and all connections; asset IDs are paged |
+| `find_route` | Constrained kit-model route with selected openings, connectors, ordered stops and directions; replaces the active route |
+| `reachable_rooms` | Complete reachable-room count/IDs and paged details; query-only closures do not change active state |
+| `find_largest_room` | Largest polygon of an exact room type on one floor, including matching halls; top-three runners-up preview |
+| `sum_floor_area` | Complete sum of matching polygon areas, with paged room breakdown; not a geometric union |
+| `straight_line_distance_3d` | Room-centroid distance using actual floor elevations; asset IDs resolve to their rooms |
+| `find_stacked_room` | Maximum-overlap space on the next available floor above/below; top-three runners-up preview |
+| `count_shared_walls` | Eligible same-floor neighbours with at least 1 m of wall within 0.35 m; doors are irrelevant |
+| `plan_errand` | Nearest reachable pickup first, then largest requested destination; default computes without activating |
+| `find_best_tour` | Exact optimal ordering for at most 10 stops; use `activate=False` for comparisons |
+| `analyze_what_if_door` | Isolated door simulation, complete improvement counts and paged details; never saves |
+| `find_navigation_landmarks` | Paged nearby cues and competitor IDs; ambiguity counts use the full inventory, visibility remains unknown |
+| `describe_destination_context` | Paged same-floor context, filtered/ranked over the complete inventory; adjacency does not imply a door |
+| `set_closed` | Applies a closure/reopening and saves `building_edited.json`; reroutes the active request |
+| `add_door` | Applies a validated shared-wall door and saves `building_edited.json`; reroutes the active request |
+| `show_location` | Selects a space/asset and saves a highlighted PNG |
+| `show_route` | Saves PNGs for the current active route, including activated errands/tours |
+| `recall_examples` (benchmark only) | Up to three accepted reference examples, called before building tools; examples never supply current-building facts |
+
+All paged tools accept `page` (starting at 1) and `page_size` (1–100). Keep
+filters and page size unchanged while following `has_more`/`next_page`. An
+out-of-range page is empty; invalid page arguments are tool errors. Restart
+from page 1 after a relevant map edit. A `truncated` flag means the returned
+list is only a subset; use `has_more`, not that flag, to decide whether to advance.
+
+| Paged list | Default page size | Metadata location |
+|---|---:|---|
+| Search, space inventory and spatial `results` | 15 | Top level |
+| Inspection asset `ids` | 50 | `assets` |
+| Reachability and area `rooms` | 50 | Top level |
+| What-if `improved_rooms` and `newly_reachable` | 50 each | `improved_rooms_page` and `newly_reachable_page`; one page argument applies to both lists |
+| Landmark `candidates` | 20 | Top level |
+| Each landmark's `competitor_ids` | 10 | Candidate's `competitors_page`; use separate `competitor_page`/`competitor_page_size` arguments |
+| Destination `context` | 5 | Top level |
+
+Counts, areas, complete room/space ID sets and ambiguity judgments always use
+the full matching inventory, independent of detail pages. Never sum aggregate
+values from multiple pages. Winner tools' runners-up and retrieved examples are
+deliberately short previews, not exhaustive lists requiring pagination.
+
+Real door/closure edits roll back if saving fails. A successful edit may still
+return `active_route_error`: the edit was saved but the journey cannot be
+recomputed. Route calculations do not generate images; render tools return
+local PNG paths without confirming on-screen display. An unsuccessful route
+request clears the earlier active route so it cannot be displayed as the new result.
+
+Routes follow kit 1.1.0 and the corrected expected answers: walking goes door to door with 15 cm wall clearance; stairs cost 2 m per metre climbed; a lift costs 15 m per ride plus 1 m per metre climbed using floor elevations. Entrances do not connect through the outside.
+
+Asset destinations resolve to their containing rooms. Equipment is not treated
+as an obstacle. The inherited disconnected-geometry fallback uses 1.5 times
+straight-line distance and does not prove a drawable walk. Step-free and width
+filters do not establish forklift access or destination-only production-bay rules.
+
+**Contract/paging verification — 24 October 2026:** the full offline suite runs
+202 tests: 199 pass and 3 credential-dependent cases skip. The generated schemas
+for all 22 tools (including optional recall) document all 95 arguments. These
+checks do not establish live model understanding or benchmark accuracy.
 
 #### Building storage and spatial indexes
 
@@ -631,7 +698,8 @@ restored = BuildingMap.load(Path("agent_output/building_edited.json"))
 ```
 
 `kind` can be `all`, `space`, `asset` or `opening`. The agent's `spatial_search`
-tool returns the total match count and the first 15 results. Indexes are rebuilt
+tool returns the complete match count and a page of results (default 15), with
+`has_more`/`next_page` for continuation. Indexes are rebuilt
 from JSON after loading; no database service or additional dependency is needed.
 Concurrent saves use the last completed replacement; this file backend does not
 merge simultaneous edits.

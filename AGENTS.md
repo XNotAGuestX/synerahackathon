@@ -73,6 +73,25 @@ keep the codebase small and easy for teammates to understand.
 - Keep credentials out of source control and preserve data attribution obligations
   described in [ATTRIBUTION.md](ATTRIBUTION.md).
 
+## Agent coordination
+
+- Before editing, read the shared `live_agents.md` in the primary checkout (the
+  first `worktree` path from `git worktree list --porcelain`). This is the single
+  live registry for every worktree; do not maintain independent copies.
+- Add your own entry with a unique agent/task name, absolute worktree path,
+  repository-relative working files and current status. Register planned files
+  before editing them; update the entry when your scope or worktree changes.
+- Prefer an isolated Git worktree for implementation when practical. Inspect the
+  current checkout and reuse a suitable task worktree, or create one from the
+  intended base. Preserve existing uncommitted work; do not reset, stash or copy
+  teammates' changes without coordination.
+- Do not edit files claimed by another active agent in the same checkout. Pick
+  non-overlapping work or coordinate ownership first. When separate worktrees
+  change the same files, coordinate integration and review the combined diff.
+- Re-read the registry before each update and change only your own entry,
+  preserving other agents' entries. Remove your entry when finished, including
+  after a handoff or abandoned task; leave the registry and its instructions in place.
+
 ## Practical workflow and verification
 
 - Inspect the relevant code and working-tree changes first. Preserve teammates'

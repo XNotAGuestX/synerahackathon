@@ -93,12 +93,17 @@ class InspectSpaceTests(unittest.TestCase):
         self.assertEqual(self.building.inspect_space("U")["connectors"][0]["id"], "V1")
 
     def test_assets_sorted_and_truncated_with_paging_hint(self):
-        self.assertEqual(self.result["assets"], {"count": 2, "ids": ["A1", "A2"], "truncated": False})
+        assets = self.result["assets"]
+        self.assertEqual((assets["count"], assets["ids"], assets["truncated"]), (2, ["A1", "A2"], False))
+        self.assertEqual((assets["page"], assets["has_more"], assets["next_page"]), (1, False, None))
         for index in range(60):
             self.building.assets[f"X{index:02d}"] = {"id": f"X{index:02d}", "name": f"X{index}", "space_id": "E"}
         assets = self.building.inspect_space("E")["assets"]
         self.assertEqual((assets["count"], len(assets["ids"]), assets["truncated"]), (60, 50, True))
-        self.assertIn("search_building", assets["note"])
+        self.assertIn("inspect_space", assets["note"])
+        second = self.building.inspect_space("E", page=assets["next_page"])["assets"]
+        self.assertEqual(second["ids"], [f"X{index:02d}" for index in range(50, 60)])
+        self.assertFalse(second["has_more"])
 
     def test_asset_reference_resolves_to_its_room(self):
         for reference in ("A3", "Desk"):

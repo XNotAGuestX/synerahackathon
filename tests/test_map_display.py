@@ -102,6 +102,57 @@ class MapDisplayTests(unittest.TestCase):
         with self.assertRaisesRegex(ToolError, "No active route"):
             self.call("show_route")
 
+    def test_step_free_connector_endpoints_are_included_in_route_floor_views(self) -> None:
+        building = BuildingMap.load(Path(__file__).parents[1] / "data/dev/proc-campus-dev-002/building.json")
+        route = building.compute_route("proc-campus-dev-002-F0-S005", "proc-campus-dev-002-F3-S005", step_free=True)
+        building.last_route = route
+        floor_ids = viewer.route_floor_ids(building, route)
+        self.assertEqual(floor_ids, ["proc-campus-dev-002-F0", "proc-campus-dev-002-F3"])
+        images = viewer.draw_route(building, Path(self.directory.name) / "campus-route")
+        self.assertEqual(len(images), 2)
+        self.assertTrue(all(path.read_bytes().startswith(b"\x89PNG") for path in images))
+        self.assertTrue(any("Lift" in label for _, _, label in viewer.route_handoffs(building, route)))
+
+    def test_plan_preview_overlays_calibrated_candidate_on_source_and_marks_issues(self) -> None:
+        source = Path(__file__).parents[1] / "data/dev/proc-campus-dev-002/floor_0.png"
+        path = viewer.draw_plan_preview(
+            self.map.data, Path(self.directory.name) / "preview.png", source,
+            {"pixel_to_metre": {"scale_m_per_px": 1, "origin_px": [0, 0], "origin_m": [0, 0],
+                                 "rotation_rad": 0, "y_axis_inverted": False}},
+            issues=[{"severity": "error", "element_id": "A", "reason": "Review boundary"}],
+            changed_ids=["A"],
+        )
+        self.assertTrue(path.read_bytes().startswith(b"\x89PNG"))
+
+    def test_campus_route_returns_ordered_floor_and_walkway_views(self) -> None:
+        route = {"reachable": True, "route_id": "campus-r1", "campus_revision": 3,
+                 "building_revisions": {"t": 4}, "step_free": True, "min_width_m": 0,
+                 "legs": [{"kind": "indoor", "building_id": "t", "from_node": "A", "to_node": "B",
+                           "node_path": ["A", "door:A-K", "K", "door:B-K", "B"],
+                           "edge_ids": ["A", "K", "B"], "length_m": 5},
+                          {"kind": "walkway", "walkway_id": "w1", "name": "Covered link", "length_m": 12,
+                           "from": {"building_id": "t", "opening_id": "A-K"},
+                           "to": {"building_id": "t", "opening_id": "B-K"}}]}
+        route["legs"][0].update(from_node="door:A-K", to_node="door:B-K")
+        views = viewer.draw_campus_route({"t": {"map": self.map}}, route, Path(self.directory.name) / "campus")
+        self.assertEqual([view["kind"] for view in views], ["floor", "walkway"])
+        self.assertTrue(all(Path(view["image"]).read_bytes().startswith(b"\x89PNG") for view in views))
+        self.assertEqual(views[1]["departure_handoff"]["opening_id"], "A-K")
+        with self.assertRaisesRegex(MapError, "stale"):
+            viewer.draw_campus_route({"buildings": {"t": {"map": self.map, "revision": 5}}, "revision": 4},
+                                     {**route, "campus_revision": 3}, Path(self.directory.name) / "stale")
+
+    def test_plan_preview_keeps_invalid_candidate_renderable(self) -> None:
+        draft = make_map().data
+        draft["spaces"][0]["polygon"] = []
+        path = viewer.draw_plan_preview(
+            draft, Path(self.directory.name) / "invalid-preview.png",
+            Path(__file__).parents[1] / "data/dev/proc-campus-dev-002/floor_0.png",
+            {"pixel_to_metre": {"scale_m_per_px": 1, "origin_px": [0, 0], "origin_m": [0, 0],
+                                 "rotation_rad": 0, "y_axis_inverted": False}},
+            issues=[{"severity": "error", "element_id": "A", "reason": "Boundary is empty"}],
+        )
+        self.assertTrue(path.read_bytes().startswith(b"\x89PNG"))
     def test_route_is_drawn_through_the_selected_doors_with_handoffs_and_numbered_stops(self) -> None:
         self.call("find_route", start="A", destination="U1", via=["B"])
         route = self.map.last_route

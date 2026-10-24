@@ -43,9 +43,10 @@ was performed.
 Kit **1.1.0** is now integrated: corrected train/dev answers, door-to-door walking with
 wall clearance, height-based stairs/lifts, direct lift rides and no outside shortcut.
 Route outputs identify `distance_model="kit-1.1.0"`; every traversed space and selected
-opening/connector is retained. The corrected dev oracle passes **369/369**. See the
-root README for inherited geometry limitations. Current regressions: **176 run,
-173 passed, 3 credential-dependent skips**; four sampled dev errands and all four
+opening/connector is retained. The warm-up evaluator shares only immutable walking lengths between fresh question maps.
+The corrected dev oracle passes **369/369**. See the
+root README for inherited geometry limitations. Current regressions: **177 run,
+174 passed, 3 credential-dependent skips**; four sampled dev errands and all four
 labelled what-if doors also pass with the corrected answers.
 
 ## Run library (retrieved worked examples)

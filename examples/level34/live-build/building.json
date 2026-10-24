@@ -1,0 +1,269 @@
+{
+ "building": {
+  "id": "new-plan",
+  "name": "new-plan",
+  "source": "plan_import",
+  "source_ref": {
+   "F0": {
+    "source_path": "/private/tmp/level34-live-labelled/daadd1344c1a/sources/78db0de8479a/new-plan.png",
+    "source_sha256": "791a34b680bc105d6e0b081cbcbadba2204c6646b15343fe2169473dbcde8e55",
+    "source_license": "unknown",
+    "image_width_px": 1200,
+    "image_height_px": 850,
+    "source_page": null,
+    "extraction": "vision_observations",
+    "calibration": {
+     "anchor_px": [
+      307.0,
+      602.0
+     ],
+     "origin_m": [
+      0.0,
+      0.0
+     ],
+     "metres_per_pixel": 0.016260162601626018,
+     "rotation_deg": 0.0,
+     "y_axis_inverted": true,
+     "check_residual_m": null,
+     "pixel_to_metre": {
+      "scale_m_per_px": 0.016260162601626018,
+      "origin_px": [
+       307.0,
+       602.0
+      ],
+      "origin_m": [
+       0.0,
+       0.0
+      ],
+      "rotation_rad": 0.0,
+      "y_axis_inverted": true
+     }
+    },
+    "usage": {
+     "input_tokens": 1949,
+     "output_tokens": 2120
+    },
+    "elapsed_seconds": 8.921,
+    "original_source_path": "/Users/felix/tum/artemis/synerahackathon/examples/level34/new-plan.png"
+   }
+  },
+  "license": "unknown",
+  "attribution": "User-supplied plan; attribution unspecified",
+  "units": "m"
+ },
+ "floors": [
+  {
+   "id": "F0",
+   "name": "Plan floor",
+   "level": 0,
+   "elevation_m": 0.0
+  }
+ ],
+ "spaces": [
+  {
+   "id": "F0-S1",
+   "floor_id": "F0",
+   "type": "space",
+   "room_type": "lobby",
+   "name": "LOBBY (Space 1)",
+   "synthetic": true,
+   "polygon": [
+    [
+     0.0,
+     5.2682926829268295
+    ],
+    [
+     5.008130081300814,
+     5.2682926829268295
+    ],
+    [
+     5.008130081300814,
+     1.2195121951219514
+    ],
+    [
+     0.0,
+     1.2195121951219514
+    ]
+   ]
+  },
+  {
+   "id": "F0-S2",
+   "floor_id": "F0",
+   "type": "space",
+   "room_type": "laboratory",
+   "name": "Lab",
+   "synthetic": true,
+   "polygon": [
+    [
+     5.008130081300814,
+     5.2682926829268295
+    ],
+    [
+     10.000000000000002,
+     5.2682926829268295
+    ],
+    [
+     10.000000000000002,
+     1.2195121951219514
+    ],
+    [
+     5.008130081300814,
+     1.2195121951219514
+    ]
+   ]
+  }
+ ],
+ "openings": [
+  {
+   "id": "F0-O1",
+   "floor_id": "F0",
+   "space_ids": [
+    "F0-S1",
+    "outside"
+   ],
+   "kind": "door",
+   "width_m": 1.2,
+   "step_free": true,
+   "synthetic": true,
+   "position": [
+    0.0,
+    2.747967479674797
+   ]
+  },
+  {
+   "id": "F0-O2",
+   "floor_id": "F0",
+   "space_ids": [
+    "F0-S1",
+    "F0-S2"
+   ],
+   "kind": "door",
+   "width_m": 1.2,
+   "step_free": true,
+   "synthetic": true,
+   "position": [
+    5.008130081300814,
+    3.2520325203252036
+   ]
+  }
+ ],
+ "vertical_connectors": [],
+ "assets": [],
+ "import_metadata": {
+  "provenance": {},
+  "uncertainties": [
+   {
+    "element_id": "F0-O1",
+    "field": "width_m",
+    "reason": "The note 'All doors step-free; width 1.2 m' is a general statement; it is applied here to the entrance door, but the entrance door is not separately labelled."
+   },
+   {
+    "element_id": "F0-O2",
+    "field": "width_m",
+    "reason": "The '1.2 m door' label sits beside the lobby-lab door; width is taken from the general note and the label."
+   },
+   {
+    "element_id": "F0-S1",
+    "field": "polygon_px",
+    "reason": "Room boundaries are traced from wall positions in the drawing and are approximate pixel coordinates."
+   },
+   {
+    "element_id": "F0-S2",
+    "field": "polygon_px",
+    "reason": "Room boundaries are traced from wall positions in the drawing and are approximate pixel coordinates."
+   }
+  ],
+  "calibrations": {
+   "F0": {
+    "anchor_px": [
+     307.0,
+     602.0
+    ],
+    "origin_m": [
+     0.0,
+     0.0
+    ],
+    "metres_per_pixel": 0.016260162601626018,
+    "rotation_deg": 0.0,
+    "y_axis_inverted": true,
+    "check_residual_m": null,
+    "pixel_to_metre": {
+     "scale_m_per_px": 0.016260162601626018,
+     "origin_px": [
+      307.0,
+      602.0
+     ],
+     "origin_m": [
+      0.0,
+      0.0
+     ],
+     "rotation_rad": 0.0,
+     "y_axis_inverted": true
+    }
+   }
+  },
+  "validation_issues": [
+   {
+    "severity": "warning",
+    "element_id": "F0-S1",
+    "floor_id": null,
+    "reason": "Unresolved polygon_px: Room boundaries are traced from wall positions in the drawing and are approximate pixel coordinates.",
+    "repair": "Review the source and supply a confirmed value."
+   },
+   {
+    "severity": "warning",
+    "element_id": "F0-S2",
+    "floor_id": null,
+    "reason": "Unresolved polygon_px: Room boundaries are traced from wall positions in the drawing and are approximate pixel coordinates.",
+    "repair": "Review the source and supply a confirmed value."
+   }
+  ],
+  "sources": {
+   "F0": {
+    "source_path": "/private/tmp/level34-live-labelled/daadd1344c1a/sources/78db0de8479a/new-plan.png",
+    "source_sha256": "791a34b680bc105d6e0b081cbcbadba2204c6646b15343fe2169473dbcde8e55",
+    "source_license": "unknown",
+    "image_width_px": 1200,
+    "image_height_px": 850,
+    "source_page": null,
+    "extraction": "vision_observations",
+    "calibration": {
+     "anchor_px": [
+      307.0,
+      602.0
+     ],
+     "origin_m": [
+      0.0,
+      0.0
+     ],
+     "metres_per_pixel": 0.016260162601626018,
+     "rotation_deg": 0.0,
+     "y_axis_inverted": true,
+     "check_residual_m": null,
+     "pixel_to_metre": {
+      "scale_m_per_px": 0.016260162601626018,
+      "origin_px": [
+       307.0,
+       602.0
+      ],
+      "origin_m": [
+       0.0,
+       0.0
+      ],
+      "rotation_rad": 0.0,
+      "y_axis_inverted": true
+     }
+    },
+    "usage": {
+     "input_tokens": 1949,
+     "output_tokens": 2120
+    },
+    "elapsed_seconds": 8.921,
+    "original_source_path": "/Users/felix/tum/artemis/synerahackathon/examples/level34/new-plan.png"
+   }
+  }
+ },
+ "navigation_state": {
+  "closed": []
+ }
+}

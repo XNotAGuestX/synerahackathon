@@ -322,7 +322,9 @@ class BuildingMap:
     MAX_PAGE_SIZE = 100
 
     @staticmethod
-    def paginate(items: list, page: int = 1, page_size: int = MAX_SEARCH_RESULTS) -> dict:
+    def paginate(
+        items: list, page: int = 1, page_size: int = MAX_SEARCH_RESULTS, result_key: str = "results"
+    ) -> dict:
         """One page of an already sorted, complete list plus the counts a client needs to continue.
 
         An out-of-range page is a normal empty page. Counts always describe the full list.
@@ -339,7 +341,7 @@ class BuildingMap:
         has_more = page < total_pages
         return {
             "matches": len(items),
-            "results": items[start:start + page_size],
+            result_key: items[start:start + page_size],
             "page": page,
             "page_size": page_size,
             "total_pages": total_pages,
@@ -755,8 +757,8 @@ class BuildingMap:
 
     # ---------- inspection ----------
 
-    def inspect_space(self, reference: str) -> dict:
-        """Complete inspection of one space: source record, derived geometry, floor, openings, connectors, assets."""
+    def inspect_space(self, reference: str, page: int = 1, page_size: int = MAX_INSPECTED_ASSET_IDS) -> dict:
+        """Inspect one space; only its asset IDs are paginated, never its geometry or connections."""
         space_id = self.resolve_space(reference)
         space = self.spaces[space_id]
         polygon = self.space_polygon(space_id)
@@ -784,7 +786,7 @@ class BuildingMap:
                 for connector in sorted(self.connectors.values(), key=lambda item: item["id"])
                 if space_id in connector["space_ids"]
             ],
-            "assets": self.inspected_assets(space_id),
+            "assets": self.inspected_assets(space_id, page, page_size),
         }
         asset = self.asset_behind_reference(reference, space_id)
         if asset:
@@ -845,14 +847,12 @@ class BuildingMap:
             ],
         }
 
-    def inspected_assets(self, space_id: str) -> dict:
+    def inspected_assets(self, space_id: str, page: int = 1, page_size: int = MAX_INSPECTED_ASSET_IDS) -> dict:
         ids = sorted(asset["id"] for asset in self.assets.values() if asset["space_id"] == space_id)
-        info = {"count": len(ids), "ids": ids[:MAX_INSPECTED_ASSET_IDS], "truncated": len(ids) > MAX_INSPECTED_ASSET_IDS}
-        if info["truncated"]:
-            info["note"] = (
-                f"Only the first {MAX_INSPECTED_ASSET_IDS} of {len(ids)} asset ids are listed; "
-                "page through search_building for the rest."
-            )
+        info = self.paginate(ids, page, page_size, "ids")
+        info.update(count=len(ids), truncated=len(ids) > len(info["ids"]))
+        if info["has_more"]:
+            info["note"] = "More asset ids exist; use inspect_space with page=assets.next_page for more."
         return info
 
     # ---------- reachability ----------
@@ -909,6 +909,7 @@ class BuildingMap:
     def reachable_rooms(
         self, start: str, floor_level: int | None = None, step_free: bool = False, min_width_m: float = 0.0,
         entrance: str | None = None, closed_elements: list[str] | None = None, room_type: str | None = None,
+        page: int = 1, page_size: int = MAX_LISTED_ROOMS,
     ) -> dict:
         """Rooms reachable from start under the constraints, found with one traversal of one filtered graph.
 
@@ -955,11 +956,12 @@ class BuildingMap:
                 counted.append(space_id)
             else:
                 excluded[space["type"]] = excluded.get(space["type"], 0) + 1
+        paged = self.paginate([self.space_summary(space_id) for space_id in counted], page, page_size, "rooms")
         return {
             "count": len(counted),
             "room_ids": counted,
-            "rooms": [self.space_summary(space_id) for space_id in counted[: self.MAX_LISTED_ROOMS]],
-            "rooms_truncated": len(counted) > self.MAX_LISTED_ROOMS,
+            **paged,
+            "rooms_truncated": len(counted) > len(paged["rooms"]),
             "constraints": constraints,
             "entry": {
                 "start": self.space_summary(start_id),
@@ -972,7 +974,8 @@ class BuildingMap:
                 "Counts spaces of broad type 'room' that are reachable from the start"
                 + (f" on floor level {floor_level}" if floor_level is not None else "")
                 + (f" with room type '{wanted_type}'" if wanted_type else "")
-                + ", including the start room; halls, corridors, stairs, lifts and outdoor spaces are "
+                + ", including the start room only when it meets these filters; "
+                "halls, corridors, stairs, lifts and outdoor spaces are "
                 "traversed but never counted."
             ),
             "excluded_reachable": dict(sorted(excluded.items())),
@@ -1012,7 +1015,7 @@ class BuildingMap:
 
     MAX_AREA_ROOMS = 50  # keeps the JSON compact on large floors; count, total and ids stay complete
 
-    def sum_floor_area(self, room_type: str, floor_level: int) -> dict:
+    def sum_floor_area(self, room_type: str, floor_level: int, page: int = 1, page_size: int = MAX_AREA_ROOMS) -> dict:
         """Total polygon area of every space with exactly this room type on one floor.
 
         A plain sum of room areas (not their geometric union); halls and every other broad space type
@@ -1022,15 +1025,16 @@ class BuildingMap:
         wanted = normalize_type(room_type)
         matches = self.filter_spaces(floor_level, wanted)
         areas = {space["id"]: self.space_area_m2(space["id"]) for space in matches}
+        paged = self.paginate([
+            {"id": space["id"], "name": space["name"], "area_m2": round(areas[space["id"]], 2)}
+            for space in matches
+        ], page, page_size, "rooms")
         result = {
             "room_type": wanted, "floor_level": floor["level"], "floor": floor["name"],
             "count": len(matches), "area_m2": round(sum(areas.values()), 2),
             "space_ids": sorted(areas),
-            "rooms": [
-                {"id": space["id"], "name": space["name"], "area_m2": round(areas[space["id"]], 2)}
-                for space in matches[: self.MAX_AREA_ROOMS]
-            ],
-            "rooms_truncated": len(matches) > self.MAX_AREA_ROOMS,
+            **paged,
+            "rooms_truncated": len(matches) > len(paged["rooms"]),
         }
         if not matches:
             result["available_room_types"] = self.room_types(floor_level)
@@ -1528,7 +1532,8 @@ class BuildingMap:
         return {node: length for node, length in lengths.items() if node in self.spaces}
 
     def analyze_what_if_door(
-        self, first_space: str, second_space: str, floor_level: int, improvement_threshold_m: float = 1.0
+        self, first_space: str, second_space: str, floor_level: int, improvement_threshold_m: float = 1.0,
+        page: int = 1, page_size: int = MAX_WHAT_IF_ROOMS,
     ) -> dict:
         """Count target-floor rooms whose walk out of the building gets shorter by more than the threshold.
 
@@ -1568,14 +1573,19 @@ class BuildingMap:
             }
             for space_id, gain in sorted(gains.items(), key=lambda item: (-item[1], item[0]))
         ]
+        improved_page = self.paginate(improved, page, page_size)
+        newly_page = self.paginate(newly_reachable, page, page_size)
+        improved_items, newly_items = improved_page.pop("results"), newly_page.pop("results")
         return {
             "count": len(improved) + len(newly_reachable),
             "improved_count": len(improved),
             "newly_reachable_count": len(newly_reachable),
-            "improved_rooms": improved[: self.MAX_WHAT_IF_ROOMS],
-            "improved_rooms_truncated": len(improved) > self.MAX_WHAT_IF_ROOMS,
-            "newly_reachable": newly_reachable[: self.MAX_WHAT_IF_ROOMS],
-            "newly_reachable_truncated": len(newly_reachable) > self.MAX_WHAT_IF_ROOMS,
+            "improved_rooms": improved_items,
+            "improved_rooms_page": improved_page,
+            "improved_rooms_truncated": len(improved) > len(improved_items),
+            "newly_reachable": newly_items,
+            "newly_reachable_page": newly_page,
+            "newly_reachable_truncated": len(newly_reachable) > len(newly_items),
             "threshold_m": threshold,
             "proposed_door": {
                 "position": door["position"], "width_m": door["width_m"], "space_ids": door["space_ids"],
@@ -1617,6 +1627,29 @@ class BuildingMap:
         return float(sides[0] * sides[1])
 
     def find_navigation_landmarks(
+        self, x_m: float, y_m: float, floor_level: int, inner_radius: float, outer_radius: float,
+        min_size: float = 0.0, kind: str = "asset", within_spaces: list[str] | None = None,
+        page: int = 1, page_size: int = MAX_LANDMARKS,
+        competitor_page: int = 1, competitor_page_size: int = MAX_COMPETITOR_IDS,
+    ) -> dict:
+        """Page candidate cues and their competitor IDs; all ambiguity counts use the full inventory."""
+        # Validate both page requests even when there are no candidates.
+        self.paginate([], page, page_size)
+        self.paginate([], competitor_page, competitor_page_size)
+        result = self._navigation_landmarks(
+            x_m, y_m, floor_level, inner_radius, outer_radius, min_size, kind, within_spaces
+        )
+        paged = self.paginate(result["candidates"], page, page_size, "candidates")
+        for candidate in paged["candidates"]:
+            rivals = candidate["competitor_ids"]
+            rivals_page = self.paginate(rivals, competitor_page, competitor_page_size)
+            candidate["competitor_ids"] = rivals_page.pop("results")
+            candidate["competitors_page"] = rivals_page
+        result.update(paged)
+        result["truncated"] = result["candidate_count"] > len(result["candidates"])
+        return result
+
+    def _navigation_landmarks(
         self, x_m: float, y_m: float, floor_level: int, inner_radius: float, outer_radius: float,
         min_size: float = 0.0, kind: str = "asset", within_spaces: list[str] | None = None,
     ) -> dict:
@@ -1679,7 +1712,7 @@ class BuildingMap:
                 "floor_level": floor_level,
                 "distance_m": hit["distance_m"], "size_m2": size,
                 "similar_count_outer": len(rivals),
-                "competitor_ids": rivals[: self.MAX_COMPETITOR_IDS],
+                "competitor_ids": rivals,
                 "is_unambiguous": not rivals,
                 "visibility": "unknown",
             }
@@ -1697,8 +1730,7 @@ class BuildingMap:
             not item["is_unambiguous"], item["distance_m"],
             item["size_m2"] is None, -(item["size_m2"] or 0.0), item["id"],
         ))
-        returned = candidates[: self.MAX_LANDMARKS]
-        for item in returned:
+        for item in candidates:
             item["distance_m"] = round(item["distance_m"], 3)
             if item["size_m2"] is not None:
                 item["size_m2"] = round(item["size_m2"], 3)
@@ -1713,9 +1745,8 @@ class BuildingMap:
             },
             "size_convention": self.SIZE_CONVENTION,
             "candidate_count": len(candidates),
-            "truncated": len(candidates) > len(returned),
             "unambiguous_count": sum(item["is_unambiguous"] for item in candidates),
-            "candidates": returned,
+            "candidates": candidates,
         }
         if not candidates:
             result["hint"] = (
@@ -1775,7 +1806,10 @@ class BuildingMap:
             "position": [round(point[0], 3), round(point[1], 3)],
         }
 
-    def destination_context(self, reference: str, radius_m: float = 15.0, min_area_m2: float = 40.0) -> dict:
+    def destination_context(
+        self, reference: str, radius_m: float = 15.0, min_area_m2: float = 40.0,
+        page: int = 1, page_size: int = MAX_CONTEXT_ROOMS,
+    ) -> dict:
         """Named, sizable rooms around a destination room, for 'the destination is next to the canteen'.
 
         Uses find_navigation_landmarks(kind="space", min_size=min_area_m2) from the room's representative point,
@@ -1792,7 +1826,9 @@ class BuildingMap:
         polygon = self.valid_polygon(space_id)
         x, y = self.anchor(space_id)
         extent = max(math.dist((x, y), corner) for corner in polygon.exterior.coords)
-        found = self.find_navigation_landmarks(
+        # Filter and rank the complete inventory before paging; a page of generic
+        # landmarks may otherwise hide every eligible destination cue.
+        found = self._navigation_landmarks(
             x, y, self.floor_level(self.spaces[space_id]["floor_id"]), radius_m + extent, radius_m + extent,
             min_area_m2, "space",
         )
@@ -1823,11 +1859,13 @@ class BuildingMap:
         rooms.sort(key=lambda item: (
             item["relation"] != "adjacent", not item["is_unambiguous"], -item["area_m2"], item["distance_m"], item["id"],
         ))
+        paged = self.paginate(rooms, page, page_size, "context")
         result = {
             "destination": {**self.space_summary(space_id), "area_m2": round(polygon.area, 3)},
             "query": {"radius_m": radius_m, "min_area_m2": min_area_m2, "from_outline": True},
-            "context": rooms[: self.MAX_CONTEXT_ROOMS],
+            **paged,
             "candidate_count": len(rooms),
+            "context_truncated": len(rooms) > len(paged["context"]),
         }
         if asset:
             result["asset"] = {"id": asset["id"], "name": asset["name"], "position": list(asset["position"])}

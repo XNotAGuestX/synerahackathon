@@ -11,9 +11,11 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.image import imread
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from matplotlib.patches import Polygon as PolygonPatch
+from shapely.errors import GEOSException
 
 from .building_map import DOOR_PREFIX, OUTSIDE, BuildingMap, MapError, RouteResult, door_landing, normalize_type, outline, walking_path
 from .emergency import PENDING, RFID_BADGE, SAFE, STATUS_ORDER, UNSAFE
@@ -472,10 +474,17 @@ def draw_floor(
 
 
 def route_floor_ids(building_map: BuildingMap, route: RouteResult) -> list[str]:
-    """Floors the route visits, in order of first visit (a lone stair/lift node still counts)."""
-    return list(dict.fromkeys(
-        floor_id for floor_id, _ in route_polylines(building_map, route)
-    ))
+    """Floors touched by route nodes, including visits that only use a connector."""
+    floors = []
+    for node in route.node_path:
+        location = node_location(building_map, node)
+        if location and location[0] not in floors:
+            floors.append(location[0])
+    # Older/imported route results may omit node_path while retaining drawable segments.
+    for floor_id, _ in route_polylines(building_map, route):
+        if floor_id not in floors:
+            floors.append(floor_id)
+    return floors
 
 
 def draw_route(building_map: BuildingMap, output_directory: Path, landmark_ids: list[str] | None = None) -> list[Path]:
@@ -497,6 +506,247 @@ def draw_location(building_map: BuildingMap, output_directory: Path) -> Path:
     return draw_floor(
         building_map, selection["floor_id"], output_directory / f"location_{level}.png", selection=selection
     )
+
+
+def _calibration_functions(calibration: dict):
+    """Return pixel→metre and metre→pixel transforms from plan_build calibration data."""
+    transform = calibration.get("pixel_to_metre", calibration)
+    scale = float(transform.get("scale_m_per_px", calibration.get("metres_per_pixel", 0)))
+    if not math.isfinite(scale) or scale <= 0:
+        raise MapError("Plan preview needs a positive calibrated metres-per-pixel scale.")
+    origin_px = tuple(transform.get("origin_px", calibration.get("anchor_px", (0, 0))))
+    origin_m = tuple(transform.get("origin_m", calibration.get("origin_m", (0, 0))))
+    angle = float(transform.get("rotation_rad", math.radians(calibration.get("rotation_deg", 0))))
+    y_inverted = bool(transform.get("y_axis_inverted", calibration.get("y_axis_inverted", True)))
+    c, s = math.cos(angle), math.sin(angle)
+
+    def pixel_to_metre(point):
+        dx, dy = point[0] - origin_px[0], point[1] - origin_px[1]
+        if y_inverted:
+            dy = -dy
+        return (origin_m[0] + scale * (c * dx - s * dy), origin_m[1] + scale * (s * dx + c * dy))
+
+    def metre_to_pixel(point):
+        dx, dy = (point[0] - origin_m[0]) / scale, (point[1] - origin_m[1]) / scale
+        px, py = c * dx + s * dy, -s * dx + c * dy
+        return (origin_px[0] + px, origin_px[1] + (-py if y_inverted else py))
+
+    return pixel_to_metre, metre_to_pixel
+
+
+def _route_geometry_complete(building: BuildingMap, route: RouteResult) -> bool:
+    """True only when every indoor edge has a validated drawable walk or connector handoff."""
+    if len(route.edge_path) != max(0, len(route.node_path) - 1):
+        return False
+    for first, second, element in zip(route.node_path, route.node_path[1:], route.edge_path):
+        if element in building.connectors:
+            continue
+        if element not in building.spaces:
+            return False
+        try:
+            _, start = node_location(building, first)
+            _, end = node_location(building, second)
+            polygon = outline(building.spaces[element]["polygon"])
+            if first.startswith(DOOR_PREFIX):
+                start = door_landing(polygon, start)
+            if second.startswith(DOOR_PREFIX):
+                end = door_landing(polygon, end)
+            if not walking_path(polygon, start, end):
+                return False
+        except (KeyError, TypeError, ValueError, IndexError, GEOSException):
+            return False
+    return True
+
+
+def draw_plan_preview(
+    data: dict, path: Path, source_path: Path | None, calibration: dict | None,
+    floor_id: str | None = None, issues: list | None = None, changed_ids: list | None = None,
+) -> Path:
+    """Overlay candidate geometry and review markers on a calibrated source raster."""
+    draft = BuildingMap(data)
+    floor_id = floor_id or next(iter(draft.floors))
+    if floor_id not in draft.floors:
+        raise MapError(f"Unknown preview floor '{floor_id}'.")
+    if source_path is None:
+        try:
+            return draw_floor(draft, floor_id, path)
+        except (KeyError, TypeError, ValueError, IndexError, OverflowError, GEOSException) as error:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            figure, axes = plt.subplots(figsize=(FIGURE_INCHES, FIGURE_INCHES), dpi=DPI)
+            try:
+                axes.axis("off")
+                messages = [issue.get("reason", "Review required") for issue in issues or []]
+                axes.text(.02, .95, f"{draft.data.get('building', {}).get('name', 'Building')} — {floor_id}\n"
+                          f"Some geometry could not be drawn: {error}\n" + "\n".join(messages),
+                          transform=axes.transAxes, va="top", color="#c62828", wrap=True)
+                figure.savefig(path, bbox_inches="tight")
+            finally:
+                plt.close(figure)
+            return path
+    if calibration is None:
+        raise MapError("Plan preview needs calibration before metre geometry can be overlaid.")
+    _, metre_to_pixel = _calibration_functions(calibration)
+    image = imread(source_path)
+    height, width = image.shape[:2]
+    figure, axes = plt.subplots(figsize=(FIGURE_INCHES, FIGURE_INCHES), dpi=DPI)
+    try:
+        axes.imshow(image, extent=(0, width, height, 0), origin="upper")
+        changed = set(changed_ids or [])
+        for space in draft.spaces.values():
+            if space["floor_id"] != floor_id:
+                continue
+            try:
+                points = [metre_to_pixel(point) for point in space["polygon"]]
+                polygon = outline(space["polygon"])
+                if not polygon.is_valid or polygon.is_empty or polygon.area <= 0:
+                    raise ValueError("invalid polygon")
+                axes.add_patch(PolygonPatch(points, closed=True, facecolor="#ffe0a3" if space["id"] in changed else "#69b8cc",
+                                            edgecolor="#ef6c00" if space["id"] in changed else "#075b72",
+                                            alpha=0.26, linewidth=2, zorder=3))
+                centre = metre_to_pixel(draft.anchor(space["id"]))
+                axes.text(*centre, space["id"], fontsize=8, color="#111", ha="center", va="center", zorder=5,
+                          bbox={"boxstyle": "round,pad=.2", "fc": "white", "ec": "none", "alpha": .8})
+            except (KeyError, TypeError, ValueError, IndexError, OverflowError, GEOSException):
+                axes.text(.01, .97, f"Undrawable space geometry: {space.get('id', '(missing id)')}",
+                          transform=axes.transAxes, ha="left", va="top", color="#c62828", fontsize=7,
+                          bbox={"fc": "white", "ec": "#c62828", "alpha": .9}, zorder=10)
+        for opening in draft.openings.values():
+            if opening["floor_id"] == floor_id:
+                try:
+                    axes.plot(*metre_to_pixel(opening["position"]), "s", color="#1565c0", markersize=6, zorder=6)
+                except (KeyError, TypeError, ValueError, IndexError, OverflowError, GEOSException):
+                    axes.text(.01, .94, f"Undrawable opening: {opening.get('id', '(missing id)')}",
+                              transform=axes.transAxes, color="#c62828", fontsize=7, zorder=10)
+        for asset in draft.assets.values():
+            if asset["floor_id"] == floor_id:
+                try:
+                    axes.plot(*metre_to_pixel(asset["position"]), "P", color="#6a1b9a", markersize=7, zorder=6)
+                except (KeyError, TypeError, ValueError, IndexError, OverflowError, GEOSException):
+                    axes.text(.01, .91, f"Undrawable asset: {asset.get('id', '(missing id)')}",
+                              transform=axes.transAxes, color="#c62828", fontsize=7, zorder=10)
+        for issue in issues or []:
+            element_id = issue.get("element_id")
+            point = None
+            try:
+                if element_id in draft.spaces:
+                    point = draft.anchor(element_id)
+                elif element_id in draft.openings:
+                    point = tuple(draft.openings[element_id]["position"])
+                elif element_id in draft.assets:
+                    point = tuple(draft.assets[element_id]["position"])
+                element_floor = (draft.spaces.get(element_id) or draft.openings.get(element_id)
+                                 or draft.assets.get(element_id) or {}).get("floor_id")
+            except (KeyError, TypeError, ValueError, IndexError, OverflowError, GEOSException):
+                point, element_floor = None, issue.get("floor_id")
+            if point is not None and element_floor == floor_id:
+                x, y = metre_to_pixel(point)
+                colour = "#c62828" if issue.get("severity") == "error" else "#ed6c02"
+                axes.plot(x, y, "X", color=colour, markersize=12, markeredgewidth=2, zorder=8)
+                axes.annotate(issue.get("reason", "Review"), (x, y), xytext=(8, -8), textcoords="offset points",
+                              fontsize=7, color=colour, bbox={"fc": "white", "ec": colour, "alpha": .9})
+            elif issue.get("floor_id") in (None, floor_id):
+                axes.text(.01, .99, f"{issue.get('severity', 'review').upper()}: {issue.get('reason', 'Review required')}",
+                          transform=axes.transAxes, ha="left", va="top", fontsize=7,
+                          color="#c62828" if issue.get("severity") == "error" else "#ed6c02",
+                          bbox={"fc": "white", "ec": "#999", "alpha": .9}, zorder=9)
+        axes.set_xlim(0, width)
+        axes.set_ylim(height, 0)
+        axes.set_aspect("equal")
+        axes.axis("off")
+        axes.set_title(f"{draft.data['building']['name']} — {draft.floor_name(floor_id)} · proposed plan")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        figure.savefig(path, bbox_inches="tight")
+    finally:
+        plt.close(figure)
+    return path
+
+
+def draw_campus_route(campus: dict, route: dict, output_dir: Path) -> list[dict]:
+    """Create ordered floor and walkway views for a campus result; walkway diagrams stay schematic."""
+    if not route.get("reachable", True):
+        raise MapError(route.get("reason", "Campus route is unreachable."))
+    buildings = campus.get("buildings", campus) if isinstance(campus, dict) else campus.buildings
+    route_id = route.get("route_id")
+    revisions = route.get("building_revisions", {})
+    campus_revision = getattr(campus, "revision", None)
+    if campus_revision is None and isinstance(campus, dict):
+        campus_revision = campus.get("revision")
+    if campus_revision is not None and route.get("campus_revision") != campus_revision:
+        raise MapError("Campus route is stale; recompute it before rendering views.")
+    for building_id, revision in revisions.items():
+        current = buildings.get(building_id)
+        current_revision = current.get("revision") if isinstance(current, dict) else None
+        if current_revision is not None and current_revision != revision:
+            raise MapError(f"Campus route is stale for building '{building_id}'; recompute it before rendering views.")
+    walkway_revisions = route.get("walkway_revisions", {})
+    current_walkways = getattr(campus, "walkways", {}) if not isinstance(campus, dict) else campus.get("walkways", {})
+    for walkway_id, revision in walkway_revisions.items():
+        current = current_walkways.get(walkway_id)
+        if current is not None and current.get("revision") != revision:
+            raise MapError(f"Campus route is stale for walkway '{walkway_id}'; recompute it before rendering views.")
+    views = []
+    for leg_index, leg in enumerate(route.get("legs", [])):
+        if leg.get("kind") == "walkway":
+            path = output_dir / f"campus_{route_id or 'route'}_walkway_{leg_index}.png"
+            figure, axes = plt.subplots(figsize=(6, 2), dpi=DPI)
+            try:
+                axes.axis("off")
+                axes.plot([0.1, .9], [.5, .5], color="#455a64", linewidth=4)
+                axes.scatter([.1, .9], [.5, .5], color="#00838f", s=100, zorder=3)
+                axes.text(.1, .68, str(leg.get("from", {}).get("opening_id", "Departure entrance")), ha="center")
+                axes.text(.9, .68, str(leg.get("to", {}).get("opening_id", "Arrival entrance")), ha="center")
+                axes.text(.5, .2, f"{leg.get('name', leg.get('walkway_id', 'Walkway'))} · {leg.get('length_m', 0):g} m · schematic",
+                          ha="center", weight="bold")
+                path.parent.mkdir(parents=True, exist_ok=True)
+                figure.savefig(path, bbox_inches="tight")
+            finally:
+                plt.close(figure)
+            views.append({"kind": "walkway", "leg_index": leg_index, "walkway_id": leg.get("walkway_id"),
+                          "name": leg.get("name"), "length_m": leg.get("length_m"), "image": str(path),
+                          "route_id": route_id, "campus_revision": route.get("campus_revision"),
+                          "building_revisions": revisions,
+                          "departure_handoff": leg.get("from"), "arrival_handoff": leg.get("to"), "schematic": True})
+            continue
+        building_id = leg.get("building_id")
+        building = buildings.get(building_id)
+        if isinstance(building, dict):
+            building = building.get("map")
+        if not isinstance(building, BuildingMap):
+            continue
+        node_path = leg.get("node_path", [])
+        stop_spaces = [node for node in node_path if node in building.spaces]
+        if not stop_spaces:
+            local_route = None
+        else:
+            local_route = RouteResult(
+                start_space_id=stop_spaces[0], destination_space_id=stop_spaces[-1],
+                length_m=leg.get("length_m", 0), space_path=stop_spaces,
+                steps=[], step_free=route.get("step_free", False), stops=stop_spaces,
+                node_path=node_path,
+                edge_path=leg.get("edge_ids", []), min_width_m=route.get("min_width_m", 0),
+            )
+        if local_route:
+            floors = route_floor_ids(building, local_route)
+        else:
+            floors = []
+            for node in node_path:
+                try:
+                    location = node_location(building, node)
+                except (KeyError, TypeError, ValueError):
+                    location = None
+                if location and location[0] not in floors:
+                    floors.append(location[0])
+        for floor_id in floors:
+            level = building.floor_level(floor_id)
+            path = output_dir / f"campus_{route_id or 'route'}_{building_id}_floor_{level}_{leg_index}.png"
+            draw_floor(building, floor_id, path, route=local_route)
+            geometry_complete = _route_geometry_complete(building, local_route) if local_route else False
+            views.append({"kind": "floor", "leg_index": leg_index, "building_id": building_id,
+                          "floor_id": floor_id, "floor_level": level, "image": str(path), "route_id": route_id,
+                          "building_revision": revisions.get(building_id), "campus_revision": route.get("campus_revision"),
+                          "selected_element_ids": node_path, "geometry_complete": geometry_complete,
+                          "geometry_warning": None if geometry_complete else "Some indoor route geometry is unavailable; gaps are intentionally left undrawn."})
+    return views
 
 
 def draw_emergency(building_map: BuildingMap, people: list[dict], output_directory: Path) -> list[Path]:

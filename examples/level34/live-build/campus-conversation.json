@@ -1,0 +1,52 @@
+{
+  "elapsed_s": 7.51,
+  "reply": "The step-free route from R202 (Upper lab, Mezzanine, Demo Atrium) to R101 (Lab reception, Ground, Demo Lab) with a minimum door width of 1.2 m is calculated, and the map images are generated.\n\n1. Start in Upper lab (R202) on the Mezzanine.\n2. Take the Central lift (LIFT1) down to Ground.\n3. Walk through Main lobby (R101, Demo Atrium) to entrance E0.\n4. Take the Garden path walkway (8 m, 1.2 m wide, step-free) to Demo Lab's entrance E0.\n5. Enter Lab reception (R101) on Ground.\n\nTotal modelled distance: 35 m (23 m indoors in Demo Atrium, 8 m walkway, 4 m indoors in Demo Lab).\n\nMap images for each floor and the walkway were saved to:\n- /private/tmp/campus-demo-output-verified/63d5689bec86/routes/campus-3761a4bc090a/campus_campus-3761a4bc090a_demo-atrium_floor_1_0.png\n- /private/tmp/campus-demo-output-verified/63d5689bec86/routes/campus-3761a4bc090a/campus_campus-3761a4bc090a_demo-atrium_floor_0_0.png\n- /private/tmp/campus-demo-output-verified/63d5689bec86/routes/campus-3761a4bc090a/campus_campus-3761a4bc090a_walkway_1.png\n- /private/tmp/campus-demo-output-verified/63d5689bec86/routes/campus-3761a4bc090a/campus_campus-3761a4bc090a_demo-lab_floor_0_2.png\n\nI have not confirmed that the maps are displayed on screen. The route's step-free status and the 1.2 m door width are as the routing model reports them; I have not verified physical clearances.",
+  "tool_calls": [
+    {
+      "name": "search_campus",
+      "input": {
+        "query": "R202",
+        "building_id": "demo-atrium"
+      }
+    },
+    {
+      "name": "search_campus",
+      "input": {
+        "query": "R101",
+        "building_id": "demo-lab"
+      }
+    },
+    {
+      "name": "list_buildings",
+      "input": {}
+    },
+    {
+      "name": "find_campus_route",
+      "input": {
+        "start": {
+          "building_id": "demo-atrium",
+          "kind": "space",
+          "element_id": "R202"
+        },
+        "destination": {
+          "building_id": "demo-lab",
+          "kind": "space",
+          "element_id": "R101"
+        },
+        "step_free": true,
+        "min_width_m": 1.2
+      }
+    },
+    {
+      "name": "show_campus_route",
+      "input": {}
+    }
+  ],
+  "usage": {
+    "input_tokens": 9661,
+    "output_tokens": 1290,
+    "cache_read_input_tokens": 62382,
+    "cache_creation_input_tokens": 20794
+  },
+  "reachable": true
+}

@@ -1,0 +1,123 @@
+{
+  "building": {
+    "id": "demo-atrium",
+    "name": "Demo Atrium",
+    "source": "synthetic demo fixture",
+    "license": "CC0-1.0",
+    "attribution": "Created for this repository Level 3 demo; released under CC0-1.0. Coordinates are synthetic metres."
+  },
+  "units": "m",
+  "floors": [
+    {
+      "id": "F0",
+      "level": 0,
+      "name": "Ground",
+      "elevation_m": 0.0
+    },
+    {
+      "id": "F1",
+      "level": 1,
+      "name": "Mezzanine",
+      "elevation_m": 4.0
+    }
+  ],
+  "spaces": [
+    {
+      "id": "R101",
+      "floor_id": "F0",
+      "name": "Main lobby",
+      "room_type": "lobby",
+      "polygon": [
+        [
+          0,
+          0
+        ],
+        [
+          10,
+          0
+        ],
+        [
+          10,
+          10
+        ],
+        [
+          0,
+          10
+        ]
+      ]
+    },
+    {
+      "id": "R202",
+      "floor_id": "F1",
+      "name": "Upper lab",
+      "room_type": "laboratory",
+      "polygon": [
+        [
+          0,
+          0
+        ],
+        [
+          10,
+          0
+        ],
+        [
+          10,
+          10
+        ],
+        [
+          0,
+          10
+        ]
+      ]
+    }
+  ],
+  "openings": [
+    {
+      "id": "E0",
+      "floor_id": "F0",
+      "space_ids": [
+        "R101",
+        "outside"
+      ],
+      "kind": "entrance",
+      "position": [
+        1,
+        5
+      ],
+      "width_m": 1.8,
+      "step_free": true
+    },
+    {
+      "id": "E1",
+      "floor_id": "F0",
+      "space_ids": [
+        "R101",
+        "outside"
+      ],
+      "kind": "entrance",
+      "position": [
+        9,
+        5
+      ],
+      "width_m": 1.8,
+      "step_free": true
+    }
+  ],
+  "vertical_connectors": [
+    {
+      "id": "LIFT1",
+      "name": "Central lift",
+      "kind": "lift",
+      "floor_ids": [
+        "F0",
+        "F1"
+      ],
+      "space_ids": [
+        "R101",
+        "R202"
+      ],
+      "step_free": true
+    }
+  ],
+  "assets": []
+}

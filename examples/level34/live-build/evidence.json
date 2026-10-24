@@ -1,0 +1,41 @@
+{
+  "source": "examples/level34/new-plan.png",
+  "extraction_elapsed_s": 9.07,
+  "correction_reload_route_elapsed_s": 0.345,
+  "correction": "LAB (Space 2) -> Lab",
+  "selected_space_id": "F0-S2",
+  "route_space_ids": [
+    "F0-S1",
+    "F0-S2"
+  ],
+  "route_length_m": 5.0,
+  "step_free": true,
+  "min_width_m": 1.2,
+  "closed_door_unreachable": true,
+  "remaining_warnings": [
+    {
+      "severity": "warning",
+      "element_id": "F0-S1",
+      "floor_id": null,
+      "reason": "Unresolved polygon_px: Room boundaries are traced from wall positions in the drawing and are approximate pixel coordinates.",
+      "repair": "Review the source and supply a confirmed value."
+    },
+    {
+      "severity": "warning",
+      "element_id": "F0-S2",
+      "floor_id": null,
+      "reason": "Unresolved polygon_px: Room boundaries are traced from wall positions in the drawing and are approximate pixel coordinates.",
+      "repair": "Review the source and supply a confirmed value."
+    }
+  ],
+  "saved_export": "/Users/felix/tum/artemis/synerahackathon/examples/level34/live-build/building.json",
+  "preview_images": [
+    "examples/level34/live-build/preview.png"
+  ],
+  "route_images": [
+    "examples/level34/live-build/route.png"
+  ],
+  "resume": "/private/tmp/level34-live-labelled/daadd1344c1a",
+  "model": "claude-haiku-5-5",
+  "scope": "Actual vision image extraction; deterministic corrections/reload/routing. Not a benchmark score."
+}

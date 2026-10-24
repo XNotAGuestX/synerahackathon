@@ -71,7 +71,11 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
     @register
     def building_overview() -> str:
-        """Floors, stairs and lifts, entrances and current closures of the building. Call this first."""
+        """Get floors, stairs/lifts, entrances and current closures before exploring this building.
+
+        Refresh after edits when current state is needed. For scored questions with recall_examples,
+        call recall_examples first. This overview does not enumerate all rooms or assets; use the search tools.
+        """
         return as_json(building_map.overview())
 
     def page_json(items: list[dict], page: int, page_size: int, empty_hint: str) -> str:
@@ -91,12 +95,15 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
         `matches` is the exact number of hits over the whole building (or floor), not just this page. Results
         are sorted (assets, then spaces; by floor, name, id). If has_more is true, call again with page=next_page
         and the same arguments to see the rest. A map edit can change the inventory: restart at page 1 afterwards.
-        Exact filters (case, spaces, hyphens and underscores are ignored; never partial matches) are separate
-        from the fuzzy `query`; an empty query is allowed when a filter is given, e.g. query="",
+        Exact filters normalize case and treat spaces, hyphens and underscores as equivalent separators.
+        The query uses literal case-insensitive substrings (all words must match), not typo correction or
+        synonyms. Do not combine asset_type with room_type/space_type or kind="space"; room_type and
+        space_type cannot be used with kind="asset". Filters combine with AND. An empty query is allowed
+        when a floor or type filter is given, e.g. query="",
         asset_type="chair", floor_level=2 gives the exact number of chairs on floor 2 in `matches`.
 
         Args:
-            query: Words that must all appear in a name, room number or type, e.g. "3d printer", "2.03",
+            query: Substrings that must all appear in a name, room number, id or type, e.g. "3d printer", "2.03",
                 "lecture hall". May be empty if a filter is given.
             floor_level: Only this floor (0 = ground floor, -1 = basement). Omit to search all floors.
             kind: "all" (default), "space" (rooms, halls, corridors, stairs, ...) or "asset" (things in rooms).
@@ -175,15 +182,22 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
     # ---------- inspection ----------
 
     @register
-    def inspect_space(space: str) -> str:
-        """Complete inspection of one room: original record, area and geometry, floor, doors with widths and
-        step-free flags, lifts and stairs, and the assets inside. Ambiguous names return candidate ids.
+    def inspect_space(space: str, page: int = 1, page_size: int = 50) -> str:
+        """Inspect one space: source record, derived geometry, floor, openings and vertical connectors.
+
+        `derived` contains area_m2, centroid and representative_point; openings include positions, widths,
+        step-free flags and closures. `assets` contains a complete count and paged IDs, not full asset records.
+        Only assets are paged: repeat with assets.next_page and the same space/page_size while assets.has_more.
+        Geometry and connections stay complete on every page. Ambiguous references raise an error with
+        candidate IDs: resolve the user's choice before retrying. Does not select or highlight anything.
 
         Args:
             space: Space id, asset id (inspects the room containing it), or exact room number/name.
+            page: Asset-ID page number, starting at 1.
+            page_size: Asset IDs per page, 1 to 100 (default 50).
         """
         try:
-            return as_json(building_map.inspect_space(space))
+            return as_json(building_map.inspect_space(space, page, page_size))
         except MapError as error:
             raise ToolError(str(error)) from error
 
@@ -194,10 +208,19 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
         start: str, destination: str, step_free: bool = False, via: list[str] | None = None,
         min_width_m: float = 0.0, entrance: str | None = None,
     ) -> str:
-        """Shortest walking route between two places, with step-by-step directions and length in metres.
+        """Find a shortest route under the kit-1.1.0 model, with directions and equivalent walking metres.
 
-        The result lists the doors and lifts/stairs used (element_path), each leg between stops and the
-        floor segments. It becomes the route that show_route draws.
+        Returns length_m, ordered space_path, selected openings/connectors in element_path, steps, legs and
+        floor_segments. Asset endpoints use their containing room, not the asset's exact position. Walking
+        uses room outlines with wall clearance; stairs cost 2 m per metre climbed, lifts 15 m plus 1 m per
+        metre of height. Equipment is not an obstacle; there is no outside shortcut. The inherited kit
+        fallback for disconnected in-room geometry estimates length as 1.5 times straight-line distance;
+        it does not prove a drawable walk. Step-free/width constraints do not establish forklift access
+        or enforce destination-only production bays.
+
+        Respects current closures and replaces the active route for show_route. A failed request clears
+        the previous active route; unreachable is an error, never a reason to relax constraints. This
+        computes a route without generating or displaying images. Ordered via stops are never reordered.
 
         Args:
             start: Space id, asset id, or exact room number/name of where the person is.
@@ -206,7 +229,7 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
             via: Optional list of places to visit in order between start and destination (multi-stop tour).
             min_width_m: Only use doors at least this wide in metres (e.g. a 1.1 m wide trolley). 0 = any.
             entrance: Optional entrance opening id the person came in through; it must open into the start
-                room and itself satisfy step_free and min_width_m.
+                room and itself satisfy step_free and min_width_m. Validates entry without adding distance.
         """
         try:
             result = building_map.route(start, destination, step_free, via, min_width_m, entrance)
@@ -220,6 +243,7 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
     def reachable_rooms(
         start: str, floor_level: int | None = None, step_free: bool = False, min_width_m: float = 0.0,
         entrance: str | None = None, closed_elements: list[str] | None = None, room_type: str | None = None,
+        page: int = 1, page_size: int = 50,
     ) -> str:
         """Count and list the rooms a person or delivery can reach from a start room under constraints.
 
@@ -227,7 +251,10 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
         answer line is exactly one integer: the `count`. The result also gives sorted `room_ids`, compact
         `rooms`, the applied `constraints`, the `entry` used and `excluded_reachable` (reachable spaces
         that are not counted, by type). Only spaces of type "room" count; halls, corridors, stairs and
-        lifts are passed through but not counted. The start room counts. Nothing is changed or saved.
+        lifts are passed through but not counted. The start room counts only when it satisfies the floor
+        and room-type filters. Those filters limit counting, not traversal. `count` and `room_ids` cover
+        all matches; only `rooms` is paged. While has_more, repeat with page=next_page and unchanged filters.
+        Uses current closures plus closed_elements. Nothing is changed or saved; no active route is replaced.
 
         Args:
             start: Space id, asset id, or exact room number/name where the person or load starts.
@@ -240,10 +267,12 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
             closed_elements: Extra closures for this query only (lift/stair names, door or room ids),
                 e.g. ["Lift 1"] for "Lift 1 is out of service".
             room_type: Optional exact room type (office, meeting_room, ...) to count only those rooms.
+            page: Room-detail page number, starting at 1.
+            page_size: Room details per page, 1 to 100 (default 50); never limits the count.
         """
         try:
             return as_json(building_map.reachable_rooms(
-                start, floor_level, step_free, min_width_m, entrance, closed_elements, room_type
+                start, floor_level, step_free, min_width_m, entrance, closed_elements, room_type, page, page_size
             ))
         except MapError as error:
             raise ToolError(str(error)) from error
@@ -256,6 +285,8 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
         The scored answer names the selected room first and then its area in m². An empty match is a
         normal result (room is null); check available_room_types for the correct type name.
+        Every broad space type is eligible when room_type matches, including halls. Unrounded polygon
+        areas decide; ties choose the smallest ID. `runners_up` is only a top-three preview, not an inventory.
 
         Args:
             room_type: Exact room type, e.g. "office", "meeting_room", "lobby", "warehouse_zone".
@@ -269,19 +300,24 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
     # ---------- floor area totals ----------
 
     @register
-    def sum_floor_area(room_type: str, floor_level: int) -> str:
+    def sum_floor_area(room_type: str, floor_level: int, page: int = 1, page_size: int = 50) -> str:
         """Total floor area in m² of all rooms of one exact room type on one floor (sum of room areas).
 
         Includes every matching space, also halls such as warehouse zones. No matches gives count 0 and
         area 0 with the room types that exist on that floor. For a scored answer, the Answer line must
         contain exactly one number: the total area_m2 in m², with no room references or floor numbers.
+        This is a sum, not a geometric union. `count`, `area_m2` and `space_ids` cover all matching spaces
+        on every page; only the `rooms` breakdown is paged. While has_more, repeat with page=next_page
+        and the same filters. Never add the totals from different pages together.
 
         Args:
             room_type: Exact room type, e.g. "office", "toilet", "warehouse_zone" (not a substring match).
             floor_level: Floor level (0 = ground floor, -1 = basement).
+            page: Area-breakdown page number, starting at 1.
+            page_size: Room details per page, 1 to 100 (default 50); never limits total area.
         """
         try:
-            result = building_map.sum_floor_area(room_type, floor_level)
+            result = building_map.sum_floor_area(room_type, floor_level, page, page_size)
         except MapError as error:
             raise ToolError(str(error)) from error
         return as_json(result)
@@ -324,6 +360,9 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
         In the final answer name `room` first (use its `ref` when it has one, since names can repeat);
         mention runners_up only afterwards. If `room` is null, say why from `reason`. If
         `frame_warning` is present, tell the user the floors may not align.
+        "Next floor" means the next available level, including gaps in floor numbering. Every space type
+        is eligible, including halls/corridors; maximum overlap decides, with ID order breaking exact ties.
+        `runners_up` is only a top-three preview, not an inventory of all overlapping spaces.
 
         Args:
             space: Space id, asset id, or exact room number/name of the source room.
@@ -404,8 +443,9 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
     ) -> str:
         """Shortest tour through all stops in the best order (exact, at most 10 stops), start and end fixed.
 
-        Use this only when the user allows ANY visiting order. If they name an order, keep it with
-        find_route(via=...). Never use it for "fetch X, then deliver to Y" errands. For a round trip pass the
+        Activate this only when the user allows ANY visiting order. If they name an order, keep it with
+        find_route(via=...); use activate=False for any optional comparison. Never use it for
+        "fetch X, then deliver to Y" errands. For a round trip pass the
         start as destination. With activate=False it is a read-only preview that does not replace the displayed
         route: it reports `given_order_length_m` (stops in the order given) and `saving_m`, so you can offer a
         shorter tour and activate it only when the user chooses it. With activate=True the tour becomes the
@@ -443,7 +483,8 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
     @register
     def analyze_what_if_door(
-        first_space: str, second_space: str, floor_level: int, improvement_threshold_m: float = 1.0
+        first_space: str, second_space: str, floor_level: int, improvement_threshold_m: float = 1.0,
+        page: int = 1, page_size: int = 50,
     ) -> str:
         """Hypothetical only, nothing changes: how many rooms on one floor get a shorter walk out of the building.
 
@@ -455,16 +496,22 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
         the `count` field as exactly one integer on the final line "Answer: <count>"; `count` includes
         rooms that were unreachable before and reachable after (newly_reachable). Read eligibility and
         infinity_rule in the result to explain what was compared.
+        All counts cover the full target floor. `improved_rooms` (sorted by decreasing gain, then ID) and
+        `newly_reachable` (sorted by ID) each have separate metadata in improved_rooms_page and
+        newly_reachable_page. The same page/page_size applies to both lists; follow either next_page while
+        that list has_more, keeping the simulation inputs unchanged. Never sum counts across pages.
 
         Args:
             first_space: Space id or exact room number/name on one side of the proposed door.
             second_space: Space id or exact room number/name on the other side (same floor as the first).
             floor_level: Floor whose rooms are compared (0 = ground floor, -1 = basement).
             improvement_threshold_m: An improvement must be strictly greater than this many metres (default 1).
+            page: Detail page number for both result lists, starting at 1.
+            page_size: Entries per list per page, 1 to 100 (default 50); never limits counts.
         """
         try:
             result = building_map.analyze_what_if_door(
-                first_space, second_space, floor_level, improvement_threshold_m
+                first_space, second_space, floor_level, improvement_threshold_m, page, page_size
             )
         except MapError as error:
             raise ToolError(str(error)) from error
@@ -476,6 +523,7 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
     def find_navigation_landmarks(
         x_m: float, y_m: float, floor_level: int, inner_radius: float, outer_radius: float,
         min_size: float = 0.0, kind: str = "asset", within_spaces: list[str] | None = None,
+        page: int = 1, page_size: int = 20, competitor_page: int = 1, competitor_page_size: int = 10,
     ) -> str:
         """Find reference objects near a route step and check that they are not confusable with similar ones.
 
@@ -490,6 +538,10 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
         current and next rooms) to drop cues in unrelated rooms. This tool gives no heading: never invent
         a left or right turn. `min_size` is a footprint area in m2 (not salience); with min_size > 0
         objects of unknown size are excluded. An empty result is normal.
+        Candidates are paged using has_more/next_page; candidate_count and unambiguous_count cover all
+        candidates. Each candidate's competitor_ids is also paged using its competitors_page metadata;
+        repeat the same candidate page with competitor_page=competitors_page.next_page for more rivals.
+        similar_count_outer and is_unambiguous always use ALL competitors, including ones on other pages.
 
         Args:
             x_m: X coordinate of the route point in the building's local metre frame.
@@ -500,10 +552,15 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
             min_size: Minimum footprint area in m2 for a candidate (default 0 = any, unknown size allowed).
             kind: "asset" (step cues, default), "space" (larger destination context) or "all".
             within_spaces: Optional space ids/names; only assets inside or spaces equal to these are candidates.
+            page: Candidate page number, starting at 1.
+            page_size: Candidates per page, 1 to 100 (default 20).
+            competitor_page: Competitor-ID page number applied to each returned candidate (default 1).
+            competitor_page_size: Competitor IDs per candidate per page, 1 to 100 (default 10).
         """
         try:
             result = building_map.find_navigation_landmarks(
-                x_m, y_m, floor_level, inner_radius, outer_radius, min_size, kind, within_spaces
+                x_m, y_m, floor_level, inner_radius, outer_radius, min_size, kind, within_spaces,
+                page, page_size, competitor_page, competitor_page_size,
             )
         except MapError as error:
             raise ToolError(str(error)) from error
@@ -539,6 +596,10 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
         If a route is active it is recomputed with its original constraints: the result contains
         active_route (the new route) or active_route_error (why it is no longer possible).
+        Immediately saves a snapshot to the output directory's building_edited.json (`saved_to`). A save
+        failure rolls back the edit. active_route_error means the closure was saved but routing failed.
+        For a hypothetical closure count use reachable_rooms(closed_elements=...) instead; this tool
+        applies a real closure. Reopening does not remove other closures. No image is generated here.
 
         Args:
             element: Name or id of a lift/staircase ("Lift 1"), a door/opening id, or a room.
@@ -558,12 +619,17 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
         """Add a door in the middle of the wall two neighbouring rooms on the same floor share (edits the building).
 
         If a route is active it is recomputed: the result contains active_route or active_route_error.
+        Requires distinct spaces on the same floor and a contiguous shared wall long enough for the door;
+        a nearby duplicate door is rejected. Places the door at the midpoint of the longest shared stretch.
+        Immediately saves building_edited.json (`saved_to`); a save failure rolls back the edit.
+        active_route_error means the door was saved but routing failed. For a hypothetical comparison use
+        analyze_what_if_door instead. This tool does not generate an image.
 
         Args:
             first_space: Space id or exact room number/name.
             second_space: Space id or exact room number/name.
             step_free: Whether the new door has no step.
-            width_m: Door width in metres; the shared wall must be at least this long.
+            width_m: Positive door width in metres (default 0.9); one shared wall stretch must be this long.
         """
         opening, saved_path = apply_edit(
             lambda: building_map.add_door(first_space, second_space, step_free, width_m)
@@ -580,6 +646,7 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
         This is the only action that changes the map selection (searching never does). The result gives the
         selected thing's name, its containing room, floor and position, plus the image path. For an asset
         say "the <name> is in <room> on <floor>"; the room is highlighted too.
+        Saves a PNG and returns its local path; generating it does not confirm on-screen display.
 
         Args:
             element: Space id, asset id, or exact room number/name or asset name. An ambiguous name returns
@@ -594,7 +661,7 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
     @register
     def show_route(landmark_ids: list[str] | None = None) -> str:
-        """Draw the active route (find_route or an activated find_best_tour) on every floor it crosses.
+        """Save PNGs of the active route (find_route, activated find_best_tour or plan_errand) on its floors.
 
         The images show the start, the destination, numbered intermediate stops in route order, the doors
         actually used, stair/lift handoffs and closed elements. `landmark_ids` are space or asset ids (for
@@ -602,6 +669,7 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
         text and the map name the same ones. The result lists the stops in drawn order, floors, handoffs and
         which landmarks were drawn. With no active route (none computed yet, the last request was unreachable
         or a closure broke it) this is an error: say there is no route, never describe an older one.
+        Returns local image paths in `images`; generation does not confirm on-screen display.
 
         Args:
             landmark_ids: Optional space/asset ids to mark as landmarks; one on a floor the route does not cross
@@ -648,7 +716,9 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
         })
 
     @register
-    def describe_destination_context(space: str, radius_m: float = 15.0, min_area_m2: float = 40.0) -> str:
+    def describe_destination_context(
+        space: str, radius_m: float = 15.0, min_area_m2: float = 40.0, page: int = 1, page_size: int = 5,
+    ) -> str:
         """Large named rooms around a destination (canteen, lobby, big hall), to say where it is.
 
         Each `context` entry has an id, name, room_type, area_m2, `relation` and distance_m measured between
@@ -658,14 +728,19 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
         is returned): never imply the asset itself is next to that neighbour. Corridors, stairs, lifts and
         outdoor spaces are never listed. If `context` is empty omit landmark context from the answer. Pass the
         entries' ids to show_route(landmark_ids=...) to see the same rooms on the map. Nothing is changed.
+        Uses the complete same-floor candidate inventory before filtering/ranking, then pages `context`.
+        candidate_count is the complete count; while has_more repeat with page=next_page and the same
+        inputs. An empty out-of-range page does not mean there are no context rooms: check candidate_count.
 
         Args:
             space: Destination space id, asset id, or exact room number/name.
             radius_m: Only rooms whose outline is at most this many metres from the destination outline.
             min_area_m2: Only rooms with at least this floor area in m2 (default 40; larger = more prominent).
+            page: Destination-context page number, starting at 1.
+            page_size: Context rooms per page, 1 to 100 (default 5).
         """
         try:
-            return as_json(building_map.destination_context(space, radius_m, min_area_m2))
+            return as_json(building_map.destination_context(space, radius_m, min_area_m2, page, page_size))
         except MapError as error:
             raise ToolError(str(error)) from error
 
@@ -677,6 +752,11 @@ def make_recall_tool(index: RunIndex) -> ArgumentCheckedTool:
 
     def recall_examples(kind: ScoredKind, semantic_translation: str) -> str:
         """Declare what this benchmark question asks and get worked examples of similar accepted questions; call once before other tools for questions that ask for a final 'Answer:' line.
+
+        Returns up to three accepted examples of the declared kind, ranked by semantic similarity. These
+        are patterns for tool use and answer format, not facts about this building: never copy their IDs,
+        names or numbers. An empty examples list is normal; solve using the building tools. This is a
+        relevance-limited reference lookup, not a complete paginated inventory.
 
         Args:
             kind: The scored question kind this question belongs to.

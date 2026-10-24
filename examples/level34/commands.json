@@ -1,0 +1,11 @@
+[
+  {"tool":"list_buildings"},
+  {"tool":"add_walkway","input":{"walkway_id":"walk-short","name":"Garden path","endpoint_a":{"building_id":"demo-atrium","opening_id":"E0"},"endpoint_b":{"building_id":"demo-lab","opening_id":"E0"},"length_m":8,"width_m":1.2,"step_free":true}},
+  {"tool":"add_walkway","input":{"walkway_id":"walk-long","name":"Covered detour","endpoint_a":{"building_id":"demo-atrium","opening_id":"E1"},"endpoint_b":{"building_id":"demo-lab","opening_id":"E1"},"length_m":30,"width_m":1.2,"step_free":true}},
+  {"tool":"find_campus_route","input":{"start":{"building_id":"demo-atrium","kind":"space","element_id":"R202"},"destination":{"building_id":"demo-lab","kind":"space","element_id":"R101"},"step_free":true,"min_width_m":1.2}},
+  {"tool":"show_campus_route"},
+  {"tool":"set_campus_closed","input":{"target":{"walkway_id":"walk-short"},"closed":true}},
+  {"tool":"show_campus_route"},
+  {"tool":"set_campus_closed","input":{"target":{"walkway_id":"walk-short"},"closed":false}},
+  {"tool":"show_campus_route"}
+]
