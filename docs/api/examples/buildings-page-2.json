@@ -1,0 +1,363 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "id": "resplan-15179",
+      "name": "Residence 15179",
+      "source": "resplan",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 1,
+      "levels": [
+        0
+      ],
+      "space_count": 12,
+      "asset_count": 35,
+      "has_stairs": false,
+      "has_lift": false,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "resplan-16154",
+      "name": "Residence 16154",
+      "source": "resplan",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 1,
+      "levels": [
+        0
+      ],
+      "space_count": 7,
+      "asset_count": 25,
+      "has_stairs": false,
+      "has_lift": false,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "resplan-1677",
+      "name": "Residence 1677",
+      "source": "resplan",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 1,
+      "levels": [
+        0
+      ],
+      "space_count": 10,
+      "asset_count": 40,
+      "has_stairs": false,
+      "has_lift": false,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "resplan-3832",
+      "name": "Residence 3832",
+      "source": "resplan",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 1,
+      "levels": [
+        0
+      ],
+      "space_count": 8,
+      "asset_count": 31,
+      "has_stairs": false,
+      "has_lift": false,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "resplan-439",
+      "name": "Residence 439",
+      "source": "resplan",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 1,
+      "levels": [
+        0
+      ],
+      "space_count": 8,
+      "asset_count": 30,
+      "has_stairs": false,
+      "has_lift": false,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "resplan-7336",
+      "name": "Residence 7336",
+      "source": "resplan",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 1,
+      "levels": [
+        0
+      ],
+      "space_count": 9,
+      "asset_count": 29,
+      "has_stairs": false,
+      "has_lift": false,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "resplan-8169",
+      "name": "Residence 8169",
+      "source": "resplan",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 1,
+      "levels": [
+        0
+      ],
+      "space_count": 6,
+      "asset_count": 25,
+      "has_stairs": false,
+      "has_lift": false,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "resplan-8269",
+      "name": "Residence 8269",
+      "source": "resplan",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 1,
+      "levels": [
+        0
+      ],
+      "space_count": 5,
+      "asset_count": 20,
+      "has_stairs": false,
+      "has_lift": false,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "swiss-1689",
+      "name": "Residential building 1689",
+      "source": "swiss_dwellings",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 5,
+      "levels": [
+        -1,
+        0,
+        1,
+        2,
+        3
+      ],
+      "space_count": 362,
+      "asset_count": 940,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "swiss-1785",
+      "name": "Residential building 1785",
+      "source": "swiss_dwellings",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 3,
+      "levels": [
+        0,
+        1,
+        2
+      ],
+      "space_count": 100,
+      "asset_count": 339,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "swiss-203",
+      "name": "Residential building 203",
+      "source": "swiss_dwellings",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 4,
+      "levels": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "space_count": 144,
+      "asset_count": 424,
+      "has_stairs": true,
+      "has_lift": false,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "swiss-2074",
+      "name": "Residential building 2074",
+      "source": "swiss_dwellings",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 3,
+      "levels": [
+        0,
+        1,
+        2
+      ],
+      "space_count": 51,
+      "asset_count": 144,
+      "has_stairs": true,
+      "has_lift": false,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "swiss-2211",
+      "name": "Residential building 2211",
+      "source": "swiss_dwellings",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 5,
+      "levels": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "space_count": 199,
+      "asset_count": 655,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "swiss-2325",
+      "name": "Residential building 2325",
+      "source": "swiss_dwellings",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 6,
+      "levels": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "space_count": 106,
+      "asset_count": 289,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "swiss-31",
+      "name": "Residential building 31",
+      "source": "swiss_dwellings",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 4,
+      "levels": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "space_count": 132,
+      "asset_count": 371,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "swiss-3254",
+      "name": "Residential building 3254",
+      "source": "swiss_dwellings",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 3,
+      "levels": [
+        0,
+        1,
+        2
+      ],
+      "space_count": 59,
+      "asset_count": 170,
+      "has_stairs": true,
+      "has_lift": false,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "swiss-450",
+      "name": "Residential building 450",
+      "source": "swiss_dwellings",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 4,
+      "levels": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "space_count": 60,
+      "asset_count": 171,
+      "has_stairs": true,
+      "has_lift": false,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "swiss-460",
+      "name": "Residential building 460",
+      "source": "swiss_dwellings",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 4,
+      "levels": [
+        0,
+        2,
+        3,
+        4
+      ],
+      "space_count": 69,
+      "asset_count": 144,
+      "has_stairs": true,
+      "has_lift": false,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "swiss-5097",
+      "name": "Residential building 5097",
+      "source": "swiss_dwellings",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 4,
+      "levels": [
+        -1,
+        0,
+        1,
+        2
+      ],
+      "space_count": 302,
+      "asset_count": 927,
+      "has_stairs": true,
+      "has_lift": true,
+      "has_step_free_entrance": true
+    },
+    {
+      "id": "swiss-5462",
+      "name": "Residential building 5462",
+      "source": "swiss_dwellings",
+      "split": "dev",
+      "license": "CC-BY-4.0",
+      "level_count": 3,
+      "levels": [
+        0,
+        1,
+        2
+      ],
+      "space_count": 22,
+      "asset_count": 72,
+      "has_stairs": true,
+      "has_lift": false,
+      "has_step_free_entrance": true
+    }
+  ],
+  "next_cursor": null,
+  "has_more": false
+}

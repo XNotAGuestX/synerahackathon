@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "kind": "asset",
+      "id": "proc-factory-dev-003-A00001",
+      "name": "CNC mill H-A1-A",
+      "floor_id": "proc-factory-dev-003-F0",
+      "floor_level": 0,
+      "floor_name": "Ground floor",
+      "space_id": "proc-factory-dev-003-F0-S001",
+      "room_type": "production_zone",
+      "asset_type": "cnc_mill",
+      "position": [
+        -7.791,
+        8.193
+      ]
+    },
+    {
+      "kind": "asset",
+      "id": "proc-factory-dev-003-A00002",
+      "name": "CNC mill H-A1-B",
+      "floor_id": "proc-factory-dev-003-F0",
+      "floor_level": 0,
+      "floor_name": "Ground floor",
+      "space_id": "proc-factory-dev-003-F0-S001",
+      "room_type": "production_zone",
+      "asset_type": "cnc_mill",
+      "position": [
+        -2.778,
+        3.282
+      ]
+    },
+    {
+      "kind": "asset",
+      "id": "proc-factory-dev-003-A00003",
+      "name": "CNC mill H-A1-C",
+      "floor_id": "proc-factory-dev-003-F0",
+      "floor_level": 0,
+      "floor_name": "Ground floor",
+      "space_id": "proc-factory-dev-003-F0-S001",
+      "room_type": "production_zone",
+      "asset_type": "cnc_mill",
+      "position": [
+        -4.665,
+        6.385
+      ]
+    }
+  ],
+  "next_cursor": null,
+  "has_more": false
+}

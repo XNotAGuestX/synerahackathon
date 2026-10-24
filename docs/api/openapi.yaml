@@ -1,0 +1,2148 @@
+openapi: 3.1.0
+info:
+  title: Track 01 Building Guide API
+  version: 1.0.0
+  summary: Sitzungs-API für Ortssuche, Route und bestätigte Änderungen.
+  description: |
+    Normative Form. Semantik, Fehlercodes und Idempotenz stehen in `docs/DESIGN.md`.
+    Bei Widerspruch gelten Felder, Typen und Statuscodes dieser Datei.
+
+    Koordinaten sind lokale Meter, x nach rechts, y nach oben, keine Geokoordinaten. Polygone sind nicht geschlossen.
+    Erfolgsbodies tragen `schema_version: 1`. Clients ignorieren unbekannte Antwortfelder und unbekannte `effects[].type`.
+
+    Optionale Auth: Ist `API_TOKEN` gesetzt, brauchen alle Aufrufe außer `GET /api/v1/health`
+    `Authorization: Bearer <token>`. Beispiele enthalten kein echtes Token.
+  license:
+    name: Hackathon student kit
+servers:
+  - url: http://127.0.0.1:8000
+    description: Lokale Backend-Adresse. Der Frontend-Mock startet diesen Prozess nicht.
+tags:
+  - name: Health
+  - name: Buildings
+  - name: Sessions
+  - name: Plans
+  - name: Places
+  - name: Routes
+  - name: Messages
+  - name: Actions
+paths:
+  /api/v1/health:
+    get:
+      operationId: get_health
+      tags: [Health]
+      summary: Prozessprüfung
+      description: Ruft das Modell nicht und verlangt kein Token.
+      responses:
+        "200":
+          description: Prozess erreichbar
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+              example:
+                schema_version: 1
+                status: ok
+                api_version: "1"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/buildings:
+    get:
+      operationId: list_buildings
+      tags: [Buildings]
+      summary: Gebäude seitenweise listen
+      description: Daten aus der Datensatzliste. Der Cursor ist opak.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/LimitDefault20"
+        - name: split
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/Split"
+          description: Nur diese Teilung. Fehlt der Parameter, kommen alle Teilungen.
+      responses:
+        "200":
+          description: Eine Seite Gebäudekurzinfos
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BuildingPage"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/buildings/{building_id}:
+    get:
+      operationId: get_building
+      tags: [Buildings]
+      summary: Etagenindex eines Gebäudes lesen
+      description: Ohne Raumpolygone. Geometrie kommt aus dem Floor-Plan der Sitzung.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/BuildingId"
+      responses:
+        "200":
+          description: Gebäudedetail
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BuildingDetail"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions:
+    post:
+      operationId: create_session
+      tags: [Sessions]
+      summary: Sitzung für ein Gebäude öffnen
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/Idempotency-Key"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionCreate"
+            example:
+              building_id: proc-factory-dev-003
+              preferences:
+                step_free: true
+      responses:
+        "201":
+          description: Sitzung angelegt. Derselbe Idempotenzschlüssel liefert das erste Ergebnis.
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+            ETag:
+              $ref: "#/components/headers/ETag"
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions/{session_id}:
+    get:
+      operationId: get_session
+      tags: [Sessions]
+      summary: Sitzungszustand lesen
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Aktuelle Sitzung
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: delete_session
+      tags: [Sessions]
+      summary: Sitzung löschen
+      description: Idempotent. Fehlt die Sitzung bereits, ist die Antwort trotzdem 204.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "204":
+          description: Sitzung ist weg
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions/{session_id}/preferences:
+    put:
+      operationId: put_preferences
+      tags: [Sessions]
+      summary: Stufenfrei-Präferenz ersetzen
+      description: |
+        Ersetzt das ganze Objekt. Derselbe Body ergibt denselben Zustand.
+        Wirkt nur auf spätere Routen und den Nachrichten-Default, nicht auf schon berechnete Routen.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/If-Match"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Preferences"
+      responses:
+        "200":
+          description: Aktualisierte Sitzung
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions/{session_id}/floors:
+    get:
+      operationId: list_floors
+      tags: [Plans]
+      summary: Etagen des Sitzungsgebäudes listen
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Etagenindex
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FloorIndex"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions/{session_id}/floors/{floor_id}/plan:
+    get:
+      operationId: get_floor_plan
+      tags: [Plans]
+      summary: Zeichenbare Geometrie einer Etage lesen
+      description: |
+        Enthält bestätigte neue Türen dieser revision. `closed_ids` ist die volle Schließmenge der Sitzung derselben revision.
+        Nicht angeforderte Arrays bleiben vorhanden, sind aber leer. `included` trennt „nicht angefordert“ von „wirklich leer“.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/FloorId"
+        - name: include
+          in: query
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              $ref: "#/components/schemas/PlanInclude"
+          description: Kommagetrennt. Fehlt der Parameter, kommen alle vier Arten.
+      responses:
+        "200":
+          description: Plan dieser Etage
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FloorPlan"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions/{session_id}/places:
+    get:
+      operationId: search_places
+      tags: [Places]
+      summary: Räume und Geräte suchen
+      description: Kein Treffer ist 200 mit leeren `items`, kein 404.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/SessionId"
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+          description: Jedes Wort muss in Name, Nummer oder Typ vorkommen.
+        - name: floor_level
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Nur diese Etage. 0 ist das Erdgeschoss, negative Werte sind Untergeschosse.
+        - name: kind
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/PlaceKind"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/LimitDefault15"
+      responses:
+        "200":
+          description: Eine Seite Orte
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlacePage"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions/{session_id}/routes:
+    post:
+      operationId: create_route
+      tags: [Routes]
+      summary: Eine Route berechnen
+      description: |
+        Ruft das Modell nicht. Start und Ziel nehmen eine space id, asset id oder eine eindeutige Raumnummer bzw. einen eindeutigen Namen.
+        Aufgelöst, aber unerreichbar: 201, `reachable: false`, `length_m` null, `legs` leer.
+        Mehrdeutiger Name: 409 `30005_place_ambiguous`, keine Route wird angelegt.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/Idempotency-Key"
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/If-Match"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RouteCreate"
+            example:
+              start: proc-factory-dev-003-F0-S012
+              destination: proc-factory-dev-003-A00001
+              step_free: true
+              via: []
+      responses:
+        "201":
+          description: Route-Ressource. `reachable` darf false sein.
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+            ETag:
+              $ref: "#/components/headers/ETag"
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Route"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions/{session_id}/routes/{route_id}:
+    get:
+      operationId: get_route
+      tags: [Routes]
+      summary: Eine berechnete Route lesen
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/RouteId"
+      responses:
+        "200":
+          description: Route
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Route"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions/{session_id}/messages:
+    get:
+      operationId: list_messages
+      tags: [Messages]
+      summary: Dialog seitenweise lesen
+      description: Zeitlich aufsteigend. Guidesätze tragen understood und effects, keine eingebettete Polylinie.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/LimitDefault20"
+      responses:
+        "200":
+          description: Eine Seite Nachrichten
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessagePage"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: create_message
+      tags: [Messages]
+      summary: Einen Satz senden
+      description: |
+        Fällt das Modell aus, ist die Antwort 429, 503 oder 504. Keine ausstehende Aktion, keine Änderung an closed_ids.
+        Ein unklarer Ort bleibt 201, intent ist clarify oder unknown.
+        Eine satzweise Stufenfrei-Übersteuerung steht in client_context.preferences und ändert den Sitzungsdefault nicht.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/Idempotency-Key"
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/If-Match"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageCreate"
+            example:
+              text: I am at the main entrance. How do I reach the CNC mill without stairs?
+              input_mode: text
+              client_context:
+                floor_level: 0
+                selected_space_id: proc-factory-dev-003-F0-S012
+                preferences:
+                  step_free: true
+      responses:
+        "201":
+          description: Nutzersatz angenommen, mit Guide-Antwort.
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+            ETag:
+              $ref: "#/components/headers/ETag"
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageAccepted"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ModelUnavailable"
+        "504":
+          $ref: "#/components/responses/ModelTimeout"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions/{session_id}/actions:
+    post:
+      operationId: create_action
+      tags: [Actions]
+      summary: Eine Änderung vorschlagen
+      description: |
+        Legt nur eine pending-Aktion an und ändert das Gebäude nicht.
+        Teilen die Räume keine Wand, ist die Antwort 409 `30007_not_adjacent` und es entsteht keine Aktion.
+        Die Aktion läuft nach 15 Minuten ab.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/Idempotency-Key"
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/If-Match"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActionCreate"
+            examples:
+              closeLift:
+                summary: Büroaufzug zum Schließen vorschlagen
+                value:
+                  kind: set_closed
+                  element_ref: proc-factory-dev-003-V02
+                  closed: true
+              addDoor:
+                summary: Tür vorschlagen
+                value:
+                  kind: add_door
+                  first_space: "1.04"
+                  second_space: "1.05"
+                  step_free: true
+      responses:
+        "201":
+          description: Ausstehende Aktion
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+            ETag:
+              $ref: "#/components/headers/ETag"
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Action"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions/{session_id}/actions/{action_id}:
+    get:
+      operationId: get_action
+      tags: [Actions]
+      summary: Eine Aktion lesen
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/ActionId"
+      responses:
+        "200":
+          description: Aktion
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Action"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions/{session_id}/actions/{action_id}/confirmations:
+    post:
+      operationId: confirm_action
+      tags: [Actions]
+      summary: Aktion bestätigen und anwenden
+      description: |
+        Dieselbe schon bestätigte Aktion noch einmal bestätigen liefert das erste Ergebnis und keine zweite Tür.
+        Bestätigen nach Abbruch: 409 `30010_action_conflict`.
+        Confirm after cancel: 409 `30010_action_conflict`.
+        Abgelaufen: 409 `30009_action_expired`.
+        Expired: 409 `30009_action_expired`.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/Idempotency-Key"
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/ActionId"
+        - $ref: "#/components/parameters/If-Match"
+      responses:
+        "200":
+          description: Bestätigte Aktion, inklusive result
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Action"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions/{session_id}/actions/{action_id}/cancellations:
+    post:
+      operationId: cancel_action
+      tags: [Actions]
+      summary: Ausstehende Aktion abbrechen
+      description: Ändert das Gebäude nicht. Erneutes Abbrechen liefert das erste Abbruchergebnis.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/Idempotency-Key"
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/ActionId"
+        - $ref: "#/components/parameters/If-Match"
+      responses:
+        "200":
+          description: Abgebrochene Aktion
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Action"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+
+components:
+  parameters:
+    X-Request-Id:
+      name: X-Request-Id
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+      description: Optional vom Client. Fehlt der Wert, erzeugt ihn der Server und schreibt ihn in den Antwortheader und in trace_id.
+    Idempotency-Key:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: "^[\\x21-\\x7E]+$"
+      description: |
+        Bei POST Pflicht. Erfolgreiche 2xx werden 24 Stunden dedupliziert. Gleicher Schlüssel, anderer Body: 20011.
+        5xx, 429 und 30012 belegen keinen Eintrag. Derselbe Schlüssel darf wiederholt werden.
+        5xx, 429, and 30012 are not stored. The same key may be retried.
+    If-Match:
+      name: If-Match
+      in: header
+      required: false
+      schema:
+        type: string
+        examples:
+          - '"1"'
+      description: Quoted Sitzungs-revision, gleich wie ETag. Bei Abweichung 409 `30012_revision_conflict`.
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 512
+      description: next_cursor der vorigen Seite. Opak.
+    LimitDefault20:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    LimitDefault15:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 15
+    BuildingId:
+      name: building_id
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/BuildingId"
+    SessionId:
+      name: session_id
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/ResourceId"
+    FloorId:
+      name: floor_id
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/DatasetId"
+    RouteId:
+      name: route_id
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/ResourceId"
+    ActionId:
+      name: action_id
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/ResourceId"
+
+  headers:
+    X-Request-Id:
+      description: Gleich wie trace_id im Fehlerpaket.
+      schema:
+        type: string
+    X-API-Version:
+      description: URL-Hauptversion.
+      schema:
+        type: string
+        const: "1"
+    X-Schema-Version:
+      description: schema_version des Erfolgsbodies.
+      schema:
+        type: string
+        const: "1"
+    ETag:
+      description: Quoted Sitzungs-revision, zum Beispiel "1".
+      schema:
+        type: string
+    Location:
+      description: Pfad der neuen Ressource.
+      schema:
+        type: string
+    Retry-After:
+      description: Sekunden.
+      schema:
+        type: integer
+        minimum: 0
+
+  responses:
+    Error:
+      description: Nicht einzeln aufgeführter Fehler
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ValidationFailed:
+      description: Request ungültig
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: 20001_validation_failed
+            message: Request validation failed.
+            trace_id: "11111111-1111-4111-8111-1111111111a1"
+            details:
+              - field: text
+                code: too_long
+    Unauthenticated:
+      description: Nicht authentifiziert
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: 10001_unauthenticated
+            message: Authentication is required.
+            trace_id: "11111111-1111-4111-8111-1111111111a1"
+            details: []
+    NotFound:
+      description: Ressource fehlt
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: 30002_session_not_found
+            message: Session was not found.
+            trace_id: "11111111-1111-4111-8111-1111111111a1"
+            details: []
+    Conflict:
+      description: Konflikt, Mehrdeutigkeit oder Idempotenzschlüssel passt nicht
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: 30005_place_ambiguous
+            message: Place reference is ambiguous.
+            trace_id: "11111111-1111-4111-8111-1111111111a1"
+            details:
+              - field: destination
+                code: ambiguous
+    PayloadTooLarge:
+      description: Body über dem Limit
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: 20012_payload_too_large
+            message: Request body exceeds 65536 bytes.
+            trace_id: "11111111-1111-4111-8111-1111111111a1"
+            details: []
+    RateLimited:
+      description: Limit erreicht
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/Retry-After"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: 40002_model_rate_limited
+            message: Model rate limit exceeded.
+            trace_id: "11111111-1111-4111-8111-1111111111a1"
+            details: []
+    ModelUnavailable:
+      description: Modell nicht erreichbar
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/Retry-After"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: 40001_model_unavailable
+            message: Model is unavailable.
+            trace_id: "11111111-1111-4111-8111-1111111111a1"
+            details: []
+    ModelTimeout:
+      description: Modell-Timeout
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: 40003_model_timeout
+            message: Model timed out.
+            trace_id: "11111111-1111-4111-8111-1111111111a1"
+            details: []
+
+  schemas:
+    Health:
+      type: object
+      additionalProperties: false
+      required: [schema_version, status, api_version]
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        status:
+          type: string
+          enum: [ok]
+        api_version:
+          type: string
+          const: "1"
+
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message, trace_id, details]
+      properties:
+        code:
+          $ref: "#/components/schemas/ErrorCode"
+        message:
+          type: string
+          description: Festes Englisch, nur für Logs. Die Oberfläche verzweigt auf code.
+        trace_id:
+          type: string
+          minLength: 1
+        details:
+          type: array
+          items:
+            $ref: "#/components/schemas/ErrorDetail"
+
+    ErrorDetail:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        field:
+          type: [string, "null"]
+        code:
+          type: string
+          description: Feldcode, zum Beispiel required, too_long, unknown_field, not_in_whitelist, ambiguous.
+        message:
+          type: string
+
+    ErrorCode:
+      type: string
+      enum:
+        - 00001_internal
+        - 00002_rate_limited
+        - 10001_unauthenticated
+        - 10002_forbidden
+        - 20001_validation_failed
+        - 20010_idempotency_key_required
+        - 20011_idempotency_key_mismatch
+        - 20012_payload_too_large
+        - 30001_building_not_found
+        - 30002_session_not_found
+        - 30003_floor_not_found
+        - 30004_place_not_found
+        - 30005_place_ambiguous
+        - 30007_not_adjacent
+        - 30008_action_not_found
+        - 30009_action_expired
+        - 30010_action_conflict
+        - 30012_revision_conflict
+        - 30013_element_not_found
+        - 40001_model_unavailable
+        - 40002_model_rate_limited
+        - 40003_model_timeout
+
+    Split:
+      type: string
+      enum: [train, dev, test]
+
+    PlanInclude:
+      type: string
+      enum: [spaces, openings, assets, connectors]
+
+    PlaceKind:
+      type: string
+      enum: [space, asset]
+
+    BuildingId:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+
+    DatasetId:
+      type: string
+      minLength: 1
+      maxLength: 160
+
+    ResourceId:
+      type: string
+      format: uuid
+
+    Point:
+      type: array
+      minItems: 2
+      maxItems: 2
+      items:
+        type: number
+      description: "[x, y], Meter. x nach rechts, y nach oben."
+
+    Polygon:
+      type: array
+      minItems: 3
+      items:
+        $ref: "#/components/schemas/Point"
+      description: Umriss, der erste Punkt wird nicht wiederholt.
+
+    Bounds:
+      type: object
+      additionalProperties: false
+      required: [min, max]
+      properties:
+        min:
+          $ref: "#/components/schemas/Point"
+        max:
+          $ref: "#/components/schemas/Point"
+
+    Preferences:
+      type: object
+      additionalProperties: false
+      required: [step_free]
+      properties:
+        step_free:
+          type: boolean
+
+    BuildingSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - source
+        - split
+        - license
+        - level_count
+        - levels
+        - space_count
+        - asset_count
+        - has_stairs
+        - has_lift
+        - has_step_free_entrance
+      properties:
+        id:
+          $ref: "#/components/schemas/BuildingId"
+        name:
+          type: string
+        source:
+          type: string
+        split:
+          $ref: "#/components/schemas/Split"
+        license:
+          type: string
+        level_count:
+          type: integer
+          minimum: 1
+        levels:
+          type: array
+          items:
+            type: integer
+        space_count:
+          type: integer
+          minimum: 0
+        asset_count:
+          type: integer
+          minimum: 0
+        has_stairs:
+          type: boolean
+        has_lift:
+          type: boolean
+        has_step_free_entrance:
+          type: boolean
+
+    BuildingPage:
+      type: object
+      additionalProperties: false
+      required: [schema_version, items, next_cursor, has_more]
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BuildingSummary"
+        next_cursor:
+          type: [string, "null"]
+        has_more:
+          type: boolean
+
+    FloorIndexItem:
+      type: object
+      additionalProperties: false
+      required: [id, level, name, elevation_m, height_m, space_count]
+      properties:
+        id:
+          $ref: "#/components/schemas/DatasetId"
+        level:
+          type: integer
+        name:
+          type: string
+        elevation_m:
+          type: number
+        height_m:
+          type: number
+        space_count:
+          type: integer
+          minimum: 0
+
+    BuildingDetail:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - id
+        - name
+        - source
+        - split
+        - license
+        - level_count
+        - levels
+        - space_count
+        - asset_count
+        - has_stairs
+        - has_lift
+        - has_step_free_entrance
+        - units
+        - attribution
+        - floors
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        id:
+          $ref: "#/components/schemas/BuildingId"
+        name:
+          type: string
+        source:
+          type: string
+        split:
+          $ref: "#/components/schemas/Split"
+        license:
+          type: string
+        level_count:
+          type: integer
+          minimum: 1
+        levels:
+          type: array
+          items:
+            type: integer
+        space_count:
+          type: integer
+          minimum: 0
+        asset_count:
+          type: integer
+          minimum: 0
+        has_stairs:
+          type: boolean
+        has_lift:
+          type: boolean
+        has_step_free_entrance:
+          type: boolean
+        units:
+          type: string
+          const: m
+        attribution:
+          type: string
+        floors:
+          type: array
+          items:
+            $ref: "#/components/schemas/FloorIndexItem"
+
+    SessionCreate:
+      type: object
+      additionalProperties: false
+      required: [building_id]
+      description: |
+        Fehlt preferences, setzt der Server step_free auf false.
+      properties:
+        building_id:
+          $ref: "#/components/schemas/BuildingId"
+        preferences:
+          $ref: "#/components/schemas/Preferences"
+
+    Session:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - id
+        - building_id
+        - building_name
+        - revision
+        - preferences
+        - closed_ids
+        - last_route_id
+        - pending_action_id
+        - created_at
+        - updated_at
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        id:
+          $ref: "#/components/schemas/ResourceId"
+        building_id:
+          $ref: "#/components/schemas/BuildingId"
+        building_name:
+          type: string
+        revision:
+          type: integer
+          minimum: 1
+        preferences:
+          $ref: "#/components/schemas/Preferences"
+        closed_ids:
+          type: array
+          items:
+            type: string
+        last_route_id:
+          oneOf:
+            - type: string
+              format: uuid
+            - type: "null"
+        pending_action_id:
+          oneOf:
+            - type: string
+              format: uuid
+            - type: "null"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    FloorIndex:
+      type: object
+      additionalProperties: false
+      required: [schema_version, session_id, revision, floors]
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        session_id:
+          $ref: "#/components/schemas/ResourceId"
+        revision:
+          type: integer
+          minimum: 1
+        floors:
+          type: array
+          items:
+            $ref: "#/components/schemas/FloorIndexItem"
+
+    Space:
+      type: object
+      additionalProperties: false
+      required: [id, floor_id, type, room_type, name, ref, polygon, synthetic]
+      properties:
+        id:
+          $ref: "#/components/schemas/DatasetId"
+        floor_id:
+          $ref: "#/components/schemas/DatasetId"
+        type:
+          type: string
+          description: Bekannte Werte room, corridor, stair, lift, hall, outdoor. Unbekannte Werte werden unverändert zurückgegeben.
+        room_type:
+          type: string
+        name:
+          type: string
+        ref:
+          type: [string, "null"]
+        polygon:
+          $ref: "#/components/schemas/Polygon"
+        synthetic:
+          type: boolean
+
+    Opening:
+      type: object
+      additionalProperties: false
+      required: [id, floor_id, space_ids, kind, position, width_m, step_free, synthetic]
+      properties:
+        id:
+          $ref: "#/components/schemas/DatasetId"
+        floor_id:
+          $ref: "#/components/schemas/DatasetId"
+        space_ids:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            type: string
+          description: Zwei Räume. Bei einem Eingang ist eine Seite das Literal outside.
+        kind:
+          type: string
+          description: Bekannte Werte door, opening, entrance.
+        position:
+          $ref: "#/components/schemas/Point"
+        width_m:
+          type: number
+          minimum: 0
+        step_free:
+          type: boolean
+        synthetic:
+          type: boolean
+
+    Footprint:
+      type: object
+      additionalProperties: false
+      required: [width_m, depth_m, rotation_deg]
+      properties:
+        width_m:
+          type: number
+          minimum: 0
+        depth_m:
+          type: number
+          minimum: 0
+        rotation_deg:
+          type: number
+
+    Asset:
+      type: object
+      additionalProperties: false
+      required: [id, name, category, type, space_id, floor_id, position, footprint, source]
+      properties:
+        id:
+          $ref: "#/components/schemas/DatasetId"
+        name:
+          type: string
+        category:
+          type: string
+          description: Bekannte Werte furniture, fixture, machine, equipment.
+        type:
+          type: string
+        space_id:
+          $ref: "#/components/schemas/DatasetId"
+        floor_id:
+          $ref: "#/components/schemas/DatasetId"
+        position:
+          $ref: "#/components/schemas/Point"
+        footprint:
+          $ref: "#/components/schemas/Footprint"
+        source:
+          type: string
+
+    Connector:
+      type: object
+      additionalProperties: false
+      required: [id, kind, name, floor_ids, space_ids, step_free, synthetic]
+      properties:
+        id:
+          $ref: "#/components/schemas/DatasetId"
+        kind:
+          type: string
+          description: Bekannte Werte stairs, lift.
+        name:
+          type: string
+        floor_ids:
+          type: array
+          minItems: 2
+          items:
+            type: string
+        space_ids:
+          type: array
+          minItems: 2
+          items:
+            type: string
+        step_free:
+          type: boolean
+        synthetic:
+          type: boolean
+
+    FloorPlan:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - session_id
+        - revision
+        - floor
+        - included
+        - spaces
+        - openings
+        - assets
+        - connectors
+        - closed_ids
+        - bounds
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        session_id:
+          $ref: "#/components/schemas/ResourceId"
+        revision:
+          type: integer
+          minimum: 1
+        floor:
+          $ref: "#/components/schemas/FloorIndexItem"
+        included:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanInclude"
+        spaces:
+          type: array
+          items:
+            $ref: "#/components/schemas/Space"
+        openings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Opening"
+        assets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Asset"
+        connectors:
+          type: array
+          items:
+            $ref: "#/components/schemas/Connector"
+          description: Hat der Verbinder eine Haltestelle auf dieser Etage, kommt das ganze Objekt zurück.
+        closed_ids:
+          type: array
+          items:
+            type: string
+        bounds:
+          $ref: "#/components/schemas/Bounds"
+
+    Place:
+      type: object
+      additionalProperties: false
+      required:
+        - kind
+        - id
+        - name
+        - floor_id
+        - floor_level
+        - floor_name
+        - space_id
+        - room_type
+        - asset_type
+        - position
+      properties:
+        kind:
+          $ref: "#/components/schemas/PlaceKind"
+        id:
+          $ref: "#/components/schemas/DatasetId"
+        name:
+          type: string
+        floor_id:
+          $ref: "#/components/schemas/DatasetId"
+        floor_level:
+          type: integer
+        floor_name:
+          type: string
+        space_id:
+          $ref: "#/components/schemas/DatasetId"
+        room_type:
+          type: [string, "null"]
+        asset_type:
+          type: [string, "null"]
+        position:
+          oneOf:
+            - $ref: "#/components/schemas/Point"
+            - type: "null"
+
+    PlacePage:
+      type: object
+      additionalProperties: false
+      required: [schema_version, items, next_cursor, has_more]
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Place"
+        next_cursor:
+          type: [string, "null"]
+        has_more:
+          type: boolean
+
+    RouteCreate:
+      type: object
+      additionalProperties: false
+      required: [start, destination]
+      properties:
+        start:
+          type: string
+          minLength: 1
+          maxLength: 200
+        destination:
+          type: string
+          minLength: 1
+          maxLength: 200
+        step_free:
+          type: boolean
+          description: Fehlt der Wert, gilt die Sitzungspräferenz.
+        via:
+          type: array
+          maxItems: 8
+          items:
+            type: string
+            minLength: 1
+            maxLength: 200
+
+    Direction:
+      type: object
+      additionalProperties: false
+      required: [text, floor_id, at]
+      properties:
+        text:
+          type: string
+        floor_id:
+          type: [string, "null"]
+        at:
+          oneOf:
+            - $ref: "#/components/schemas/Point"
+            - type: "null"
+
+    RouteLeg:
+      type: object
+      additionalProperties: false
+      required: [floor_id, floor_level, points]
+      properties:
+        floor_id:
+          $ref: "#/components/schemas/DatasetId"
+        floor_level:
+          type: integer
+        points:
+          type: array
+          minItems: 2
+          items:
+            $ref: "#/components/schemas/Point"
+
+    Route:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - id
+        - session_id
+        - reachable
+        - length_m
+        - step_free
+        - via
+        - closed_ids
+        - start_space_id
+        - destination_space_id
+        - space_path
+        - directions
+        - legs
+        - created_at
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        id:
+          $ref: "#/components/schemas/ResourceId"
+        session_id:
+          $ref: "#/components/schemas/ResourceId"
+        reachable:
+          type: boolean
+        length_m:
+          type: [number, "null"]
+        step_free:
+          type: boolean
+        via:
+          type: array
+          items:
+            type: string
+        closed_ids:
+          type: array
+          items:
+            type: string
+          description: Schließmenge, die bei dieser Berechnung galt.
+        start_space_id:
+          $ref: "#/components/schemas/DatasetId"
+        destination_space_id:
+          $ref: "#/components/schemas/DatasetId"
+        space_path:
+          type: array
+          items:
+            type: string
+          description: Ohne Tür-Pseudoknoten. Bei unerreichbar ein leeres Array.
+        directions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Direction"
+        legs:
+          type: array
+          items:
+            $ref: "#/components/schemas/RouteLeg"
+          description: Bei unerreichbar ein leeres Array.
+        created_at:
+          type: string
+          format: date-time
+
+    Intent:
+      type: string
+      enum: [locate, route, count, close, add_door, clarify, unknown]
+
+    HighlightReason:
+      type: string
+      enum: [match, selected, closed, preview]
+
+    Resolved:
+      type: object
+      additionalProperties: false
+      required: [start_space_id, destination_space_id, space_ids, asset_ids, count]
+      properties:
+        start_space_id:
+          type: [string, "null"]
+        destination_space_id:
+          type: [string, "null"]
+        space_ids:
+          type: array
+          items:
+            type: string
+        asset_ids:
+          type: array
+          items:
+            type: string
+        count:
+          type: [integer, "null"]
+          minimum: 0
+
+    Constraints:
+      type: object
+      additionalProperties: false
+      required: [step_free, via, closed_ids]
+      properties:
+        step_free:
+          type: boolean
+        via:
+          type: array
+          items:
+            type: string
+        closed_ids:
+          type: array
+          items:
+            type: string
+
+    Understood:
+      type: object
+      additionalProperties: false
+      required: [intent, summary, constraints, resolved, missing]
+      properties:
+        intent:
+          $ref: "#/components/schemas/Intent"
+        summary:
+          type: string
+        constraints:
+          $ref: "#/components/schemas/Constraints"
+        resolved:
+          $ref: "#/components/schemas/Resolved"
+        missing:
+          type: array
+          items:
+            type: string
+          description: Bekannte Slots start, destination, asset, element.
+
+    AskOption:
+      type: object
+      additionalProperties: false
+      required: [id, label]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        place_id:
+          type: [string, "null"]
+
+    ViewEffect:
+      oneOf:
+        - $ref: "#/components/schemas/HighlightSpacesEffect"
+        - $ref: "#/components/schemas/HighlightAssetsEffect"
+        - $ref: "#/components/schemas/FocusEffect"
+        - $ref: "#/components/schemas/DrawRouteEffect"
+        - $ref: "#/components/schemas/ClearRouteEffect"
+        - $ref: "#/components/schemas/SetClosuresEffect"
+        - $ref: "#/components/schemas/AskEffect"
+        - $ref: "#/components/schemas/BuildingPatchedEffect"
+      discriminator:
+        propertyName: type
+        mapping:
+          highlight_spaces: "#/components/schemas/HighlightSpacesEffect"
+          highlight_assets: "#/components/schemas/HighlightAssetsEffect"
+          focus: "#/components/schemas/FocusEffect"
+          draw_route: "#/components/schemas/DrawRouteEffect"
+          clear_route: "#/components/schemas/ClearRouteEffect"
+          set_closures: "#/components/schemas/SetClosuresEffect"
+          ask: "#/components/schemas/AskEffect"
+          building_patched: "#/components/schemas/BuildingPatchedEffect"
+
+    HighlightSpacesEffect:
+      type: object
+      additionalProperties: false
+      required: [type, space_ids, reason]
+      properties:
+        type:
+          type: string
+          const: highlight_spaces
+        space_ids:
+          type: array
+          items:
+            type: string
+        reason:
+          $ref: "#/components/schemas/HighlightReason"
+
+    HighlightAssetsEffect:
+      type: object
+      additionalProperties: false
+      required: [type, asset_ids]
+      properties:
+        type:
+          type: string
+          const: highlight_assets
+        asset_ids:
+          type: array
+          items:
+            type: string
+
+    FocusEffect:
+      type: object
+      additionalProperties: false
+      required: [type, floor_id, floor_level, point]
+      properties:
+        type:
+          type: string
+          const: focus
+        floor_id:
+          $ref: "#/components/schemas/DatasetId"
+        floor_level:
+          type: integer
+        point:
+          oneOf:
+            - $ref: "#/components/schemas/Point"
+            - type: "null"
+
+    DrawRouteEffect:
+      type: object
+      additionalProperties: false
+      required: [type, route_id]
+      properties:
+        type:
+          type: string
+          const: draw_route
+        route_id:
+          type: string
+          format: uuid
+
+    ClearRouteEffect:
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type:
+          type: string
+          const: clear_route
+
+    SetClosuresEffect:
+      type: object
+      additionalProperties: false
+      required: [type, closed_ids]
+      properties:
+        type:
+          type: string
+          const: set_closures
+        closed_ids:
+          type: array
+          items:
+            type: string
+          description: Volle Ersetzung, kein Delta.
+
+    AskEffect:
+      type: object
+      additionalProperties: false
+      required: [type, question, options]
+      properties:
+        type:
+          type: string
+          const: ask
+        question:
+          type: string
+        options:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/AskOption"
+
+    BuildingPatchedEffect:
+      type: object
+      additionalProperties: false
+      required: [type, floor_ids]
+      properties:
+        type:
+          type: string
+          const: building_patched
+        floor_ids:
+          type: array
+          items:
+            type: string
+
+    TranscriptMessage:
+      type: object
+      additionalProperties: false
+      required: [id, session_id, role, text, created_at, understood, effects, pending_action_id]
+      properties:
+        id:
+          $ref: "#/components/schemas/ResourceId"
+        session_id:
+          $ref: "#/components/schemas/ResourceId"
+        role:
+          type: string
+          enum: [user, guide]
+        text:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        understood:
+          oneOf:
+            - $ref: "#/components/schemas/Understood"
+            - type: "null"
+        effects:
+          type: array
+          items:
+            $ref: "#/components/schemas/ViewEffect"
+        pending_action_id:
+          oneOf:
+            - type: string
+              format: uuid
+            - type: "null"
+
+    MessagePage:
+      type: object
+      additionalProperties: false
+      required: [schema_version, items, next_cursor, has_more]
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TranscriptMessage"
+        next_cursor:
+          type: [string, "null"]
+        has_more:
+          type: boolean
+
+    ClientContext:
+      type: object
+      additionalProperties: false
+      properties:
+        floor_level:
+          type: [integer, "null"]
+        selected_space_id:
+          type: [string, "null"]
+        preferences:
+          oneOf:
+            - $ref: "#/components/schemas/Preferences"
+            - type: "null"
+
+    MessageCreate:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        input_mode:
+          type: string
+          enum: [text, transcript]
+          default: text
+        client_context:
+          $ref: "#/components/schemas/ClientContext"
+
+    Usage:
+      type: object
+      additionalProperties: false
+      required: [input_tokens, output_tokens]
+      properties:
+        input_tokens:
+          type: [integer, "null"]
+          minimum: 0
+        output_tokens:
+          type: [integer, "null"]
+          minimum: 0
+
+    MessageAccepted:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - session
+        - user_message
+        - guide_message
+        - routes
+        - pending_action
+        - usage
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        session:
+          $ref: "#/components/schemas/Session"
+        user_message:
+          $ref: "#/components/schemas/TranscriptMessage"
+        guide_message:
+          $ref: "#/components/schemas/TranscriptMessage"
+        routes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Route"
+          description: Routen, die effects dieser Antwort zitieren. Beim Reload GET route verwenden.
+        pending_action:
+          oneOf:
+            - $ref: "#/components/schemas/Action"
+            - type: "null"
+        usage:
+          oneOf:
+            - $ref: "#/components/schemas/Usage"
+            - type: "null"
+
+    SetClosedProposal:
+      type: object
+      additionalProperties: false
+      required: [kind, element_ref, closed]
+      properties:
+        kind:
+          type: string
+          const: set_closed
+        element_ref:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Id oder genauer Name von Aufzug, Treppe, Tür oder Raum. closed false bedeutet wieder öffnen.
+        closed:
+          type: boolean
+
+    AddDoorProposal:
+      type: object
+      additionalProperties: false
+      required: [kind, first_space, second_space]
+      properties:
+        kind:
+          type: string
+          const: add_door
+        first_space:
+          type: string
+          minLength: 1
+          maxLength: 200
+        second_space:
+          type: string
+          minLength: 1
+          maxLength: 200
+        step_free:
+          type: boolean
+          default: true
+
+    ActionCreate:
+      oneOf:
+        - $ref: "#/components/schemas/SetClosedProposal"
+        - $ref: "#/components/schemas/AddDoorProposal"
+      discriminator:
+        propertyName: kind
+        mapping:
+          set_closed: "#/components/schemas/SetClosedProposal"
+          add_door: "#/components/schemas/AddDoorProposal"
+
+    SetClosedResult:
+      type: object
+      additionalProperties: false
+      required: [kind, element_id, closed, closed_ids]
+      properties:
+        kind:
+          type: string
+          const: set_closed
+        element_id:
+          type: string
+        closed:
+          type: boolean
+        closed_ids:
+          type: array
+          items:
+            type: string
+
+    AddDoorResult:
+      type: object
+      additionalProperties: false
+      required: [kind, opening]
+      properties:
+        kind:
+          type: string
+          const: add_door
+        opening:
+          $ref: "#/components/schemas/Opening"
+
+    ActionResult:
+      oneOf:
+        - $ref: "#/components/schemas/SetClosedResult"
+        - $ref: "#/components/schemas/AddDoorResult"
+      discriminator:
+        propertyName: kind
+        mapping:
+          set_closed: "#/components/schemas/SetClosedResult"
+          add_door: "#/components/schemas/AddDoorResult"
+
+    Action:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - id
+        - session_id
+        - status
+        - summary
+        - proposal
+        - preview_effects
+        - result
+        - created_at
+        - expires_at
+        - resolved_at
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        id:
+          $ref: "#/components/schemas/ResourceId"
+        session_id:
+          $ref: "#/components/schemas/ResourceId"
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled, expired]
+        summary:
+          type: string
+          description: Ein englischer Satz für die Bestätigungskarte.
+        proposal:
+          $ref: "#/components/schemas/ActionCreate"
+        preview_effects:
+          type: array
+          items:
+            $ref: "#/components/schemas/ViewEffect"
+        result:
+          oneOf:
+            - $ref: "#/components/schemas/ActionResult"
+            - type: "null"
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        resolved_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"

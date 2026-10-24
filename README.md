@@ -415,7 +415,17 @@ A reply with no `Answer:` line is wrong. So is an answer line with a range or se
 - **Expose the data:** give your agent tools for what the plans actually contain (areas, door widths, adjacency, reachability, positions), not only search.
 - **Watch your costs:** each question can take many tool calls. Keep tool results compact, and use prompt caching for the building context.
 
-## 8. Licences
+## 8. Gemeinsame HTTP-API
+
+Demo-Oberfläche und Backend treffen sich in `docs/api/openapi.yaml` (OpenAPI 3.1, `/api/v1`). Semantik und Fehlercodes stehen in `docs/DESIGN.md`. Der Sonntags-Benchmark bleibt ein Kommandozeilenlauf und geht nicht durch diese API.
+
+```bash
+uv run python scripts/generate_api_fixtures.py
+```
+
+Welche Datei zu welchem Aufruf gehört, steht in `docs/api/README.md`.
+
+## 9. Licences
 
 The data comes under several licences: CC BY 4.0 (Swiss Dwellings, ResPlan), ODbL 1.0 (the OpenStreetMap buildings) and CC0 (procedural). See `ATTRIBUTION.md`. If you publish anything built from the OSM buildings, it must stay under the ODbL and credit OpenStreetMap contributors.
 
