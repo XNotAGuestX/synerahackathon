@@ -96,6 +96,22 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
     # ---------- largest room ----------
 
+    @register
+    def find_largest_room(room_type: str, floor_level: int) -> str:
+        """Find the largest room of an exact room type on one floor, ranked by polygon area.
+
+        The scored answer names the selected room first and then its area in m². An empty match is a
+        normal result (room is null); check available_room_types for the correct type name.
+
+        Args:
+            room_type: Exact room type, e.g. "office", "meeting_room", "lobby", "warehouse_zone".
+            floor_level: Floor to search (0 = ground floor, -1 = basement).
+        """
+        try:
+            return as_json(building_map.find_largest_room(room_type, floor_level))
+        except MapError as error:
+            raise ToolError(str(error)) from error
+
     # ---------- floor area totals ----------
 
     # ---------- straight-line 3D distance ----------

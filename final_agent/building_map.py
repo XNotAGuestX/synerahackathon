@@ -360,6 +360,34 @@ class BuildingMap:
 
     # ---------- largest room ----------
 
+    def find_largest_room(self, room_type: str, floor_level: int) -> dict:
+        """The space of exactly this room type with the largest polygon area on one floor.
+
+        Every space subtype counts, including halls, because an exact lobby or warehouse_zone can be a
+        hall. Ties are broken by id; unrounded areas decide, rounding happens only in the result."""
+        floor = self.floor_by_level(floor_level)
+        wanted = normalize_type(room_type)
+        ranked = sorted(
+            ((self.space_area_m2(space["id"]), space["id"]) for space in self.filter_spaces(floor_level, wanted)),
+            key=lambda item: (-item[0], item[1]),
+        )
+        result = {
+            "room_type": wanted, "floor_level": floor["level"], "floor": floor["name"],
+            "candidates": len(ranked), "room": None, "area_m2": None, "runners_up": [], "tie": False,
+        }
+        if not ranked:
+            result["available_room_types"] = self.room_types(floor_level)
+            return result
+        best_area, best_id = ranked[0]
+        result["room"] = {**self.space_summary(best_id), "area_m2": round(best_area, 2)}
+        result["area_m2"] = round(best_area, 2)
+        result["runners_up"] = [
+            {"id": space_id, "name": self.spaces[space_id]["name"], "area_m2": round(area, 2)}
+            for area, space_id in ranked[1:4]
+        ]
+        result["tie"] = len(ranked) > 1 and math.isclose(ranked[1][0], best_area, rel_tol=1e-9, abs_tol=1e-9)
+        return result
+
     # ---------- floor area totals ----------
 
     # ---------- straight-line 3D distance ----------
