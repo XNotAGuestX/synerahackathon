@@ -366,6 +366,70 @@ class BuildingMap:
 
     # ---------- stacked rooms ----------
 
+    # Building sources whose floors share one XY frame (README section 4); others get a frame_warning.
+    STACKING_FRAME_SOURCES = ("procedural", "osm_indoor")
+    STACKING_MIN_OVERLAP_M2 = 1e-6
+
+    @staticmethod
+    def valid_polygon(polygon: Polygon) -> Polygon:
+        return polygon if polygon.is_valid else polygon.buffer(0)
+
+    def find_stacked_room(self, space: str, direction: str) -> dict:
+        """The space on the next floor above/below whose outline overlaps this space the most.
+
+        "Next" means the adjacent level in sorted order, so level gaps (-2, 0, 1) are handled. Every
+        space type on that floor is a candidate (verified against the labelled room_stacked questions).
+        No floor or no overlap is a normal result with room=None and a reason.
+        """
+        wanted = direction.strip().lower()
+        step = {"above": 1, "up": 1, "below": -1, "down": -1}.get(wanted)
+        if step is None:
+            raise MapError(f"Unknown direction {direction!r}. Use 'above' or 'below'.")
+        source_id = self.resolve_space(space)
+        source_level = self.floor_level(self.spaces[source_id]["floor_id"])
+        result = {
+            "source": self.space_summary(source_id),
+            "direction": "above" if step > 0 else "below",
+            "source_floor_level": source_level,
+            "target_floor_level": None, "room": None,
+            "overlap_area_m2": 0.0, "overlap_fraction": 0.0,
+            "runners_up": [], "tie": False, "reason": None,
+        }
+        building_source = self.data["building"].get("source")
+        if building_source not in self.STACKING_FRAME_SOURCES:
+            result["frame_warning"] = (
+                f"Floors of a '{building_source}' building are not known to share one XY frame, "
+                "so the overlap may not reflect the real stacking."
+            )
+        levels = sorted({floor["level"] for floor in self.floors.values()})
+        neighbours = [level for level in levels if (level - source_level) * step > 0]
+        if not neighbours:
+            result["reason"] = f"no floor {result['direction']} level {source_level}"
+            return result
+        target_level = min(neighbours, key=lambda level: abs(level - source_level))
+        result["target_floor_level"] = target_level
+
+        source_polygon = self.valid_polygon(self.space_polygon(source_id))
+        overlaps = []
+        for candidate in self.filter_spaces(floor_level=target_level):
+            area = source_polygon.intersection(self.valid_polygon(self.space_polygon(candidate["id"]))).area
+            if area > self.STACKING_MIN_OVERLAP_M2:
+                overlaps.append((candidate["id"], area))
+        if not overlaps:
+            result["reason"] = f"no overlapping space on floor level {target_level}"
+            return result
+        overlaps.sort(key=lambda item: (-item[1], item[0]))
+        best_id, best_area = overlaps[0]
+        result["room"] = self.space_summary(best_id)
+        result["overlap_area_m2"] = round(best_area, 3)
+        result["overlap_fraction"] = round(best_area / source_polygon.area, 4) if source_polygon.area else 0.0
+        result["tie"] = len(overlaps) > 1 and overlaps[1][1] >= best_area - self.STACKING_MIN_OVERLAP_M2
+        result["runners_up"] = [
+            {**self.space_summary(space_id), "overlap_area_m2": round(area, 3)}
+            for space_id, area in overlaps[1:4]
+        ]
+        return result
+
     # ---------- shared walls ----------
 
     # ---------- errands ----------

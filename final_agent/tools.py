@@ -102,6 +102,23 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
     # ---------- stacked rooms ----------
 
+    @register
+    def find_stacked_room(space: str, direction: str) -> str:
+        """The room directly above or below a room: the space on the next floor whose outline overlaps most.
+
+        In the final answer name `room` first (use its `ref` when it has one, since names can repeat);
+        mention runners_up only afterwards. If `room` is null, say why from `reason`. If
+        `frame_warning` is present, tell the user the floors may not align.
+
+        Args:
+            space: Space id, asset id, or exact room number/name of the source room.
+            direction: "above" (the floor over it) or "below" (the floor under it).
+        """
+        try:
+            return as_json(building_map.find_stacked_room(space, direction))
+        except MapError as error:
+            raise ToolError(str(error)) from error
+
     # ---------- shared walls ----------
 
     # ---------- errands ----------
