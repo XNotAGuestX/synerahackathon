@@ -234,8 +234,10 @@ export const gateway: BuildingGateway = new Proxy({} as BuildingGateway, {
 
 export async function connectComputedApi(): Promise<boolean> {
   try {
-    const response = await fetch('/api/v1/health')
+    const response = await fetch('/api/v1/health', { headers: { Accept: 'application/json' } })
     if (!response.ok) return false
+    const body = await response.json() as { status?: string }
+    if (body.status !== 'ok') return false
     activeGateway = createHttpGateway({ mode: 'http', baseUrl: '/api/v1' })
     return true
   } catch {
