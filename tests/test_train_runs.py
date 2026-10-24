@@ -43,6 +43,11 @@ class MakeRunTests(unittest.TestCase):
         self.assertFalse(run.accepted)
         self.assertEqual((run.declared_kind, run.semantic_translation), (None, ""))
 
+    def test_blank_translation_is_rejected(self):
+        run = make_run(QUESTION, [recall("floor_area_total", "  "), AREA_CALL], "Answer: 10.2")
+        self.assertFalse(run.accepted)
+        self.assertEqual(run.semantic_translation, "")
+
     def test_first_declaration_counts(self):
         calls = [recall("largest_room", "first"), AREA_CALL, recall("floor_area_total", "second")]
         run = make_run(QUESTION, calls, "Answer: 10.2")

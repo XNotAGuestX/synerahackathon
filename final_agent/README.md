@@ -55,7 +55,8 @@ A **run** is one answered benchmark question, kept in `final_agent/run_library.j
 building-agnostic semantic translation, the full question, its tool calls (names and
 arguments only, no results) and the reply. Runs never store the `answer`/`inputs` labels.
 A run is **accepted** only if `benchmark.score.score_reply` marks the reply correct
-**and** the agent's first `recall_examples` call declared the question's real kind.
+**and** the agent's first `recall_examples` call declared the question's real kind with a
+non-blank semantic translation.
 
 `final_agent.benchmark:answer` gives the agent a `recall_examples(kind,
 semantic_translation)` tool that it calls first. That call declares the kind and returns

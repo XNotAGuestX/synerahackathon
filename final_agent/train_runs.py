@@ -39,18 +39,20 @@ def make_run(question: dict, tool_calls: list[dict], reply: str) -> Run:
     declarations = [call["input"] for call in tool_calls if call["name"] == RECALL_TOOL]
     declaration = declarations[0] if declarations else {}
     declared_kind = declaration.get("kind")
+    # A blank translation (e.g. from a rejected recall call) would be an unretrievable example.
+    translation = str(declaration.get("semantic_translation", "")).strip()
     return Run(
         question_id=question["id"],
         building_id=question["building_id"],
         skill=SKILL_BY_KIND[question["kind"]],
         kind=question["kind"],
         declared_kind=declared_kind,
-        semantic_translation=declaration.get("semantic_translation", ""),
+        semantic_translation=translation,
         question=question["question"],
         # Examples replay the building work; the recall call itself is not part of it.
         tool_calls=[call for call in tool_calls if call["name"] != RECALL_TOOL],
         reply=reply,
-        accepted=score_reply(question["answer"], reply) and declared_kind == question["kind"],
+        accepted=bool(translation) and declared_kind == question["kind"] and score_reply(question["answer"], reply),
     )
 
 
