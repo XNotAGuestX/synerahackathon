@@ -261,3 +261,5 @@ body{background:var(--brand-ink);font-family:'DM Sans',sans-serif}
 .calibrate{display:grid;gap:8px;margin-top:8px}
 .calibrate label{display:grid;gap:4px;color:var(--brand-muted);font:12px 'DM Mono'}
 .calibrate input{border:1px solid var(--brand-line);background:var(--brand-panel-raised);color:var(--brand-text);border-radius:6px;padding:8px}
+
+.plan-wrap,.plan{touch-action:none;overscroll-behavior:contain}

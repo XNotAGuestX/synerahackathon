@@ -98,10 +98,15 @@ function InteractivePlan({
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState<Point>([0, 0])
   const gesture = useRef({ pointerId: -1, x: 0, y: 0, panX: 0, panY: 0, moved: false })
+  const pointers = useRef(new Map<number, { x: number; y: number }>())
+  const pinch = useRef<{ startDistance: number; startZoom: number; anchorX: number; anchorY: number } | null>(null)
   const suppressClick = useRef(false)
   useEffect(() => {
     setZoom(1)
     setPan([0, 0])
+    pointers.current.clear()
+    pinch.current = null
+    gesture.current.pointerId = -1
   }, [plan.floor.id])
 
   const reasons = new Map(spaceReasons)
@@ -175,12 +180,43 @@ function InteractivePlan({
         data-zoom={zoom}
         onPointerDown={(event) => {
           if (event.button !== 0) return
-          const interactive = event.target instanceof Element ? event.target.closest('[role="button"]') : null
-          if (interactive instanceof SVGElement) interactive.focus()
-          else onFocusSelection(null)
+          pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+          if (pointers.current.size === 1) {
+            const interactive = event.target instanceof Element ? event.target.closest('[role="button"]') : null
+            if (interactive instanceof SVGElement) interactive.focus()
+            else onFocusSelection(null)
+          }
+          if (pointers.current.size === 2) {
+            const [first, second] = [...pointers.current.values()]
+            const rect = event.currentTarget.getBoundingClientRect()
+            const centerX = (first.x + second.x) / 2
+            const centerY = (first.y + second.y) / 2
+            pinch.current = { startDistance: Math.hypot(second.x - first.x, second.y - first.y), startZoom: zoom, anchorX: panX + ((centerX - rect.left) / rect.width) * viewW, anchorY: panY + ((centerY - rect.top) / rect.height) * viewH }
+            gesture.current.pointerId = -1
+            suppressClick.current = true
+          }
           gesture.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, panX, panY, moved: false }
         }}
         onPointerMove={(event) => {
+          if (!pointers.current.has(event.pointerId)) return
+          pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+          if (pointers.current.size >= 2 && pinch.current) {
+            const [first, second] = [...pointers.current.values()]
+            const distance = Math.hypot(second.x - first.x, second.y - first.y)
+            const nextZoom = clamp(pinch.current.startZoom * (distance / pinch.current.startDistance), MIN_ZOOM, MAX_ZOOM)
+            const rect = event.currentTarget.getBoundingClientRect()
+            const centerX = (first.x + second.x) / 2
+            const centerY = (first.y + second.y) / 2
+            const nextW = baseW / nextZoom
+            const nextH = baseH / nextZoom
+            setZoom(nextZoom)
+            setPan([
+              clamp(pinch.current.anchorX - ((centerX - rect.left) / rect.width) * nextW, 0, Math.max(0, baseW - nextW)),
+              clamp(pinch.current.anchorY - ((centerY - rect.top) / rect.height) * nextH, 0, Math.max(0, baseH - nextH)),
+            ])
+            suppressClick.current = true
+            return
+          }
           if (gesture.current.pointerId !== event.pointerId) return
           const dx = event.clientX - gesture.current.x
           const dy = event.clientY - gesture.current.y
@@ -194,11 +230,25 @@ function InteractivePlan({
           ])
         }}
         onPointerUp={(event) => {
-          if (gesture.current.pointerId !== event.pointerId) return
-          if (gesture.current.moved) suppressClick.current = true
-          gesture.current.pointerId = -1
+          pointers.current.delete(event.pointerId)
+          if (pointers.current.size === 0) {
+            if (gesture.current.pointerId === event.pointerId && gesture.current.moved) suppressClick.current = true
+            gesture.current.pointerId = -1
+            pinch.current = null
+            return
+          }
+          if (pinch.current) {
+            const [remaining] = [...pointers.current.entries()]
+            pinch.current = null
+            gesture.current = { pointerId: remaining[0], x: remaining[1].x, y: remaining[1].y, panX, panY, moved: true }
+          }
         }}
-        onPointerCancel={() => { gesture.current.pointerId = -1 }}
+        onPointerCancel={(event) => {
+          pointers.current.delete(event.pointerId)
+          pinch.current = null
+          gesture.current.pointerId = -1
+          suppressClick.current = true
+        }}
       >
         <g transform="scale(1 -1)">
           {plan.spaces.map((space) => {
