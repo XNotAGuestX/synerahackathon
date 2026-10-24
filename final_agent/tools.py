@@ -72,6 +72,19 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
     # ---------- inspection ----------
 
+    @register
+    def inspect_space(space: str) -> str:
+        """Complete inspection of one room: original record, area and geometry, floor, doors with widths and
+        step-free flags, lifts and stairs, and the assets inside. Ambiguous names return candidate ids.
+
+        Args:
+            space: Space id, asset id (inspects the room containing it), or exact room number/name.
+        """
+        try:
+            return as_json(building_map.inspect_space(space))
+        except MapError as error:
+            raise ToolError(str(error)) from error
+
     # ---------- routing ----------
 
     @register
