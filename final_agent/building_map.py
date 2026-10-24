@@ -7,7 +7,7 @@ import contextlib
 import copy
 import itertools
 import math
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -372,19 +372,23 @@ class BuildingMap:
         point = Polygon(self.spaces[space_id]["polygon"]).representative_point()
         return (point.x, point.y)
 
-    def graph(self, step_free: bool = False, min_width_m: float = 0.0) -> nx.MultiGraph:
+    def graph(
+        self, step_free: bool = False, min_width_m: float = 0.0, extra_closed: Iterable[str] = ()
+    ) -> nx.MultiGraph:
         """Kit routing graph without closed elements, steps (if step_free) or openings narrower than min_width_m.
 
         Connectors have no width: only the doors that give access to them are filtered by width.
+        extra_closed adds query-only closures on top of self.closed, which stays untouched.
         """
         min_width_m = check_number("min_width_m", min_width_m, 0)
+        closed = self.closed | set(extra_closed)
         # MultiGraph: a stair and a lift may join the same two spaces; both edges must be kept.
         graph = nx.MultiGraph()
-        anchors = {space_id: self.anchor(space_id) for space_id in self.spaces if space_id not in self.closed}
+        anchors = {space_id: self.anchor(space_id) for space_id in self.spaces if space_id not in closed}
         graph.add_nodes_from(anchors)
         for opening in self.openings.values():
             if (
-                opening["id"] in self.closed
+                opening["id"] in closed
                 or (step_free and not opening["step_free"])
                 or opening["width_m"] < min_width_m
             ):
@@ -398,7 +402,7 @@ class BuildingMap:
                     graph.add_edge(space_id, door, weight=distance, via=opening["id"])
         levels = {floor_id: floor["level"] for floor_id, floor in self.floors.items()}
         for connector in self.connectors.values():
-            if connector["id"] in self.closed or (step_free and not connector["step_free"]):
+            if connector["id"] in closed or (step_free and not connector["step_free"]):
                 continue
             stops = sorted(
                 zip(connector["floor_ids"], connector["space_ids"], strict=True),
@@ -701,6 +705,128 @@ class BuildingMap:
         return info
 
     # ---------- reachability ----------
+
+    MAX_LISTED_ROOMS = 50
+    COUNTED_SPACE_TYPE = "room"
+
+    def usable_entrances(
+        self, entrance: str, start_id: str, step_free: bool, min_width_m: float, closed: set[str]
+    ) -> list[dict]:
+        """The entrance opening(s) a delivery may arrive through; MapError if none, or if the choice is ambiguous.
+
+        entrance is an opening id or a space reference meaning "the entrance into that space", which must
+        be the start space. Several entrances that differ in eligibility are never resolved by guessing.
+
+        An explicit opening id must itself be wide enough. A space reference only names where the load
+        arrives: the benchmark labels (5 of 81 train/dev questions) count from the start room even when
+        its entrance is narrower than the load, so width is then reported as a warning, not enforced.
+        Closed and stepped entrances are always enforced.
+        """
+        check_width = entrance in self.openings
+        width_limit = min_width_m if check_width else 0.0
+        if check_width:
+            candidates = [self.openings[entrance]]
+        else:
+            space_id = self.resolve_space(entrance)
+            if space_id != start_id:
+                raise MapError(
+                    f"Entrance '{entrance}' is into {self.describe_space(space_id)}, "
+                    f"but the start is {self.describe_space(start_id)}."
+                )
+            candidates = self.entrances_into(start_id)
+            if not candidates:
+                raise MapError(f"{self.describe_space(start_id)} has no entrance from outside.")
+        usable, problems = [], []
+        for opening in candidates:
+            try:
+                if opening["id"] in closed:
+                    raise MapError(f"Entrance {opening['id']} is closed.")
+                self.validate_entrance(opening["id"], start_id, step_free, width_limit)
+                usable.append(opening)
+            except MapError as error:
+                problems.append(str(error))
+        if usable and not problems:
+            return usable
+        if len(candidates) == 1 or not usable:
+            raise MapError("No usable entrance. " + " ".join(problems))
+        raise MapError(
+            f"{self.describe_space(start_id)} has several entrances that differ under these constraints: "
+            + "; ".join(f"{o['id']} ({o['width_m']:g} m, step_free={o['step_free']})" for o in candidates)
+            + ". Ask which entrance is used. " + " ".join(problems)
+        )
+
+    def reachable_rooms(
+        self, start: str, floor_level: int | None = None, step_free: bool = False, min_width_m: float = 0.0,
+        entrance: str | None = None, closed_elements: list[str] | None = None, room_type: str | None = None,
+    ) -> dict:
+        """Rooms reachable from start under the constraints, found with one traversal of one filtered graph.
+
+        Pure: closed_elements are closed for this query only; no map state or file changes.
+        Only spaces of broad type 'room' are counted (halls, corridors, stairs, lifts and outdoor spaces
+        are only passed through); the start room counts when it qualifies. floor_level and room_type
+        select the counted rooms and never limit the traversal. Like every route, the traversal may leave
+        by one entrance and re-enter by another through the zero-cost outside node; the labelled counts
+        are identical with and without that shortcut.
+        """
+        min_width_m = check_number("min_width_m", min_width_m, 0)
+        if not isinstance(step_free, bool):
+            raise MapError(f"step_free must be true or false, got {step_free!r}.")
+        if isinstance(closed_elements, str):
+            closed_elements = [closed_elements]
+        temporary = sorted({self.find_element(reference) for reference in closed_elements or []})
+        closed = self.closed | set(temporary)
+        start_id = self.resolve_space(start)
+        constraints = {
+            "step_free": step_free, "min_width_m": min_width_m,
+            "closed": sorted(closed), "temporarily_closed": temporary,
+        }
+        if start_id in closed:
+            raise MapError(f"{self.describe_space(start_id)} is closed. Constraints: {constraints}")
+        target_floor = self.floor_by_level(floor_level)["id"] if floor_level is not None else None
+        wanted_type = normalize_type(room_type) if room_type else None
+        entrances = (
+            self.usable_entrances(entrance, start_id, step_free, min_width_m, closed) if entrance else []
+        )
+        warnings = [
+            f"Entrance {o['id']} is {o['width_m']:g} m wide, narrower than the {min_width_m:g} m load; "
+            "width is not enforced because the entrance was given as a room."
+            for o in entrances if o["width_m"] < min_width_m
+        ]
+        graph = self.graph(step_free, min_width_m, temporary)
+        reached = nx.node_connected_component(graph, start_id)
+        counted, excluded = [], {}
+        for space_id in sorted(node for node in reached if node in self.spaces):
+            space = self.spaces[space_id]
+            if target_floor is not None and space["floor_id"] != target_floor:
+                continue
+            if space["type"] == self.COUNTED_SPACE_TYPE and (
+                wanted_type is None or normalize_type(space["room_type"]) == wanted_type
+            ):
+                counted.append(space_id)
+            else:
+                excluded[space["type"]] = excluded.get(space["type"], 0) + 1
+        return {
+            "count": len(counted),
+            "room_ids": counted,
+            "rooms": [self.space_summary(space_id) for space_id in counted[: self.MAX_LISTED_ROOMS]],
+            "rooms_truncated": len(counted) > self.MAX_LISTED_ROOMS,
+            "constraints": constraints,
+            "entry": {
+                "start": self.space_summary(start_id),
+                "entrances": [
+                    {"id": o["id"], "width_m": o["width_m"], "step_free": o["step_free"]} for o in entrances
+                ],
+                "warnings": warnings,
+            },
+            "eligibility": (
+                "Counts spaces of broad type 'room' that are reachable from the start"
+                + (f" on floor level {floor_level}" if floor_level is not None else "")
+                + (f" with room type '{wanted_type}'" if wanted_type else "")
+                + ", including the start room; halls, corridors, stairs, lifts and outdoor spaces are "
+                "traversed but never counted."
+            ),
+            "excluded_reachable": dict(sorted(excluded.items())),
+        }
 
     # ---------- largest room ----------
 
