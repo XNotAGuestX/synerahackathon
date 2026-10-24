@@ -6,8 +6,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from anthropic.lib.tools import ToolError
-from anthropic.lib.tools._beta_functions import BetaFunctionTool
+from anthropic.lib.tools import BetaFunctionTool, ToolError
 from pydantic import ValidationError
 
 from .building_map import MAX_SEARCH_RESULTS, NEW_DOOR_WIDTH_M, BuildingMap, MapError, RouteResult

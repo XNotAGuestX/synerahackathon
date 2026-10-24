@@ -16,11 +16,13 @@ implemented and then reverted at the user's request; it is pending again.**
 [F15_HANDOFF.md](F15_HANDOFF.md) records its scope, the reverted implementation
 (`git show 553e25f:<path>`) and everything learned. Because F15 owned the
 documentation update, README/BACKLOG/FEATURE_SHORTLIST currently describe the
-pre-implementation state. Verified without API credentials: 161
-unit/integration tests; 369/369 oracle warm-up; labelled component checks for all
-nine scored kinds, dev 138/138 and train 517/517; 45/45 `bench_analsysis`
-representatives. No live API evaluation was possible (no credentials). The
-original specification below is unchanged.
+pre-implementation state. Verified without API credentials: 173
+unit/integration tests (incl. 12 hull tests); 369/369 oracle warm-up; labelled
+component checks for all nine scored kinds, dev 138/138 and train 517/517; 45/45
+`bench_analsysis` representatives; live sweeps of every tool over all 280
+buildings with no unexpected exception; every entry point stops with one clear
+message (no traceback) when credentials are missing. No live API evaluation was
+possible (no credentials). The original specification below is unchanged.
 
 ## 1. Coordinator instructions: Sonnet agents, then verification
 
@@ -654,7 +656,7 @@ release time; adapt only when the announced contract is available.
   [F15_HANDOFF.md](F15_HANDOFF.md).)*
 - [x] Focused tool/geometry/state tests and integration suite pass; no starter
   imports, scorer changes, label leakage or unrelated working-tree edits.
-  *(161 tests; `benchmark/score.py` and `starter_agent/` byte-unchanged; only the
+  *(173 tests; `benchmark/score.py` and `starter_agent/` byte-unchanged; only the
   evaluation-only `final_agent/evaluate.py` reads warm-up labels.)*
 - [x] Existing kit oracle results remain compatible; new tool results identify
   their distance model and preserve all route constraints. *(369/369; selected

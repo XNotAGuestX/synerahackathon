@@ -50,7 +50,9 @@ pending), and inventing the organizer-dependent Sunday schema.
 - **Restored to their pre-F15 versions:** `final_agent/agent.py` (the team's
   original prompt, which already mentions `find_best_tour`), `final_agent/benchmark.py`
   (`answer()` only), `final_agent/README.md`, `README.md`, `BACKLOG.md`,
-  `FEATURE_SHORTLIST.md`, `bench_analsysis/README.md`.
+  `FEATURE_SHORTLIST.md`, `bench_analsysis/README.md`. After the revert, hull
+  robustness fixes were added to `agent.py`, `benchmark.py`, `evaluate.py` and
+  `tools.py` (section 11, prompt untouched); keep them when redoing F15.
 - **Deleted:** `BENCHMARK.md`, `.env.example`, `tests/test_agent_integration.py`.
 - **Consequence:** the reverted docs describe the pre-implementation state
   (e.g. "the nine scored kinds still need dedicated analysis tools"). They are
@@ -252,7 +254,7 @@ loads `.env` into the environment.
 ## 10. Verification after redoing F15
 
 ```bash
-python -m unittest discover -s tests -v              # 161 tests after the revert; F15 added 9
+python -m unittest discover -s tests -v              # 173 now (161 after the revert + 12 hull tests); F15 added 9
 python -m final_agent.evaluate data/dev --oracle     # 369/369
 python bench_analsysis/run_tests.py                  # 45/45 PASS, 6/6 format checks
 python bench_analsysis/run_tests.py --mode components --split data/dev    # 138/138
@@ -270,7 +272,49 @@ With credentials: run the per-kind dev smoke, inspect failures (interpretation
 vs formatting vs tool), then all 138 dev questions, then the public test CSV and
 `--check`. Report live numbers separately from component numbers.
 
-## 11. Open beyond F15
+## 11. Hull robustness added after the revert (keep it)
+
+Live runs of the entry points without any Claude connection found four raw
+tracebacks. They were fixed in files F15 owns; preserve this when redoing F15:
+
+- The Anthropic SDK does **not** raise `AuthenticationError` without credentials:
+  it raises `TypeError("Could not resolve authentication method…")` at request
+  time, during header validation (before any network traffic). `BuildingAgent.ask`
+  translates exactly that error into `MissingCredentialsError` (other
+  `TypeError`s are re-raised) and rolls back the unanswered user message. Never
+  pre-reject a client because `api_key` is None: `ant auth login` profiles
+  resolve credentials differently.
+- CLI chat, `final_agent.evaluate` (live mode) and `final_agent.benchmark.answer`
+  stop with one line (`No Anthropic credentials: set ANTHROPIC_API_KEY (or run
+  \`ant auth login\`); the map tools need no credentials.`) and exit code 1. The
+  kit runner (`benchmark/evaluate.py`, unchanged) only catches `APIError`, so
+  `answer()` raises `SystemExit` to stop the whole run instead of producing 145
+  empty replies.
+- A missing, unreadable or malformed building path prints
+  `Cannot load building <path>: <reason>` and exits 1.
+- Bad tool arguments from the model (missing argument, `floor_level=5.5`, wrong
+  type, non-object input) used to reach the SDK runner as a bare `ValueError`: the
+  runner printed a full traceback to the terminal (the `anthropic` logger has no
+  handler) and the model only saw "Invalid arguments". `tools.py` now registers
+  tools as `ArgumentCheckedTool` (a `BetaFunctionTool` subclass) that turns
+  exactly the SDK's pydantic validation failure into a quiet `ToolError` naming
+  each argument, e.g. `Invalid arguments for find_largest_room: floor_level:
+  Input should be a valid integer, got a number with a fractional part.` Other
+  exceptions still propagate; tool schemas are unchanged. A blank place
+  reference gets "Give a place: a room name or number, an asset name, or an id."
+- `tests/test_hull.py` drives the real `BuildingAgent.ask` loop and real tools
+  with a scripted stand-in for Claude (locate, step-free route, lift closure and
+  reroute, unreachable request, `find_largest_room`) and checks history,
+  usage, written images/snapshot and an unchanged source building. Tests point
+  `ANTHROPIC_BASE_URL` at an unreachable local address and skip the
+  no-credential cases where a profile still resolves credentials, so no test can
+  ever make a paid request.
+- Live sweeps without Claude, every tool through `tool.call(...)`: all 280
+  buildings, 96,522 calls plus 245,712 fuzzed-argument calls, 0 unexpected
+  exceptions; after the fixes, test + dev again: 29,540 calls, 0 unexpected,
+  slowest call 4.2 s (`show_route` on a 1,623-space building), memory flat.
+
+## 12. Open beyond F15
 
 Interactive surface (team frontend track); L2-04 live interaction script;
 L3 multiple buildings and walkways; L4 plan ingestion; the Synera
