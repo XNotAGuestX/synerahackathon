@@ -1255,6 +1255,92 @@ class BuildingMap:
 
     # ---------- what-if analysis ----------
 
+    MAX_WHAT_IF_ROOMS = 50
+    WHAT_IF_ELIGIBILITY = (
+        "Compares spaces of broad type 'room' on the target floor (halls, corridors, stairs, lifts and outdoor "
+        "spaces are not counted); this matches all four labelled what-if questions."
+    )
+    WHAT_IF_INFINITY_RULE = (
+        "Distance is the kit route length to the nearest entrance (plain walking, closures respected). A room "
+        "unreachable before but reachable after the door is listed in newly_reachable and counts as an "
+        "improvement; a room unreachable after the door never counts."
+    )
+
+    def exit_distances(self) -> dict[str, float]:
+        """Kit route length from every space to its nearest entrance: one Dijkstra from the outside node.
+
+        Plain walking: no step-free or width limit, current closures respected. Unreachable spaces are absent.
+        """
+        graph = self.graph()
+        if OUTSIDE not in graph:
+            return {}
+        lengths = nx.single_source_dijkstra_path_length(graph, OUTSIDE, weight="weight")
+        return {node: length for node, length in lengths.items() if node in self.spaces}
+
+    def analyze_what_if_door(
+        self, first_space: str, second_space: str, floor_level: int, improvement_threshold_m: float = 1.0
+    ) -> dict:
+        """Count target-floor rooms whose walk out of the building gets shorter by more than the threshold.
+
+        Pure: the door is added to a deep copy of the building with the current closures, so this map's
+        data, openings, closures, active route and spatial index never change, also when this raises.
+        The door goes at the shared-wall midpoint (add_door). The what-if door is narrower than the default
+        width when the shared wall is shorter than that: width does not affect plain walking, and the
+        labelled questions include a 0.56 m shared wall.
+        """
+        threshold = check_number("improvement_threshold_m", improvement_threshold_m, 0)
+        target = self.floor_by_level(floor_level)
+        first_id, second_id = self.resolve_space(first_space), self.resolve_space(second_space)
+        clone = BuildingMap(copy.deepcopy(self.data))
+        clone.closed = set(self.closed)
+        runs = clone.shared_wall(first_id, second_id)["runs"]
+        longest = runs[0]["length_m"] if runs else 0.0
+        # Without a real shared stretch keep the default width so add_door reports the missing wall.
+        width = min(NEW_DOOR_WIDTH_M, longest) if longest > GEOMETRY_EPSILON else NEW_DOOR_WIDTH_M
+        door = clone.add_door(first_id, second_id, width_m=width)
+        before, after = self.exit_distances(), clone.exit_distances()
+        rooms = sorted(
+            space_id for space_id, space in self.spaces.items()
+            if space["floor_id"] == target["id"] and space["type"] == self.COUNTED_SPACE_TYPE
+        )
+        gains, newly_reachable = {}, []
+        for space_id in rooms:
+            if space_id not in after:
+                continue
+            if space_id not in before:
+                newly_reachable.append(space_id)
+            elif before[space_id] - after[space_id] > threshold:
+                gains[space_id] = before[space_id] - after[space_id]
+        improved = [
+            {
+                "id": space_id, "name": self.spaces[space_id]["name"], "before_m": round(before[space_id], 2),
+                "after_m": round(after[space_id], 2), "improvement_m": round(gain, 2),
+            }
+            for space_id, gain in sorted(gains.items(), key=lambda item: (-item[1], item[0]))
+        ]
+        return {
+            "count": len(improved) + len(newly_reachable),
+            "improved_count": len(improved),
+            "newly_reachable_count": len(newly_reachable),
+            "improved_rooms": improved[: self.MAX_WHAT_IF_ROOMS],
+            "improved_rooms_truncated": len(improved) > self.MAX_WHAT_IF_ROOMS,
+            "newly_reachable": newly_reachable[: self.MAX_WHAT_IF_ROOMS],
+            "newly_reachable_truncated": len(newly_reachable) > self.MAX_WHAT_IF_ROOMS,
+            "threshold_m": threshold,
+            "proposed_door": {
+                "position": door["position"], "width_m": door["width_m"], "space_ids": door["space_ids"],
+                "floor_id": door["floor_id"],
+            },
+            "door_floor_level": self.floor_level(door["floor_id"]),
+            "target_floor_level": target["level"],
+            "eligible_rooms": len(rooms),
+            "eligibility": self.WHAT_IF_ELIGIBILITY,
+            "infinity_rule": self.WHAT_IF_INFINITY_RULE,
+            "distance_model": KIT_DISTANCE_MODEL,
+            "simulated": True,
+            "note": "Hypothetical only: the door was added to a temporary copy; nothing was changed or saved.",
+        }
+
     # ---------- navigation landmarks ----------
 
     MAX_LANDMARKS = 20

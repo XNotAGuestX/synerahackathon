@@ -373,6 +373,35 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
     # ---------- what-if analysis ----------
 
+    @register
+    def analyze_what_if_door(
+        first_space: str, second_space: str, floor_level: int, improvement_threshold_m: float = 1.0
+    ) -> str:
+        """Hypothetical only, nothing changes: how many rooms on one floor get a shorter walk out of the building.
+
+        Simulates a door at the middle of the wall two neighbouring spaces on the same floor share, on a
+        temporary copy (current closures included), and counts the rooms of floor `floor_level` (which may
+        differ from the door's floor) whose walk to the nearest entrance shrinks by MORE than the threshold.
+        The door is never added to the building and nothing is saved; use add_door to really build it.
+        Distances use the kit model (distance_model) with plain walking. For a scored question reply with
+        the `count` field as exactly one integer on the final line "Answer: <count>"; `count` includes
+        rooms that were unreachable before and reachable after (newly_reachable). Read eligibility and
+        infinity_rule in the result to explain what was compared.
+
+        Args:
+            first_space: Space id or exact room number/name on one side of the proposed door.
+            second_space: Space id or exact room number/name on the other side (same floor as the first).
+            floor_level: Floor whose rooms are compared (0 = ground floor, -1 = basement).
+            improvement_threshold_m: An improvement must be strictly greater than this many metres (default 1).
+        """
+        try:
+            result = building_map.analyze_what_if_door(
+                first_space, second_space, floor_level, improvement_threshold_m
+            )
+        except MapError as error:
+            raise ToolError(str(error)) from error
+        return as_json(result)
+
     # ---------- navigation landmarks ----------
 
     @register
