@@ -3,6 +3,9 @@
 Offline mode probes existing tools with labelled, resolved inputs (an input oracle).
 Agent mode sends only building directory + question text to an answer callable and
 uses the unchanged official scorer afterward. It selects scored questions only.
+Components mode calls the dedicated analysis tool for every scored question in a split
+with the labelled resolved inputs, formats a final answer line from the tool JSON and
+scores it with the official scorer. It verifies tool computation, not interpretation.
 """
 
 import argparse
@@ -36,6 +39,119 @@ MISSING = {
     "errand": "plan_errand: nearest reachable pickup first, then largest destination",
     "what_if_door": "simulate_door_exit_improvement: midpoint door and isolated before/after exit distances",
 }
+
+
+def floor_level(building: BuildingMap, floor_id: str) -> int:
+    return building.floors[floor_id]["level"]
+
+
+# Agreed tool contracts from IMPLEMENTATION_HANDOFF.md (F04-F12): kind -> (tool name,
+# arguments built from the labelled resolved inputs, final reply built from the tool JSON).
+COMPONENT_CALLS = {
+    "largest_room": (
+        "find_largest_room",
+        lambda b, i: {"room_type": i["room_type"], "floor_level": floor_level(b, i["floor_id"])},
+        lambda r: f"Answer: {r['room']['name']}, {r['area_m2']:.2f} m²",
+    ),
+    "floor_area_total": (
+        "sum_floor_area",
+        lambda b, i: {"room_type": i["room_type"], "floor_level": floor_level(b, i["floor_id"])},
+        lambda r: f"Answer: {r['area_m2']:.2f}",
+    ),
+    "straight_line_3d": (
+        "straight_line_distance_3d",
+        lambda b, i: {"first": i["first"], "second": i["second"]},
+        lambda r: f"Answer: {r['distance_m']:.2f}",
+    ),
+    "room_stacked": (
+        "find_stacked_room",
+        lambda b, i: {"space": i["start"], "direction": i["direction"]},
+        lambda r: f"Answer: {r['room']['name']}",
+    ),
+    "shared_walls_count": (
+        "count_shared_walls",
+        lambda b, i: {"space": i["start"]},
+        lambda r: f"Answer: {r['count']}",
+    ),
+    "wide_delivery_count": (
+        "reachable_rooms",
+        lambda b, i: {"start": i["start"], "floor_level": floor_level(b, i["floor_id"]), "step_free": True,
+                      "min_width_m": i["min_width"], "entrance": i["start"]},
+        lambda r: f"Answer: {r['count']}",
+    ),
+    "step_free_reachable_count": (
+        "reachable_rooms",
+        lambda b, i: {"start": i["start"], "floor_level": floor_level(b, i["floor_id"]), "step_free": True,
+                      "closed_elements": [i["closed"]], "entrance": i["start"]},
+        lambda r: f"Answer: {r['count']}",
+    ),
+    "errand": (
+        "plan_errand",
+        lambda b, i: {"start": i["start"], "asset_type": i["asset_type"], "destination_room_type": i["room_type"],
+                      "destination_floor_level": floor_level(b, i["floor_id"])},
+        lambda r: f"Answer: {r['length_m']:.2f}",
+    ),
+    "what_if_door": (
+        "analyze_what_if_door",
+        lambda b, i: {"first_space": i["first"], "second_space": i["second"],
+                      "floor_level": floor_level(b, i["floor_id"])},
+        lambda r: f"Answer: {r['count']}",
+    ),
+}
+
+
+def component_case(building_directory: Path, question: dict, output: Path) -> tuple[str, str]:
+    """Call the kind's dedicated tool with labelled inputs; score a reply built from its JSON."""
+    name, arguments, reply = COMPONENT_CALLS[question["kind"]]
+    building_path = building_directory / "building.json"
+    original = building_path.read_bytes()
+    building = BuildingMap.load(building_directory)
+    tools = {tool.name: tool for tool in make_tools(building, output)}
+    if name not in tools:
+        return "GAP", f"{name} is not registered"
+    try:
+        result = json.loads(tools[name].call(arguments(building, question["inputs"])))
+    except ToolError as error:
+        return "FAIL", f"ToolError: {error}"
+    finally:
+        assert building_path.read_bytes() == original, "Tool changed the source building"
+    text = reply(result)
+    return ("PASS" if score_reply(question["answer"], text) else "FAIL"), text
+
+
+def run_components(split: Path, kinds: list[str] | None, results_path: Path | None) -> int:
+    rows = []
+    for path in sorted(split.glob("*/questions.jsonl")):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            question = json.loads(line)
+            if "answer" not in question or (kinds and question["kind"] not in kinds):
+                continue
+            with TemporaryDirectory(prefix="building-components-") as temporary:
+                try:
+                    status, detail = component_case(path.parent, question, Path(temporary))
+                except Exception as error:
+                    status, detail = "FAIL", f"{type(error).__name__}: {error}"
+            rows.append({"id": question["id"], "kind": question["kind"], "status": status, "detail": detail,
+                         "expected": question["answer"]})
+            if status != "PASS":
+                print(f"{status:4} {question['id']} ({question['kind']}): {detail}")
+    by_kind: dict[str, Counter] = {}
+    for row in rows:
+        by_kind.setdefault(row["kind"], Counter())[row["status"]] += 1
+    print("\nkind                       PASS  FAIL   GAP / total")
+    for kind, counts in sorted(by_kind.items()):
+        print(f"  {kind:24s} {counts['PASS']:5d} {counts['FAIL']:5d} {counts['GAP']:5d} / {sum(counts.values())}")
+    totals = Counter(row["status"] for row in rows)
+    print(f"  {'all':24s} {totals['PASS']:5d} {totals['FAIL']:5d} {totals['GAP']:5d} / {len(rows)}")
+    print("Component results use labelled resolved inputs; they do not measure question interpretation.")
+    if results_path:
+        results_path.parent.mkdir(parents=True, exist_ok=True)
+        evidence = {"mode": "components", "split": str(split), "source_sha256": fingerprint(),
+                    "counts": {kind: dict(counts) for kind, counts in by_kind.items()}, "cases": rows}
+        results_path.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return 1 if totals["FAIL"] else 0
 
 
 def load_question(case: dict) -> dict:
@@ -166,12 +282,17 @@ def fingerprint() -> dict[str, str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tier", choices=["all", "easy", "medium", "hard"], default="all")
-    parser.add_argument("--mode", choices=["offline", "agent"], default="offline")
+    parser.add_argument("--mode", choices=["offline", "agent", "components"], default="offline")
     parser.add_argument("--agent", default="final_agent.benchmark:answer", help="Agent mode only; may use API credits")
     parser.add_argument("--question", action="append", help="Restrict to an exact selected question ID; repeatable")
     parser.add_argument("--strict", action="store_true", help="Exit nonzero for GAP as well as FAIL")
     parser.add_argument("--results", type=Path, help="Write a JSON evidence file")
+    parser.add_argument("--split", type=Path, default=ROOT / "data" / "dev",
+                        help="Components mode: labelled split directory, e.g. data/dev or data/train")
+    parser.add_argument("--kind", action="append", help="Components mode: restrict to a scored kind; repeatable")
     args = parser.parse_args()
+    if args.mode == "components":
+        return run_components(args.split, args.kind, args.results)
     cases = json.loads((HERE / "test_cases.json").read_text(encoding="utf-8"))
     if args.question and set(args.question) - {case["question_id"] for case in cases}:
         parser.error("--question must name selected cases in test_cases.json")

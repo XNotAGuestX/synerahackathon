@@ -29,6 +29,20 @@ class MapError(ValueError):
     """Raised for anything the user should be told about (unknown place, no route, ...)."""
 
 
+def check_number(name: str, value: float, minimum: float | None = None) -> float:
+    """Validate a numeric tool argument at the boundary: finite and, optionally, at least minimum."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise MapError(f"{name} must be a finite number, got {value!r}.")
+    if minimum is not None and value < minimum:
+        raise MapError(f"{name} must be at least {minimum}, got {value}.")
+    return float(value)
+
+
+def normalize_type(value: str) -> str:
+    """Canonical type name: 'Meeting Room', 'meeting-room' and 'meeting_room' all give 'meeting_room'."""
+    return "_".join(value.strip().lower().replace("-", " ").replace("_", " ").split())
+
+
 @dataclass
 class RouteResult:
     start_space_id: str
@@ -102,6 +116,55 @@ class BuildingMap:
     def other_side(opening: dict, space_id: str) -> str:
         first, second = opening["space_ids"]
         return second if first == space_id else first
+
+    # ---------- shared lookups and geometry ----------
+
+    def floor_by_level(self, floor_level: int) -> dict:
+        """The floor record with this level; unknown levels list the valid ones."""
+        for floor in self.floors.values():
+            if floor["level"] == floor_level:
+                return floor
+        levels = sorted(floor["level"] for floor in self.floors.values())
+        raise MapError(f"Unknown floor level {floor_level!r}. This building has floor levels {levels}.")
+
+    def floor_level(self, floor_id: str) -> int:
+        return self.floors[floor_id]["level"]
+
+    def space_polygon(self, space_id: str) -> Polygon:
+        return Polygon(self.spaces[space_id]["polygon"])
+
+    def space_area_m2(self, space_id: str) -> float:
+        """Unrounded polygon area in square metres."""
+        return self.space_polygon(space_id).area
+
+    def space_summary(self, space_id: str) -> dict:
+        """Compact identity of a space for tool results."""
+        space = self.spaces[space_id]
+        floor = self.floors[space["floor_id"]]
+        return {
+            "id": space_id, "name": space["name"], "ref": space.get("ref"),
+            "type": space["type"], "room_type": space["room_type"],
+            "floor_level": floor["level"], "floor": floor["name"],
+        }
+
+    def filter_spaces(
+        self, floor_level: int | None = None, room_type: str | None = None, space_type: str | None = None
+    ) -> list[dict]:
+        """Every space matching exact, normalized filters, sorted by floor level, name and id.
+
+        room_type is the space's subtype (office, lobby, warehouse_zone, ...); space_type is its broad
+        source type (room, hall, corridor, stair, lift, outdoor). Never a substring match.
+        """
+        floor_id = self.floor_by_level(floor_level)["id"] if floor_level is not None else None
+        wanted_room_type = normalize_type(room_type) if room_type else None
+        wanted_space_type = normalize_type(space_type) if space_type else None
+        matches = [
+            space for space in self.spaces.values()
+            if (floor_id is None or space["floor_id"] == floor_id)
+            and (wanted_room_type is None or normalize_type(space["room_type"]) == wanted_room_type)
+            and (wanted_space_type is None or normalize_type(space["type"]) == wanted_space_type)
+        ]
+        return sorted(matches, key=lambda space: (self.floor_level(space["floor_id"]), space["name"], space["id"]))
 
     # ---------- search ----------
 
@@ -286,6 +349,28 @@ class BuildingMap:
                 walked = 0.0
         steps.append(f"You have arrived at {self.describe_space(nodes[-1])}.")
         return steps
+
+    # ---------- inspection ----------
+
+    # ---------- reachability ----------
+
+    # ---------- largest room ----------
+
+    # ---------- floor area totals ----------
+
+    # ---------- straight-line 3D distance ----------
+
+    # ---------- stacked rooms ----------
+
+    # ---------- shared walls ----------
+
+    # ---------- errands ----------
+
+    # ---------- tours ----------
+
+    # ---------- what-if analysis ----------
+
+    # ---------- navigation landmarks ----------
 
     # ---------- changes ----------
 
