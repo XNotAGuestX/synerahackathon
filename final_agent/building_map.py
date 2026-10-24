@@ -727,6 +727,139 @@ class BuildingMap:
 
     # ---------- navigation landmarks ----------
 
+    MAX_LANDMARKS = 20
+    MAX_COMPETITOR_IDS = 10
+    LANDMARK_KINDS = ("asset", "space", "all")
+    SIZE_CONVENTION = (
+        "size_m2 is footprint area in square metres, not visual salience: assets use width_m x depth_m "
+        "(rotation does not change it; null when the footprint is missing or partial), spaces use polygon area. "
+        "min_size keeps candidates with size_m2 >= min_size; with min_size > 0 unknown sizes are excluded."
+    )
+
+    @staticmethod
+    def landmark_size_m2(element: dict) -> float | None:
+        """Asset footprint area, or None when width/depth are not both present; never guessed."""
+        footprint = element.get("footprint")
+        if not isinstance(footprint, dict):
+            return None
+        sides = []
+        for name in ("width_m", "depth_m"):
+            side = footprint.get(name)
+            if isinstance(side, bool) or not isinstance(side, (int, float)) or not math.isfinite(side) or side < 0:
+                return None
+            sides.append(side)
+        return float(sides[0] * sides[1])
+
+    def find_navigation_landmarks(
+        self, x_m: float, y_m: float, floor_level: int, inner_radius: float, outer_radius: float,
+        min_size: float = 0.0, kind: str = "asset", within_spaces: list[str] | None = None,
+    ) -> dict:
+        """Reference objects near a route point, each with the identical-type objects that could be confused with it.
+
+        Candidates lie within inner_radius of the point; competitors (same kind and exact normalized asset type or
+        room type, any size, any room, same floor) lie within outer_radius of the same point. Proximity is not
+        visibility, so every candidate reports visibility "unknown".
+        """
+        x_m, y_m = check_number("x_m", x_m), check_number("y_m", y_m)
+        inner_radius = check_number("inner_radius", inner_radius, 0)
+        outer_radius = check_number("outer_radius", outer_radius, 0)
+        min_size = check_number("min_size", min_size, 0)
+        if outer_radius < inner_radius:
+            raise MapError(f"outer_radius ({outer_radius}) must be at least inner_radius ({inner_radius}).")
+        if isinstance(floor_level, bool) or not isinstance(floor_level, int):
+            raise MapError(f"floor_level must be an integer, got {floor_level!r}.")
+        self.floor_by_level(floor_level)
+        if not isinstance(kind, str) or kind.strip().lower() not in self.LANDMARK_KINDS:
+            raise MapError(f"kind must be one of {list(self.LANDMARK_KINDS)}, got {kind!r}.")
+        kind = kind.strip().lower()
+        allowed_spaces: set[str] | None = None
+        if within_spaces is not None:
+            references = [within_spaces] if isinstance(within_spaces, str) else within_spaces
+            if not isinstance(references, (list, tuple)) or not references:
+                raise MapError("within_spaces must be a non-empty list of space references, or omitted.")
+            allowed_spaces = {self.resolve_space(reference) for reference in references}
+
+        from shapely.geometry import Point  # local import keeps this section independent of the module header
+
+        point = Point(x_m, y_m)
+        competitors: dict[tuple[str, str], list[dict]] = {}
+        nearby = []
+        for hit in self.spatial_search(x_m, y_m, floor_level, outer_radius, kind):
+            if hit["kind"] == "opening":
+                continue
+            raw_type = hit["room_type"] if hit["kind"] == "space" else hit["type"]
+            hit["normalized_type"] = normalize_type(raw_type) if isinstance(raw_type, str) else ""
+            competitors.setdefault((hit["kind"], hit["normalized_type"]), []).append(hit)
+            nearby.append(hit)
+
+        candidates = []
+        for hit in nearby:
+            if hit["distance_m"] > inner_radius:
+                continue
+            is_space = hit["kind"] == "space"
+            record = self.spaces[hit["id"]] if is_space else self.assets[hit["id"]]
+            space_id = hit["id"] if is_space else record["space_id"]
+            if allowed_spaces is not None and space_id not in allowed_spaces:
+                continue
+            size = self.space_area_m2(hit["id"]) if is_space else self.landmark_size_m2(record)
+            if min_size > 0 and (size is None or size < min_size):
+                continue
+            rivals = sorted(
+                other["id"] for other in competitors[(hit["kind"], hit["normalized_type"])]
+                if other["id"] != hit["id"]
+            )
+            candidate = {
+                "id": hit["id"], "name": hit["name"], "kind": hit["kind"],
+                "type": hit["room_type"] if is_space else hit["type"],
+                "space": {"id": space_id, "name": self.spaces[space_id]["name"]},
+                "floor_level": floor_level,
+                "distance_m": hit["distance_m"], "size_m2": size,
+                "similar_count_outer": len(rivals),
+                "competitor_ids": rivals[: self.MAX_COMPETITOR_IDS],
+                "is_unambiguous": not rivals,
+                "visibility": "unknown",
+            }
+            if is_space:
+                polygon = self.space_polygon(hit["id"])
+                nearest = nearest_points(polygon, point)[0]
+                representative = polygon.representative_point()
+                candidate["position"] = [nearest.x, nearest.y]
+                candidate["representative_point"] = [representative.x, representative.y]
+            else:
+                candidate["position"] = list(record["position"])
+            candidates.append(candidate)
+
+        candidates.sort(key=lambda item: (
+            not item["is_unambiguous"], item["distance_m"],
+            item["size_m2"] is None, -(item["size_m2"] or 0.0), item["id"],
+        ))
+        returned = candidates[: self.MAX_LANDMARKS]
+        for item in returned:
+            item["distance_m"] = round(item["distance_m"], 3)
+            if item["size_m2"] is not None:
+                item["size_m2"] = round(item["size_m2"], 3)
+            item["position"] = [round(value, 3) for value in item["position"]]
+            if "representative_point" in item:
+                item["representative_point"] = [round(value, 3) for value in item["representative_point"]]
+        result = {
+            "query": {
+                "x_m": x_m, "y_m": y_m, "floor_level": floor_level, "inner_radius": inner_radius,
+                "outer_radius": outer_radius, "min_size": min_size, "kind": kind,
+                "within_spaces": sorted(allowed_spaces) if allowed_spaces is not None else None,
+            },
+            "size_convention": self.SIZE_CONVENTION,
+            "candidate_count": len(candidates),
+            "truncated": len(candidates) > len(returned),
+            "unambiguous_count": sum(item["is_unambiguous"] for item in candidates),
+            "candidates": returned,
+        }
+        if not candidates:
+            result["hint"] = (
+                "No candidate within inner_radius that passes min_size and within_spaces. "
+                "Use the room or door names instead, or retry with a larger inner_radius or smaller min_size."
+            )
+        return result
+
     # ---------- changes ----------
 
     def find_element(self, reference: str) -> str:

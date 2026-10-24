@@ -268,6 +268,43 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
 
     # ---------- navigation landmarks ----------
 
+    @register
+    def find_navigation_landmarks(
+        x_m: float, y_m: float, floor_level: int, inner_radius: float, outer_radius: float,
+        min_size: float = 0.0, kind: str = "asset", within_spaces: list[str] | None = None,
+    ) -> str:
+        """Find reference objects near a route step and check that they are not confusable with similar ones.
+
+        Use the x/y of the actual step or arrival point of a computed route. Candidates lie within
+        `inner_radius` metres of that point. Competitors are objects of the same kind and exact type (asset
+        type or room type; numbering in names is ignored) within `outer_radius` of the same point, on the
+        same floor, in any room, of any size, including those inside the inner circle. A cue such as "the
+        fire extinguisher" is only safe when its `is_unambiguous` is true (similar_count_outer is 0).
+        Unambiguous candidates are listed first. If none is unambiguous, do not say "the extinguisher":
+        use room or door names, or an explicitly qualified cue. Nearby does not mean visible: every
+        candidate has visibility "unknown" and may be behind a wall, so pass `within_spaces` (the route's
+        current and next rooms) to drop cues in unrelated rooms. This tool gives no heading: never invent
+        a left or right turn. `min_size` is a footprint area in m2 (not salience); with min_size > 0
+        objects of unknown size are excluded. An empty result is normal.
+
+        Args:
+            x_m: X coordinate of the route point in the building's local metre frame.
+            y_m: Y coordinate in the same frame.
+            floor_level: Floor of the point (0 = ground floor, -1 = basement).
+            inner_radius: Maximum distance in metres of a candidate cue from the point (>= 0).
+            outer_radius: Radius in metres in which identical-type objects count as competitors (>= inner_radius).
+            min_size: Minimum footprint area in m2 for a candidate (default 0 = any, unknown size allowed).
+            kind: "asset" (step cues, default), "space" (larger destination context) or "all".
+            within_spaces: Optional space ids/names; only assets inside or spaces equal to these are candidates.
+        """
+        try:
+            result = building_map.find_navigation_landmarks(
+                x_m, y_m, floor_level, inner_radius, outer_radius, min_size, kind, within_spaces
+            )
+        except MapError as error:
+            raise ToolError(str(error)) from error
+        return as_json(result)
+
     # ---------- changes ----------
 
     @register
