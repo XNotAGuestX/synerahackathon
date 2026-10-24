@@ -76,12 +76,13 @@ keep the codebase small and easy for teammates to understand.
 - Inspect the relevant code and working-tree changes first. Preserve teammates'
   unrelated work. Fix the cause of a defect without widening the task unnecessarily.
 - Pick a concrete acceptance criterion, implement it, then run the smallest checks
-  that prove it works. Add focused regression tests for routing, geometry, state,
-  persistence and answer-format bugs; avoid tests that merely mirror implementation
-  or add scaffolding for trivial changes.
+  that prove it works. Keep test-writing time and token use low for now: reuse
+  existing tests and add only a minimal regression test when needed for a meaningful
+  correctness bug. Defer broad coverage, new test infrastructure and trivial tests.
 - Exercise the real user flow for UI/interaction changes. A feature is done when
   its result is visible and usable, including failure or unreachable cases.
-- Use the existing checks from the repository root:
+- Select the relevant checks below from the repository root. Run the full suite or
+  oracle evaluation only when the change's scope or a failure warrants it:
 
   ```bash
   uv sync

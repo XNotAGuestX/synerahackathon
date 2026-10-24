@@ -1,0 +1,596 @@
+[
+  {
+    "question_id": "osm-way22744230-H01",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions.jsonl",
+    "kind": "largest_room",
+    "subtype": "typed_floor_max_area",
+    "tier": "easy",
+    "note": "Exact room_type=generic_room and floor filter, polygon maximum; expected Generic room N5325 and 79.48 m2 (5% tolerance)."
+  },
+  {
+    "question_id": "osm-way22744230-H02",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions.jsonl",
+    "kind": "floor_area_total",
+    "subtype": "typed_floor_sum_area",
+    "tier": "medium",
+    "note": "Sum all 25 exact type/floor polygons; expected 488.45 m2 (5% tolerance), one numeric answer. A 15-result search page is incomplete."
+  },
+  {
+    "question_id": "osm-way22744230-H03",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions.jsonl",
+    "kind": "step_free_reachable_count",
+    "subtype": "lift_outage_floor_reachability_count",
+    "tier": "hard",
+    "note": "Close named lift in isolated state, start from specified entrance room, traverse only step-free graph, count eligible rooms on target floor. Expected exact count 30; zero is not implied merely by lift outage."
+  },
+  {
+    "question_id": "osm-way22744230-H04",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions.jsonl",
+    "kind": "errand",
+    "subtype": "nearest_asset_then_largest_room_stairs",
+    "tier": "hard",
+    "note": "Choose nearest reachable pickup ROOM by start-to-room route distance among 3 assets / 3 rooms; then largest typed room on requested floor. Stairs allowed. Expected 77.36 m via osm-way22744230-F2-S005 to osm-way22744230-F5-S008; 1% or 1m tolerance."
+  },
+  {
+    "question_id": "osm-way22744230-H05",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions.jsonl",
+    "kind": "room_stacked",
+    "subtype": "below_max_polygon_overlap",
+    "tier": "medium",
+    "note": "Find greatest positive XY polygon overlap on next available floor below; expected Generic room N1318, not closest centroid or a same-ref room."
+  },
+  {
+    "question_id": "osm-way22744230-H06",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions.jsonl",
+    "kind": "room_stacked",
+    "subtype": "below_max_polygon_overlap",
+    "tier": "medium",
+    "note": "Find greatest positive XY polygon overlap on next available floor below; expected Generic room N0309, not closest centroid or a same-ref room."
+  },
+  {
+    "question_id": "osm-way22744230-H07",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions.jsonl",
+    "kind": "room_stacked",
+    "subtype": "below_max_polygon_overlap",
+    "tier": "medium",
+    "note": "Find greatest positive XY polygon overlap on next available floor below; expected Generic room N2313, not closest centroid or a same-ref room."
+  },
+  {
+    "question_id": "osm-way22744230-H08",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions.jsonl",
+    "kind": "shared_walls_count",
+    "subtype": "same_floor_wall_neighbors",
+    "tier": "medium",
+    "note": "Count eligible same-floor rooms with >=1m boundary within 0.35m, with or without doors; exclude corridors/stairwells/lifts. Expected exact count 6."
+  },
+  {
+    "question_id": "osm-way22744230-H09",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions.jsonl",
+    "kind": "straight_line_3d",
+    "subtype": "centroid_elevation_distance",
+    "tier": "medium",
+    "note": "Euclidean distance between polygon centroids at actual elevation_m; expected 13.06 m (2% tolerance). Do not use representative-point anchors or walking costs."
+  },
+  {
+    "question_id": "osm-way22744230-Q01",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unique_asset_location",
+    "tier": "easy",
+    "note": "Unique matching named asset; expected containing room Lecture hall N0314, level 0, asset ID and XY position."
+  },
+  {
+    "question_id": "osm-way22744230-Q02",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unique_asset_location",
+    "tier": "easy",
+    "note": "Unique matching named asset; expected containing room Lecture hall N0314, level 0, asset ID and XY position."
+  },
+  {
+    "question_id": "osm-way22744230-Q03",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unique_asset_location",
+    "tier": "easy",
+    "note": "Unique matching named asset; expected containing room Lecture hall N0314, level 0, asset ID and XY position."
+  },
+  {
+    "question_id": "osm-way22744230-Q04",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions_basic.jsonl",
+    "kind": "count",
+    "subtype": "exact_type_floor_asset_count",
+    "tier": "easy",
+    "note": "Count asset records with exact type toilet on level 2; expected 3 items."
+  },
+  {
+    "question_id": "osm-way22744230-Q05",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_route",
+    "tier": "medium",
+    "note": "Expected anchor-model shortest route 25.41 m; labels include ordered space_path AND per-graph-edge element_path. Expected space_path explicitly leaves/re-enters through the zero-cost outside node."
+  },
+  {
+    "question_id": "osm-way22744230-Q06",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_route",
+    "tier": "easy",
+    "note": "Expected anchor-model shortest route 27.93 m; labels include ordered space_path AND per-graph-edge element_path."
+  },
+  {
+    "question_id": "osm-way22744230-Q07",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_route",
+    "tier": "medium",
+    "note": "Expected anchor-model shortest route 136.26 m; labels include ordered space_path AND per-graph-edge element_path."
+  },
+  {
+    "question_id": "osm-way22744230-Q08",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions_basic.jsonl",
+    "kind": "route_step_free",
+    "subtype": "cross_floor_step_free_reachable",
+    "tier": "medium",
+    "note": "Expected reachable step-free route, 182.51 m; opening and connector step_free filters both apply."
+  },
+  {
+    "question_id": "osm-way22744230-Q09",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions_basic.jsonl",
+    "kind": "route_with_closure",
+    "subtype": "connector_closure_reachable",
+    "tier": "medium",
+    "note": "Close named stairs osm-way22744230-V06, then route normally; expected 70.2 m and selected alternate elements."
+  },
+  {
+    "question_id": "osm-way22744230-Q10",
+    "building_id": "osm-way22744230",
+    "source_file": "data/dev/osm-way22744230/questions_basic.jsonl",
+    "kind": "tour",
+    "subtype": "ordered_two_leg_tour",
+    "tier": "medium",
+    "note": "Preserve 3 stated stops and both leg boundaries; expected total 118.57 m from legs 43.51, 75.06 m; each leg has space_path and element_path. 1 leg(s) explicitly use outside."
+  },
+  {
+    "question_id": "osm-way27326387-H01",
+    "building_id": "osm-way27326387",
+    "source_file": "data/dev/osm-way27326387/questions.jsonl",
+    "kind": "largest_room",
+    "subtype": "typed_floor_max_area",
+    "tier": "easy",
+    "note": "Exact room_type=generic_room and floor filter, polygon maximum; expected Generic room E06A and 41.18 m2 (5% tolerance)."
+  },
+  {
+    "question_id": "osm-way27326387-H02",
+    "building_id": "osm-way27326387",
+    "source_file": "data/dev/osm-way27326387/questions.jsonl",
+    "kind": "floor_area_total",
+    "subtype": "typed_floor_sum_area",
+    "tier": "medium",
+    "note": "Sum all 16 exact type/floor polygons; expected 325.61 m2 (5% tolerance), one numeric answer. A 15-result search page is incomplete."
+  },
+  {
+    "question_id": "osm-way27326387-H03",
+    "building_id": "osm-way27326387",
+    "source_file": "data/dev/osm-way27326387/questions.jsonl",
+    "kind": "errand",
+    "subtype": "nearest_asset_then_largest_room_stairs",
+    "tier": "hard",
+    "note": "Choose nearest reachable pickup ROOM by start-to-room route distance among 4 assets / 4 rooms; then largest typed room on requested floor. Stairs allowed. Expected 82.24 m via osm-way27326387-F-2-S015 to osm-way27326387-F0-S014; 1% or 1m tolerance."
+  },
+  {
+    "question_id": "osm-way27326387-H04",
+    "building_id": "osm-way27326387",
+    "source_file": "data/dev/osm-way27326387/questions.jsonl",
+    "kind": "room_stacked",
+    "subtype": "below_max_polygon_overlap",
+    "tier": "medium",
+    "note": "Find greatest positive XY polygon overlap on next available floor below; expected Generic room E11A, not closest centroid or a same-ref room. Building levels are -2, 0, 1, but this particular stacked fixture only spans 0 and 1."
+  },
+  {
+    "question_id": "osm-way27326387-H05",
+    "building_id": "osm-way27326387",
+    "source_file": "data/dev/osm-way27326387/questions.jsonl",
+    "kind": "room_stacked",
+    "subtype": "above_max_polygon_overlap",
+    "tier": "medium",
+    "note": "Find greatest positive XY polygon overlap on next available floor above; expected Generic room 114A, not closest centroid or a same-ref room. Building levels are -2, 0, 1, but this particular stacked fixture only spans 0 and 1."
+  },
+  {
+    "question_id": "osm-way27326387-H06",
+    "building_id": "osm-way27326387",
+    "source_file": "data/dev/osm-way27326387/questions.jsonl",
+    "kind": "room_stacked",
+    "subtype": "above_max_polygon_overlap",
+    "tier": "medium",
+    "note": "Find greatest positive XY polygon overlap on next available floor above; expected Generic room 114D, not closest centroid or a same-ref room. Building levels are -2, 0, 1, but this particular stacked fixture only spans 0 and 1."
+  },
+  {
+    "question_id": "osm-way27326387-H07",
+    "building_id": "osm-way27326387",
+    "source_file": "data/dev/osm-way27326387/questions.jsonl",
+    "kind": "shared_walls_count",
+    "subtype": "same_floor_wall_neighbors",
+    "tier": "medium",
+    "note": "Count eligible same-floor rooms with >=1m boundary within 0.35m, with or without doors; exclude corridors/stairwells/lifts. Expected exact count 5."
+  },
+  {
+    "question_id": "osm-way27326387-H08",
+    "building_id": "osm-way27326387",
+    "source_file": "data/dev/osm-way27326387/questions.jsonl",
+    "kind": "straight_line_3d",
+    "subtype": "centroid_elevation_distance",
+    "tier": "medium",
+    "note": "Euclidean distance between polygon centroids at actual elevation_m; expected 9.3 m (2% tolerance). Do not use representative-point anchors or walking costs. Levels 1 and -2 have elevations 3m and -6m: 9m vertical difference."
+  },
+  {
+    "question_id": "osm-way27326387-Q01",
+    "building_id": "osm-way27326387",
+    "source_file": "data/dev/osm-way27326387/questions_basic.jsonl",
+    "kind": "count",
+    "subtype": "exact_type_floor_asset_count",
+    "tier": "easy",
+    "note": "Count asset records with exact type desk on level 0; expected 13 items."
+  },
+  {
+    "question_id": "osm-way27326387-Q02",
+    "building_id": "osm-way27326387",
+    "source_file": "data/dev/osm-way27326387/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_route",
+    "tier": "easy",
+    "note": "Expected anchor-model shortest route 23.89 m; labels include ordered space_path AND per-graph-edge element_path."
+  },
+  {
+    "question_id": "osm-way27326387-Q03",
+    "building_id": "osm-way27326387",
+    "source_file": "data/dev/osm-way27326387/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_route",
+    "tier": "medium",
+    "note": "Expected anchor-model shortest route 60.82 m; labels include ordered space_path AND per-graph-edge element_path. Crosses nonconsecutive levels -2 and 0 (and possibly 1); costs use actual level span."
+  },
+  {
+    "question_id": "osm-way27326387-Q04",
+    "building_id": "osm-way27326387",
+    "source_file": "data/dev/osm-way27326387/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_route",
+    "tier": "medium",
+    "note": "Expected anchor-model shortest route 70.1 m; labels include ordered space_path AND per-graph-edge element_path. Crosses nonconsecutive levels -2 and 0 (and possibly 1); costs use actual level span."
+  },
+  {
+    "question_id": "osm-way27326387-Q05",
+    "building_id": "osm-way27326387",
+    "source_file": "data/dev/osm-way27326387/questions_basic.jsonl",
+    "kind": "route_step_free",
+    "subtype": "cross_floor_step_free_unreachable",
+    "tier": "medium",
+    "note": "Expected reachable:false; only connector is non-step-free stairs. Must explain no route without relaxing the constraint."
+  },
+  {
+    "question_id": "osm-way27326387-Q06",
+    "building_id": "osm-way27326387",
+    "source_file": "data/dev/osm-way27326387/questions_basic.jsonl",
+    "kind": "route_with_closure",
+    "subtype": "connector_closure_unreachable",
+    "tier": "hard",
+    "note": "Closing sole staircase osm-way27326387-V01 disconnects levels; expected reachable:false, no optimal_length_m. Fresh state required."
+  },
+  {
+    "question_id": "osm-way27326387-Q07",
+    "building_id": "osm-way27326387",
+    "source_file": "data/dev/osm-way27326387/questions_basic.jsonl",
+    "kind": "tour",
+    "subtype": "ordered_two_leg_tour",
+    "tier": "medium",
+    "note": "Preserve 3 stated stops and both leg boundaries; expected total 94.26 m from legs 22.1, 72.16 m; each leg has space_path and element_path. Includes slash/space room ref K01/ K02 and -2 to 0 level gap."
+  },
+  {
+    "question_id": "osm-way27917482-H01",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions.jsonl",
+    "kind": "largest_room",
+    "subtype": "typed_floor_max_area",
+    "tier": "medium",
+    "note": "Exact room_type=lobby and floor filter, polygon maximum; expected Rechnerhalle and 298.1 m2 (5% tolerance). Winner is named Rechnerhalle and has space type hall; literal room-name or type=room filtering would miss the requested lobby."
+  },
+  {
+    "question_id": "osm-way27917482-H02",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions.jsonl",
+    "kind": "floor_area_total",
+    "subtype": "typed_floor_sum_area",
+    "tier": "hard",
+    "note": "Sum all 250 exact type/floor polygons; expected 4925.97 m2 (5% tolerance), one numeric answer. A 15-result search page is incomplete. Large-map aggregation fixture."
+  },
+  {
+    "question_id": "osm-way27917482-H03",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions.jsonl",
+    "kind": "room_stacked",
+    "subtype": "below_max_polygon_overlap",
+    "tier": "medium",
+    "note": "Find greatest positive XY polygon overlap on next available floor below; expected Generic room -1.04.018, not closest centroid or a same-ref room. Large source map; unique positive-overlap winner in inspected polygons."
+  },
+  {
+    "question_id": "osm-way27917482-H04",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions.jsonl",
+    "kind": "room_stacked",
+    "subtype": "below_max_polygon_overlap",
+    "tier": "medium",
+    "note": "Find greatest positive XY polygon overlap on next available floor below; expected Generic room 00.04.038, not closest centroid or a same-ref room. Large source map; unique positive-overlap winner in inspected polygons."
+  },
+  {
+    "question_id": "osm-way27917482-H05",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions.jsonl",
+    "kind": "room_stacked",
+    "subtype": "below_max_polygon_overlap",
+    "tier": "medium",
+    "note": "Find greatest positive XY polygon overlap on next available floor below; expected Generic room 0.56, not closest centroid or a same-ref room. Large source map; unique positive-overlap winner in inspected polygons."
+  },
+  {
+    "question_id": "osm-way27917482-H06",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions.jsonl",
+    "kind": "shared_walls_count",
+    "subtype": "same_floor_wall_neighbors",
+    "tier": "medium",
+    "note": "Count eligible same-floor rooms with >=1m boundary within 0.35m, with or without doors; exclude corridors/stairwells/lifts. Expected exact count 4."
+  },
+  {
+    "question_id": "osm-way27917482-H07",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions.jsonl",
+    "kind": "straight_line_3d",
+    "subtype": "centroid_elevation_distance",
+    "tier": "medium",
+    "note": "Euclidean distance between polygon centroids at actual elevation_m; expected 189.29 m (2% tolerance). Do not use representative-point anchors or walking costs."
+  },
+  {
+    "question_id": "osm-way27917482-H08",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions.jsonl",
+    "kind": "what_if_door",
+    "subtype": "corridor_to_corridor_exit_improvement",
+    "tier": "hard",
+    "note": "Isolated shared-wall-midpoint door, nearest-exit distances before/after, count target-floor rooms improved by strictly >1m; expected 6. Door floor differs from target floor. Door is on floor 2, target is floor 3; exact shared segment exists."
+  },
+  {
+    "question_id": "osm-way27917482-H09",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions.jsonl",
+    "kind": "what_if_door",
+    "subtype": "room_to_room_exit_improvement",
+    "tier": "hard",
+    "note": "Isolated shared-wall-midpoint door, nearest-exit distances before/after, count target-floor rooms improved by strictly >1m; expected 2. Door floor differs from target floor. Door is on ground floor, target is basement 1; raw boundaries intersect only at points, requiring wall-thickness-aware contact geometry."
+  },
+  {
+    "question_id": "osm-way27917482-Q01",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unique_asset_location",
+    "tier": "easy",
+    "note": "Unique matching named asset; expected containing room Kitchen 0.19, level 0, asset ID and XY position."
+  },
+  {
+    "question_id": "osm-way27917482-Q02",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unique_asset_location",
+    "tier": "easy",
+    "note": "Unique matching named asset; expected containing room FMI Bistro, level 0, asset ID and XY position."
+  },
+  {
+    "question_id": "osm-way27917482-Q03",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unique_asset_location",
+    "tier": "easy",
+    "note": "Unique matching named asset; expected containing room Besprechungsraum der Fachschaft MPIC, level 0, asset ID and XY position."
+  },
+  {
+    "question_id": "osm-way27917482-Q04",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions_basic.jsonl",
+    "kind": "count",
+    "subtype": "exact_type_floor_asset_count",
+    "tier": "easy",
+    "note": "Count asset records with exact type toilet on level 3; expected 8 items."
+  },
+  {
+    "question_id": "osm-way27917482-Q05",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_route",
+    "tier": "hard",
+    "note": "Expected anchor-model shortest route 51.77 m; labels include ordered space_path AND per-graph-edge element_path. Expected space_path explicitly leaves/re-enters through the zero-cost outside node. Large-map route; same-floor endpoints may still leave the floor/building."
+  },
+  {
+    "question_id": "osm-way27917482-Q06",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_route",
+    "tier": "hard",
+    "note": "Expected anchor-model shortest route 75.22 m; labels include ordered space_path AND per-graph-edge element_path. Expected space_path explicitly leaves/re-enters through the zero-cost outside node. Large-map route; same-floor endpoints may still leave the floor/building."
+  },
+  {
+    "question_id": "osm-way27917482-Q07",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_route",
+    "tier": "hard",
+    "note": "Expected anchor-model shortest route 107.31 m; labels include ordered space_path AND per-graph-edge element_path. Expected space_path explicitly leaves/re-enters through the zero-cost outside node. Large-map route; same-floor endpoints may still leave the floor/building."
+  },
+  {
+    "question_id": "osm-way27917482-Q08",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions_basic.jsonl",
+    "kind": "route_step_free",
+    "subtype": "cross_floor_step_free_reachable",
+    "tier": "hard",
+    "note": "Expected reachable step-free route, 159.9 m; opening and connector step_free filters both apply. Label explicitly uses outside re-entry."
+  },
+  {
+    "question_id": "osm-way27917482-Q09",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions_basic.jsonl",
+    "kind": "route_with_closure",
+    "subtype": "connector_closure_reachable",
+    "tier": "hard",
+    "note": "Close named stairs osm-way27917482-V01, then route normally; expected 154.82 m and selected alternate elements. Text name/ref 03.08.033 on Floor 3 is shared by THREE spaces; expected ID is F3-S016, so text alone cannot resolve the labelled start. Label also uses outside."
+  },
+  {
+    "question_id": "osm-way27917482-Q10",
+    "building_id": "osm-way27917482",
+    "source_file": "data/dev/osm-way27917482/questions_basic.jsonl",
+    "kind": "tour",
+    "subtype": "ordered_two_leg_tour",
+    "tier": "hard",
+    "note": "Preserve 3 stated stops and both leg boundaries; expected total 191.23 m from legs 107.24, 83.99 m; each leg has space_path and element_path. 1 leg(s) explicitly use outside. Repeats Floor 3 around ground-floor stop; renderer must retain traversal order."
+  },
+  {
+    "question_id": "osm-way360544293-H01",
+    "building_id": "osm-way360544293",
+    "source_file": "data/dev/osm-way360544293/questions.jsonl",
+    "kind": "largest_room",
+    "subtype": "typed_floor_max_area",
+    "tier": "easy",
+    "note": "Exact room_type=generic_room and floor filter, polygon maximum; expected Edeka and 129.93 m2 (5% tolerance). Winner is named Edeka; generic_room is its data type, not its display name."
+  },
+  {
+    "question_id": "osm-way360544293-H02",
+    "building_id": "osm-way360544293",
+    "source_file": "data/dev/osm-way360544293/questions.jsonl",
+    "kind": "floor_area_total",
+    "subtype": "typed_floor_sum_area",
+    "tier": "easy",
+    "note": "Sum all 6 exact type/floor polygons; expected 2513.99 m2 (5% tolerance), one numeric answer."
+  },
+  {
+    "question_id": "osm-way360544293-H03",
+    "building_id": "osm-way360544293",
+    "source_file": "data/dev/osm-way360544293/questions.jsonl",
+    "kind": "errand",
+    "subtype": "nearest_asset_then_largest_room_stairs",
+    "tier": "hard",
+    "note": "Choose nearest reachable pickup ROOM by start-to-room route distance among 53 assets / 22 rooms; then largest typed room on requested floor. Stairs allowed. Expected 163.96 m via osm-way360544293-F0-S010 to osm-way360544293-F0-S014; 1% or 1m tolerance."
+  },
+  {
+    "question_id": "osm-way360544293-H04",
+    "building_id": "osm-way360544293",
+    "source_file": "data/dev/osm-way360544293/questions.jsonl",
+    "kind": "straight_line_3d",
+    "subtype": "centroid_elevation_distance",
+    "tier": "medium",
+    "note": "Euclidean distance between polygon centroids at actual elevation_m; expected 160.51 m (2% tolerance). Do not use representative-point anchors or walking costs."
+  },
+  {
+    "question_id": "osm-way360544293-Q01",
+    "building_id": "osm-way360544293",
+    "source_file": "data/dev/osm-way360544293/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unique_asset_location",
+    "tier": "easy",
+    "note": "Unique matching named asset; expected containing room Starbucks, level 0, asset ID and XY position."
+  },
+  {
+    "question_id": "osm-way360544293-Q02",
+    "building_id": "osm-way360544293",
+    "source_file": "data/dev/osm-way360544293/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unique_asset_location",
+    "tier": "easy",
+    "note": "Unique matching named asset; expected containing room Corridor 2.01, level 2, asset ID and XY position."
+  },
+  {
+    "question_id": "osm-way360544293-Q03",
+    "building_id": "osm-way360544293",
+    "source_file": "data/dev/osm-way360544293/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unique_asset_location",
+    "tier": "easy",
+    "note": "Unique matching named asset; expected containing room Corridor 0.07, level 0, asset ID and XY position."
+  },
+  {
+    "question_id": "osm-way360544293-Q04",
+    "building_id": "osm-way360544293",
+    "source_file": "data/dev/osm-way360544293/questions_basic.jsonl",
+    "kind": "count",
+    "subtype": "exact_type_floor_asset_count",
+    "tier": "easy",
+    "note": "Count asset records with exact type chair on level 2; expected 16 items. More items than the 15-result display limit; matches metadata is not a typed aggregate."
+  },
+  {
+    "question_id": "osm-way360544293-Q05",
+    "building_id": "osm-way360544293",
+    "source_file": "data/dev/osm-way360544293/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_route",
+    "tier": "medium",
+    "note": "Expected anchor-model shortest route 283.89 m; labels include ordered space_path AND per-graph-edge element_path. Expected space_path explicitly leaves/re-enters through the zero-cost outside node."
+  },
+  {
+    "question_id": "osm-way360544293-Q06",
+    "building_id": "osm-way360544293",
+    "source_file": "data/dev/osm-way360544293/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_route",
+    "tier": "medium",
+    "note": "Expected anchor-model shortest route 287.88 m; labels include ordered space_path AND per-graph-edge element_path. Expected space_path explicitly leaves/re-enters through the zero-cost outside node."
+  },
+  {
+    "question_id": "osm-way360544293-Q07",
+    "building_id": "osm-way360544293",
+    "source_file": "data/dev/osm-way360544293/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_route",
+    "tier": "medium",
+    "note": "Expected anchor-model shortest route 623.87 m; labels include ordered space_path AND per-graph-edge element_path. Expected space_path explicitly leaves/re-enters through the zero-cost outside node."
+  },
+  {
+    "question_id": "osm-way360544293-Q08",
+    "building_id": "osm-way360544293",
+    "source_file": "data/dev/osm-way360544293/questions_basic.jsonl",
+    "kind": "route_step_free",
+    "subtype": "same_floor_step_free_reachable",
+    "tier": "easy",
+    "note": "Expected reachable step-free route, 109.5 m; opening and connector step_free filters both apply."
+  },
+  {
+    "question_id": "osm-way360544293-Q09",
+    "building_id": "osm-way360544293",
+    "source_file": "data/dev/osm-way360544293/questions_basic.jsonl",
+    "kind": "tour",
+    "subtype": "ordered_two_leg_tour",
+    "tier": "medium",
+    "note": "Preserve 3 stated stops and both leg boundaries; expected total 497.54 m from legs 243.64, 253.9 m; each leg has space_path and element_path. 2 leg(s) explicitly use outside."
+  }
+]

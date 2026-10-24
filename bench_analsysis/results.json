@@ -1,0 +1,545 @@
+{
+  "mode": "offline",
+  "tier": "all",
+  "agent": null,
+  "scope": "Resolved-input tool probes; GAP is not a passing test",
+  "source_sha256": {
+    "final_agent/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "final_agent/__main__.py": "968351f3f5d48510f92d37f881c5fa0798d02587fec6137ad73f4aecbc68ad36",
+    "final_agent/agent.py": "8dc3546e76c9442387f7e16bcc70ec517768ebe6de4fd81113360e07fd85c7f3",
+    "final_agent/benchmark.py": "ca736831e0776cfad577c216ddccf3a3183b02b55c0e04540dcf2e2c5b433e0b",
+    "final_agent/building_map.py": "dff5baefe4ffd55bb89eabbfe4598b9a43c8412eb060ba9a0aa50a8707545c77",
+    "final_agent/evaluate.py": "a7f0c41072265583cdae1f384d37a57958c0d08e567eb9dafdbdae1ec0b7765e",
+    "final_agent/storage.py": "57affc39354735d8e68b3b660f1974edcc0c08c45d4b25ea8ee8850e531f02ba",
+    "final_agent/tools.py": "919e72a20c577781186450abed02bfb72c8e611bcd77c10449fbfe29d6bc0c44",
+    "final_agent/viewer.py": "39260330d9a984d4a034da5c182f3fd7db71dc43d589bd9b47c9db4645d12f17",
+    "benchmark/score.py": "0dbe53b391ad95e38984910eedb22ac70378b80cf17fadcca09974ad7f5422fc"
+  },
+  "counts": {
+    "PASS": 17,
+    "GAP": 28
+  },
+  "format_checks": [
+    {
+      "check": "single_number",
+      "status": "PASS"
+    },
+    {
+      "check": "no_answer_line",
+      "status": "PASS"
+    },
+    {
+      "check": "multiple_numbers",
+      "status": "PASS"
+    },
+    {
+      "check": "last_answer_commits",
+      "status": "PASS"
+    },
+    {
+      "check": "room_then_area",
+      "status": "PASS"
+    },
+    {
+      "check": "runner_up_first",
+      "status": "PASS"
+    }
+  ],
+  "cases": [
+    {
+      "question_id": "resplan-8269-Q01",
+      "building_id": "resplan-8269",
+      "source_file": "data/dev/resplan-8269/questions_basic.jsonl",
+      "kind": "locate",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Locate a specific furnishing in a small dwelling.",
+      "status": "PASS",
+      "detail": "Resolved asset search returns the expected asset, room and floor"
+    },
+    {
+      "question_id": "resplan-14509-Q05",
+      "building_id": "resplan-14509",
+      "source_file": "data/dev/resplan-14509/questions_basic.jsonl",
+      "kind": "route",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Single-floor walking route.",
+      "status": "PASS",
+      "detail": "Local-model route 4.38 m; room sequence/stop order checked"
+    },
+    {
+      "question_id": "resplan-15179-Q04",
+      "building_id": "resplan-15179",
+      "source_file": "data/dev/resplan-15179/questions_basic.jsonl",
+      "kind": "count",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Exact asset count, rather than room count.",
+      "status": "GAP",
+      "detail": "No exact inventory count tool; substring search reports 2 matches, displays 2, labelled asset count is 2"
+    },
+    {
+      "question_id": "resplan-1677-Q07",
+      "building_id": "resplan-1677",
+      "source_file": "data/dev/resplan-1677/questions_basic.jsonl",
+      "kind": "route",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Different rooms in an irregular dwelling.",
+      "status": "PASS",
+      "detail": "Local-model route 3.98 m; room sequence/stop order checked"
+    },
+    {
+      "question_id": "proc-campus-dev-001-Q01",
+      "building_id": "proc-campus-dev-001",
+      "source_file": "data/dev/proc-campus-dev-001/questions_basic.jsonl",
+      "kind": "locate",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Locate technical equipment in a campus.",
+      "status": "PASS",
+      "detail": "Resolved asset search returns the expected asset, room and floor"
+    },
+    {
+      "question_id": "proc-campus-dev-013-Q04",
+      "building_id": "proc-campus-dev-013",
+      "source_file": "data/dev/proc-campus-dev-013/questions_basic.jsonl",
+      "kind": "count",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Count one equipment type on one floor.",
+      "status": "GAP",
+      "detail": "No exact inventory count tool; substring search reports 8 matches, displays 8, labelled asset count is 8"
+    },
+    {
+      "question_id": "proc-factory-dev-003-Q03",
+      "building_id": "proc-factory-dev-003",
+      "source_file": "data/dev/proc-factory-dev-003/questions_basic.jsonl",
+      "kind": "locate",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Locate forklift charging equipment; does not imply forklift routing.",
+      "status": "PASS",
+      "detail": "Resolved asset search returns the expected asset, room and floor"
+    },
+    {
+      "question_id": "proc-factory-dev-007-Q07",
+      "building_id": "proc-factory-dev-007",
+      "source_file": "data/dev/proc-factory-dev-007/questions_basic.jsonl",
+      "kind": "route",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Basic industrial walking route.",
+      "status": "PASS",
+      "detail": "Local-model route 66.85 m; room sequence/stop order checked"
+    },
+    {
+      "question_id": "swiss-450-H01",
+      "building_id": "swiss-450",
+      "source_file": "data/dev/swiss-450/questions.jsonl",
+      "kind": "largest_room",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Largest room, including room label and area.",
+      "status": "GAP",
+      "detail": "room_area_summary: exact floor/type filter, largest polygon and area"
+    },
+    {
+      "question_id": "swiss-1689-H01",
+      "building_id": "swiss-1689",
+      "source_file": "data/dev/swiss-1689/questions.jsonl",
+      "kind": "floor_area_total",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Sum all matching room polygons on a large floor.",
+      "status": "GAP",
+      "detail": "room_area_summary: sum every eligible matching polygon"
+    },
+    {
+      "question_id": "resplan-1677-H01",
+      "building_id": "resplan-1677",
+      "source_file": "data/dev/resplan-1677/questions.jsonl",
+      "kind": "largest_room",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Largest-room comparison on a small residential plan.",
+      "status": "GAP",
+      "detail": "room_area_summary: exact floor/type filter, largest polygon and area"
+    },
+    {
+      "question_id": "proc-campus-dev-000-H02",
+      "building_id": "proc-campus-dev-000",
+      "source_file": "data/dev/proc-campus-dev-000/questions.jsonl",
+      "kind": "floor_area_total",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Sum a different room type in a campus.",
+      "status": "GAP",
+      "detail": "room_area_summary: sum every eligible matching polygon"
+    },
+    {
+      "question_id": "swiss-5097-Q02",
+      "building_id": "swiss-5097",
+      "source_file": "data/dev/swiss-5097/questions_basic.jsonl",
+      "kind": "count",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Inventory has 19 results but only 15 are displayed.",
+      "status": "GAP",
+      "detail": "No exact inventory count tool; substring search reports 19 matches, displays 15, labelled asset count is 19"
+    },
+    {
+      "question_id": "osm-way22744230-Q04",
+      "building_id": "osm-way22744230",
+      "source_file": "data/dev/osm-way22744230/questions_basic.jsonl",
+      "kind": "count",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Toilet room names and toilet assets must not contaminate the count.",
+      "status": "GAP",
+      "detail": "No exact inventory count tool; substring search reports 7 matches, displays 7, labelled asset count is 3"
+    },
+    {
+      "question_id": "proc-factory-dev-005-H02",
+      "building_id": "proc-factory-dev-005",
+      "source_file": "data/dev/proc-factory-dev-005/questions.jsonl",
+      "kind": "floor_area_total",
+      "tier": "easy",
+      "probe": "request",
+      "reason": "Typed warehouse area includes hall spaces; a room-only filter would return zero.",
+      "status": "GAP",
+      "detail": "room_area_summary: sum every eligible matching polygon"
+    },
+    {
+      "question_id": "proc-campus-dev-000-Q08",
+      "building_id": "proc-campus-dev-000",
+      "source_file": "data/dev/proc-campus-dev-000/questions_basic.jsonl",
+      "kind": "route_step_free",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Reachable cross-floor route that avoids stairs.",
+      "status": "PASS",
+      "detail": "Local-model route 110.74 m; room sequence/stop order checked"
+    },
+    {
+      "question_id": "proc-campus-dev-001-Q10",
+      "building_id": "proc-campus-dev-001",
+      "source_file": "data/dev/proc-campus-dev-001/questions_basic.jsonl",
+      "kind": "tour",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Visit three stops in the requested order.",
+      "status": "PASS",
+      "detail": "Local-model route 121.43 m; room sequence/stop order checked"
+    },
+    {
+      "question_id": "proc-campus-dev-009-Q09",
+      "building_id": "proc-campus-dev-009",
+      "source_file": "data/dev/proc-campus-dev-009/questions_basic.jsonl",
+      "kind": "route_with_closure",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "A closed staircase leaves an alternative walking route.",
+      "status": "PASS",
+      "detail": "Local-model route 128.74 m; room sequence/stop order checked"
+    },
+    {
+      "question_id": "proc-campus-dev-013-H03",
+      "building_id": "proc-campus-dev-013",
+      "source_file": "data/dev/proc-campus-dev-013/questions.jsonl",
+      "kind": "straight_line_3d",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "3D centroid distance with actual floor elevations.",
+      "status": "GAP",
+      "detail": "straight_line_distance_3d: polygon centroids at elevation_m"
+    },
+    {
+      "question_id": "proc-factory-dev-005-H06",
+      "building_id": "proc-factory-dev-005",
+      "source_file": "data/dev/proc-factory-dev-005/questions.jsonl",
+      "kind": "straight_line_3d",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Elevation matters even when factory height_m differs.",
+      "status": "GAP",
+      "detail": "straight_line_distance_3d: polygon centroids at elevation_m"
+    },
+    {
+      "question_id": "proc-factory-dev-003-H05",
+      "building_id": "proc-factory-dev-003",
+      "source_file": "data/dev/proc-factory-dev-003/questions.jsonl",
+      "kind": "shared_walls_count",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Shared-wall count includes hall bays: expected 7.",
+      "status": "GAP",
+      "detail": "shared_wall_neighbors: tolerant boundary length and per-kind eligibility"
+    },
+    {
+      "question_id": "proc-factory-dev-007-H03",
+      "building_id": "proc-factory-dev-007",
+      "source_file": "data/dev/proc-factory-dev-007/questions.jsonl",
+      "kind": "wide_delivery_count",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Width plus step-free delivery reachability.",
+      "status": "GAP",
+      "detail": "reachable_rooms: step-free + minimum width + eligible target-room count"
+    },
+    {
+      "question_id": "resplan-8269-H01",
+      "building_id": "resplan-8269",
+      "source_file": "data/dev/resplan-8269/questions.jsonl",
+      "kind": "wide_delivery_count",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Delivery count includes the starting room.",
+      "status": "GAP",
+      "detail": "reachable_rooms: step-free + minimum width + eligible target-room count"
+    },
+    {
+      "question_id": "resplan-15179-H03",
+      "building_id": "resplan-15179",
+      "source_file": "data/dev/resplan-15179/questions.jsonl",
+      "kind": "shared_walls_count",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Wall-thickness tolerance and room eligibility.",
+      "status": "GAP",
+      "detail": "shared_wall_neighbors: tolerant boundary length and per-kind eligibility"
+    },
+    {
+      "question_id": "swiss-460-Q05",
+      "building_id": "swiss-460",
+      "source_file": "data/dev/swiss-460/questions_basic.jsonl",
+      "kind": "route",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Routing on a building with nonconsecutive floor levels.",
+      "status": "PASS",
+      "detail": "Local-model route 34.40 m; room sequence/stop order checked"
+    },
+    {
+      "question_id": "swiss-5097-H04",
+      "building_id": "swiss-5097",
+      "source_file": "data/dev/swiss-5097/questions.jsonl",
+      "kind": "shared_walls_count",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Exclude adjacent balcony and circulation spaces.",
+      "status": "GAP",
+      "detail": "shared_wall_neighbors: tolerant boundary length and per-kind eligibility"
+    },
+    {
+      "question_id": "osm-way27326387-H05",
+      "building_id": "osm-way27326387",
+      "source_file": "data/dev/osm-way27326387/questions.jsonl",
+      "kind": "room_stacked",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Choose the room above by overlap, not matching room names.",
+      "status": "GAP",
+      "detail": "stacked_room: next available floor and maximum overlap"
+    },
+    {
+      "question_id": "osm-way22744230-H05",
+      "building_id": "osm-way22744230",
+      "source_file": "data/dev/osm-way22744230/questions.jsonl",
+      "kind": "room_stacked",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Choose the room below by overlap.",
+      "status": "GAP",
+      "detail": "stacked_room: next available floor and maximum overlap"
+    },
+    {
+      "question_id": "osm-way360544293-Q04",
+      "building_id": "osm-way360544293",
+      "source_file": "data/dev/osm-way360544293/questions_basic.jsonl",
+      "kind": "count",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Count uses the complete inventory beyond a 15-row page.",
+      "status": "GAP",
+      "detail": "No exact inventory count tool; substring search reports 16 matches, displays 15, labelled asset count is 16"
+    },
+    {
+      "question_id": "proc-factory-dev-011-H05",
+      "building_id": "proc-factory-dev-011",
+      "source_file": "data/dev/proc-factory-dev-011/questions.jsonl",
+      "kind": "shared_walls_count",
+      "tier": "medium",
+      "probe": "request",
+      "reason": "Shared-wall neighbours include two hall bays for an ordinary room target.",
+      "status": "GAP",
+      "detail": "shared_wall_neighbors: tolerant boundary length and per-kind eligibility"
+    },
+    {
+      "question_id": "osm-way27326387-Q05",
+      "building_id": "osm-way27326387",
+      "source_file": "data/dev/osm-way27326387/questions_basic.jsonl",
+      "kind": "route_step_free",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "No step-free route across basement and upper floor.",
+      "status": "PASS",
+      "detail": "Explicit unreachable error with constraints preserved"
+    },
+    {
+      "question_id": "osm-way27326387-Q06",
+      "building_id": "osm-way27326387",
+      "source_file": "data/dev/osm-way27326387/questions_basic.jsonl",
+      "kind": "route_with_closure",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Closing the sole staircase makes the route unreachable.",
+      "status": "PASS",
+      "detail": "Explicit unreachable error with constraints preserved"
+    },
+    {
+      "question_id": "swiss-5097-Q06",
+      "building_id": "swiss-5097",
+      "source_file": "data/dev/swiss-5097/questions_basic.jsonl",
+      "kind": "route_step_free",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Same-floor endpoints can still be unreachable step-free.",
+      "status": "PASS",
+      "detail": "Explicit unreachable error with constraints preserved"
+    },
+    {
+      "question_id": "osm-way27917482-Q09",
+      "building_id": "osm-way27917482",
+      "source_file": "data/dev/osm-way27917482/questions_basic.jsonl",
+      "kind": "route_with_closure",
+      "tier": "hard",
+      "probe": "ambiguity",
+      "reason": "Three rooms share the same ref/name/floor; reject ambiguous text safely.",
+      "status": "PASS",
+      "detail": "Safely rejects 3 same-name rooms on one floor; user clarification still required"
+    },
+    {
+      "question_id": "swiss-460-H03",
+      "building_id": "swiss-460",
+      "source_file": "data/dev/swiss-460/questions.jsonl",
+      "kind": "errand",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Nearest pickup first gives 15.72 m; total-tour optimum would be wrong.",
+      "status": "GAP",
+      "detail": "plan_errand: nearest reachable pickup first, then largest destination"
+    },
+    {
+      "question_id": "resplan-1677-H03",
+      "building_id": "resplan-1677",
+      "source_file": "data/dev/resplan-1677/questions.jsonl",
+      "kind": "errand",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Nearest-first errand differs from globally shortest total tour.",
+      "status": "GAP",
+      "detail": "plan_errand: nearest reachable pickup first, then largest destination"
+    },
+    {
+      "question_id": "proc-factory-dev-011-H04",
+      "building_id": "proc-factory-dev-011",
+      "source_file": "data/dev/proc-factory-dev-011/questions.jsonl",
+      "kind": "errand",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Equipment lookup, largest destination and multi-floor route composition.",
+      "status": "GAP",
+      "detail": "plan_errand: nearest reachable pickup first, then largest destination"
+    },
+    {
+      "question_id": "osm-way22744230-H03",
+      "building_id": "osm-way22744230",
+      "source_file": "data/dev/osm-way22744230/questions.jsonl",
+      "kind": "step_free_reachable_count",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Lift outage still leaves 30 rooms reachable step-free.",
+      "status": "GAP",
+      "detail": "reachable_rooms: isolated closure + step-free target-room count"
+    },
+    {
+      "question_id": "osm-way27917482-H08",
+      "building_id": "osm-way27917482",
+      "source_file": "data/dev/osm-way27917482/questions.jsonl",
+      "kind": "what_if_door",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Counterfactual corridor door affects another floor: expected 6.",
+      "status": "GAP",
+      "detail": "simulate_door_exit_improvement: midpoint door and isolated before/after exit distances"
+    },
+    {
+      "question_id": "osm-way27917482-H09",
+      "building_id": "osm-way27917482",
+      "source_file": "data/dev/osm-way27917482/questions.jsonl",
+      "kind": "what_if_door",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Counterfactual ground-floor door affects basement: expected 2.",
+      "status": "GAP",
+      "detail": "simulate_door_exit_improvement: midpoint door and isolated before/after exit distances"
+    },
+    {
+      "question_id": "osm-way27917482-Q05",
+      "building_id": "osm-way27917482",
+      "source_file": "data/dev/osm-way27917482/questions_basic.jsonl",
+      "kind": "route",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Large-map cross-floor route uses the local outside-node model.",
+      "status": "PASS",
+      "detail": "Local-model route 51.77 m; room sequence/stop order checked"
+    },
+    {
+      "question_id": "osm-way360544293-Q09",
+      "building_id": "osm-way360544293",
+      "source_file": "data/dev/osm-way360544293/questions_basic.jsonl",
+      "kind": "tour",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Ordered tour can use outside transitions.",
+      "status": "PASS",
+      "detail": "Local-model route 497.54 m; room sequence/stop order checked"
+    },
+    {
+      "question_id": "swiss-1689-Q07",
+      "building_id": "swiss-1689",
+      "source_file": "data/dev/swiss-1689/questions_basic.jsonl",
+      "kind": "tour",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Long housing tour with outside/re-entry semantics.",
+      "status": "PASS",
+      "detail": "Local-model route 156.85 m; room sequence/stop order checked"
+    },
+    {
+      "question_id": "proc-campus-dev-009-H03",
+      "building_id": "proc-campus-dev-009",
+      "source_file": "data/dev/proc-campus-dev-009/questions.jsonl",
+      "kind": "wide_delivery_count",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Six-floor campus delivery count combines entry, widths and accessibility.",
+      "status": "GAP",
+      "detail": "reachable_rooms: step-free + minimum width + eligible target-room count"
+    },
+    {
+      "question_id": "proc-factory-dev-003-H03",
+      "building_id": "proc-factory-dev-003",
+      "source_file": "data/dev/proc-factory-dev-003/questions.jsonl",
+      "kind": "wide_delivery_count",
+      "tier": "hard",
+      "probe": "request",
+      "reason": "Cross-floor delivery at 1.1 m includes lift access doors exactly equal to the width threshold.",
+      "status": "GAP",
+      "detail": "reachable_rooms: step-free + minimum width + eligible target-room count"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "buildings": 20,
+  "families": {
+    "osm": 4,
+    "proc-campus": 4,
+    "proc-factory": 4,
+    "swiss": 4,
+    "resplan": 4
+  },
+  "questions": 280,
+  "scored": 93,
+  "warmup": 187,
+  "by_kind": {
+    "count": 20,
+    "errand": 14,
+    "floor_area_total": 18,
+    "largest_room": 15,
+    "locate": 52,
+    "room_stacked": 9,
+    "route": 60,
+    "route_step_free": 20,
+    "route_with_closure": 15,
+    "shared_walls_count": 13,
+    "step_free_reachable_count": 1,
+    "straight_line_3d": 10,
+    "tour": 20,
+    "what_if_door": 2,
+    "wide_delivery_count": 11
+  },
+  "representative_cases": 45,
+  "cases_by_tier": {
+    "easy": 15,
+    "medium": 15,
+    "hard": 15
+  },
+  "agent_mode_scored_cases": 23,
+  "unknown_kinds": []
+}

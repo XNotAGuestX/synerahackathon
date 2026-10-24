@@ -1,0 +1,848 @@
+[
+  {
+    "question_id": "swiss-450-H01",
+    "building_id": "swiss-450",
+    "source_file": "data/dev/swiss-450/questions.jsonl",
+    "kind": "largest_room",
+    "subtype": "exact_room_type_max_area",
+    "tier": "easy",
+    "note": "Filter exact bedroom on level 1; expected 1.16 first, area 19.86 m² within 5%."
+  },
+  {
+    "question_id": "swiss-450-H02",
+    "building_id": "swiss-450",
+    "source_file": "data/dev/swiss-450/questions.jsonl",
+    "kind": "floor_area_total",
+    "subtype": "exact_room_type_area_sum",
+    "tier": "easy",
+    "note": "Sum all exact bedroom polygons on level 1; expected one number 91.12 within 5%."
+  },
+  {
+    "question_id": "swiss-450-H03",
+    "building_id": "swiss-450",
+    "source_file": "data/dev/swiss-450/questions.jsonl",
+    "kind": "errand",
+    "subtype": "nearest_pickup_then_largest_destination",
+    "tier": "hard",
+    "note": "Choose nearest reachable room with exact asset type bathtub from start first, then largest bedroom on requested floor. Label via=swiss-450-F1-S018, target=swiss-450-F1-S016, total=9.02 m (1% or 1 m tolerance). Stairs explicitly permitted."
+  },
+  {
+    "question_id": "swiss-450-H04",
+    "building_id": "swiss-450",
+    "source_file": "data/dev/swiss-450/questions.jsonl",
+    "kind": "shared_walls_count",
+    "subtype": "thick_wall_adjacency",
+    "tier": "medium",
+    "note": "Expected exact 4 same-floor eligible neighbours using >=1 m boundary within 0.35 m tolerance. Exact coincident-boundary count is zero on this example."
+  },
+  {
+    "question_id": "swiss-450-Q01",
+    "building_id": "swiss-450",
+    "source_file": "data/dev/swiss-450/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected swiss-450-A00050 in Living room 0.06 (apartment 1) on level 0."
+  },
+  {
+    "question_id": "swiss-450-Q02",
+    "building_id": "swiss-450",
+    "source_file": "data/dev/swiss-450/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected swiss-450-A00090 in Corridor 1.11 (apartment 3) on level 1."
+  },
+  {
+    "question_id": "swiss-450-Q03",
+    "building_id": "swiss-450",
+    "source_file": "data/dev/swiss-450/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected swiss-450-A00110 in Balcony 2.02 (apartment 5) on level 2."
+  },
+  {
+    "question_id": "swiss-450-Q04",
+    "building_id": "swiss-450",
+    "source_file": "data/dev/swiss-450/questions_basic.jsonl",
+    "kind": "count",
+    "subtype": "exact_asset_type_floor",
+    "tier": "easy",
+    "note": "Exact asset type stove on level 1; expected count 2."
+  },
+  {
+    "question_id": "swiss-450-Q05",
+    "building_id": "swiss-450",
+    "source_file": "data/dev/swiss-450/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_indoor",
+    "tier": "medium",
+    "note": "Requires real staircase connector sequence. Expected 32.08 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "swiss-450-Q06",
+    "building_id": "swiss-450",
+    "source_file": "data/dev/swiss-450/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_indoor",
+    "tier": "medium",
+    "note": "Ordinary same-floor route. Expected 15.93 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "swiss-450-Q07",
+    "building_id": "swiss-450",
+    "source_file": "data/dev/swiss-450/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_indoor",
+    "tier": "medium",
+    "note": "Requires real staircase connector sequence. Expected 34.78 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "swiss-450-Q08",
+    "building_id": "swiss-450",
+    "source_file": "data/dev/swiss-450/questions_basic.jsonl",
+    "kind": "route_step_free",
+    "subtype": "cross_floor_unreachable",
+    "tier": "medium",
+    "note": "Expected reachable=false; no distance or path supplied. A constrained route is unavailable; do not relax the no-stairs requirement."
+  },
+  {
+    "question_id": "swiss-450-Q09",
+    "building_id": "swiss-450",
+    "source_file": "data/dev/swiss-450/questions_basic.jsonl",
+    "kind": "route_with_closure",
+    "subtype": "staircase_closure_unreachable",
+    "tier": "hard",
+    "note": "Close named connector swiss-450-V01 in isolated state; expected reachable=false. No alternative unconstrained route may be substituted."
+  },
+  {
+    "question_id": "swiss-450-Q10",
+    "building_id": "swiss-450",
+    "source_file": "data/dev/swiss-450/questions_basic.jsonl",
+    "kind": "tour",
+    "subtype": "ordered_tour_cross_floor",
+    "tier": "hard",
+    "note": "Preserve three specified stops and two leg boundaries; expected total 78.97 m."
+  },
+  {
+    "question_id": "swiss-460-H01",
+    "building_id": "swiss-460",
+    "source_file": "data/dev/swiss-460/questions.jsonl",
+    "kind": "largest_room",
+    "subtype": "exact_room_type_max_area",
+    "tier": "easy",
+    "note": "Filter exact bedroom on level 3; expected 3.13 first, area 20.42 m² within 5%."
+  },
+  {
+    "question_id": "swiss-460-H02",
+    "building_id": "swiss-460",
+    "source_file": "data/dev/swiss-460/questions.jsonl",
+    "kind": "floor_area_total",
+    "subtype": "exact_room_type_area_sum",
+    "tier": "easy",
+    "note": "Sum all exact bedroom polygons on level 3; expected one number 106.34 within 5%."
+  },
+  {
+    "question_id": "swiss-460-H03",
+    "building_id": "swiss-460",
+    "source_file": "data/dev/swiss-460/questions.jsonl",
+    "kind": "errand",
+    "subtype": "nearest_pickup_before_delivery_optimization",
+    "tier": "hard",
+    "note": "Choose nearest reachable room with exact asset type wardrobe from start first, then largest bedroom on requested floor. Label via=swiss-460-F3-S017, target=swiss-460-F3-S013, total=15.72 m (1% or 1 m tolerance). Stairs explicitly permitted. Globally shortest two-leg pickup/delivery choice would instead be 14.26 m and is wrong for this request."
+  },
+  {
+    "question_id": "swiss-460-Q01",
+    "building_id": "swiss-460",
+    "source_file": "data/dev/swiss-460/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected swiss-460-A00115 in Corridor 4.01 (apartment 9) on level 4."
+  },
+  {
+    "question_id": "swiss-460-Q02",
+    "building_id": "swiss-460",
+    "source_file": "data/dev/swiss-460/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected swiss-460-A00116 in Balcony 4.02 (apartment 9) on level 4."
+  },
+  {
+    "question_id": "swiss-460-Q03",
+    "building_id": "swiss-460",
+    "source_file": "data/dev/swiss-460/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected swiss-460-A00002 in Bathroom 0.05 (apartment 1) on level 0."
+  },
+  {
+    "question_id": "swiss-460-Q04",
+    "building_id": "swiss-460",
+    "source_file": "data/dev/swiss-460/questions_basic.jsonl",
+    "kind": "count",
+    "subtype": "exact_asset_type_floor",
+    "tier": "easy",
+    "note": "Exact asset type sink on level 0; expected count 2."
+  },
+  {
+    "question_id": "swiss-460-Q05",
+    "building_id": "swiss-460",
+    "source_file": "data/dev/swiss-460/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_indoor",
+    "tier": "medium",
+    "note": "Requires real staircase connector sequence. Expected 34.40 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "swiss-460-Q06",
+    "building_id": "swiss-460",
+    "source_file": "data/dev/swiss-460/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_indoor",
+    "tier": "medium",
+    "note": "Requires real staircase connector sequence. Expected 29.93 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "swiss-460-Q07",
+    "building_id": "swiss-460",
+    "source_file": "data/dev/swiss-460/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_indoor",
+    "tier": "easy",
+    "note": "Ordinary same-floor route. Expected 10.23 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "swiss-460-Q08",
+    "building_id": "swiss-460",
+    "source_file": "data/dev/swiss-460/questions_basic.jsonl",
+    "kind": "route_step_free",
+    "subtype": "same_floor_reachable",
+    "tier": "medium",
+    "note": "Step-free route exists; expected 22.49 m."
+  },
+  {
+    "question_id": "swiss-460-Q09",
+    "building_id": "swiss-460",
+    "source_file": "data/dev/swiss-460/questions_basic.jsonl",
+    "kind": "route_with_closure",
+    "subtype": "staircase_closure_unreachable",
+    "tier": "hard",
+    "note": "Close named connector swiss-460-V01 in isolated state; expected reachable=false. No alternative unconstrained route may be substituted."
+  },
+  {
+    "question_id": "swiss-460-Q10",
+    "building_id": "swiss-460",
+    "source_file": "data/dev/swiss-460/questions_basic.jsonl",
+    "kind": "tour",
+    "subtype": "ordered_tour_cross_floor",
+    "tier": "hard",
+    "note": "Preserve three specified stops and two leg boundaries; expected total 93.42 m."
+  },
+  {
+    "question_id": "swiss-5097-H01",
+    "building_id": "swiss-5097",
+    "source_file": "data/dev/swiss-5097/questions.jsonl",
+    "kind": "largest_room",
+    "subtype": "exact_room_type_max_area",
+    "tier": "easy",
+    "note": "Filter exact living_room on level 0; expected 0.07 first, area 38.08 m² within 5%."
+  },
+  {
+    "question_id": "swiss-5097-H02",
+    "building_id": "swiss-5097",
+    "source_file": "data/dev/swiss-5097/questions.jsonl",
+    "kind": "floor_area_total",
+    "subtype": "exact_room_type_area_sum_basement",
+    "tier": "easy",
+    "note": "Sum all exact storage polygons on level -1; expected one number 14.66 within 5%."
+  },
+  {
+    "question_id": "swiss-5097-H03",
+    "building_id": "swiss-5097",
+    "source_file": "data/dev/swiss-5097/questions.jsonl",
+    "kind": "errand",
+    "subtype": "nearest_pickup_before_delivery_optimization",
+    "tier": "hard",
+    "note": "Choose nearest reachable room with exact asset type plant from start first, then largest kitchen on requested floor. Label via=swiss-5097-F2-S061, target=swiss-5097-F2-S047, total=31.15 m (1% or 1 m tolerance). Stairs explicitly permitted. Globally shortest two-leg pickup/delivery choice would instead be 24.17 m and is wrong for this request. Selected pickup is Balcony 2.61 (type=outdoor): asset pickup candidates must include outdoor spaces even though room-count eligibility excludes them."
+  },
+  {
+    "question_id": "swiss-5097-H04",
+    "building_id": "swiss-5097",
+    "source_file": "data/dev/swiss-5097/questions.jsonl",
+    "kind": "shared_walls_count",
+    "subtype": "thick_wall_adjacency_excludes_outdoor",
+    "tier": "hard",
+    "note": "Expected exact 3 same-floor eligible neighbours using >=1 m boundary within 0.35 m tolerance. Exact coincident-boundary count is zero on this example. Nearby outdoor balcony excluded, beyond exclusions explicitly named in question prose."
+  },
+  {
+    "question_id": "swiss-5097-Q01",
+    "building_id": "swiss-5097",
+    "source_file": "data/dev/swiss-5097/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected swiss-5097-A00183 in Corridor -1.01 (apartment 1) on level -1."
+  },
+  {
+    "question_id": "swiss-5097-Q02",
+    "building_id": "swiss-5097",
+    "source_file": "data/dev/swiss-5097/questions_basic.jsonl",
+    "kind": "count",
+    "subtype": "exact_asset_type_floor_over_search_limit",
+    "tier": "medium",
+    "note": "Exact asset type wardrobe on level 1; expected count 19. Tool matches reports 19 but returns only 15 detailed rows; never count the displayed rows."
+  },
+  {
+    "question_id": "swiss-5097-Q03",
+    "building_id": "swiss-5097",
+    "source_file": "data/dev/swiss-5097/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_via_outside",
+    "tier": "hard",
+    "note": "Expected labelled route explicitly leaves and re-enters via local zero-cost outside node. Expected 31.25 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "swiss-5097-Q04",
+    "building_id": "swiss-5097",
+    "source_file": "data/dev/swiss-5097/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_via_outside",
+    "tier": "hard",
+    "note": "Expected labelled route explicitly leaves and re-enters via local zero-cost outside node. Expected 31.76 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "swiss-5097-Q05",
+    "building_id": "swiss-5097",
+    "source_file": "data/dev/swiss-5097/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_via_outside",
+    "tier": "hard",
+    "note": "Expected labelled route explicitly leaves and re-enters via local zero-cost outside node. Expected 35.99 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "swiss-5097-Q06",
+    "building_id": "swiss-5097",
+    "source_file": "data/dev/swiss-5097/questions_basic.jsonl",
+    "kind": "route_step_free",
+    "subtype": "same_floor_unreachable",
+    "tier": "hard",
+    "note": "Expected reachable=false; no distance or path supplied. Same-floor endpoints are disconnected under the constraint; do not infer reachability from floor equality."
+  },
+  {
+    "question_id": "swiss-5097-Q07",
+    "building_id": "swiss-5097",
+    "source_file": "data/dev/swiss-5097/questions_basic.jsonl",
+    "kind": "route_with_closure",
+    "subtype": "staircase_closure_unreachable",
+    "tier": "hard",
+    "note": "Close named connector swiss-5097-V20 in isolated state; expected reachable=false. No alternative unconstrained route may be substituted."
+  },
+  {
+    "question_id": "swiss-5097-Q08",
+    "building_id": "swiss-5097",
+    "source_file": "data/dev/swiss-5097/questions_basic.jsonl",
+    "kind": "tour",
+    "subtype": "ordered_tour_via_outside",
+    "tier": "hard",
+    "note": "Preserve three specified stops and two leg boundaries; expected total 43.98 m. Each leg uses leave/re-enter transitions through outside."
+  },
+  {
+    "question_id": "swiss-1689-H01",
+    "building_id": "swiss-1689",
+    "source_file": "data/dev/swiss-1689/questions.jsonl",
+    "kind": "floor_area_total",
+    "subtype": "exact_room_type_area_sum",
+    "tier": "easy",
+    "note": "Sum all exact living_room polygons on level 3; expected one number 157.43 within 5%."
+  },
+  {
+    "question_id": "swiss-1689-Q01",
+    "building_id": "swiss-1689",
+    "source_file": "data/dev/swiss-1689/questions_basic.jsonl",
+    "kind": "count",
+    "subtype": "exact_asset_type_floor",
+    "tier": "easy",
+    "note": "Exact asset type bookshelf on level 0; expected count 4."
+  },
+  {
+    "question_id": "swiss-1689-Q02",
+    "building_id": "swiss-1689",
+    "source_file": "data/dev/swiss-1689/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_via_outside",
+    "tier": "hard",
+    "note": "Expected labelled route explicitly leaves and re-enters via local zero-cost outside node. Expected 31.59 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "swiss-1689-Q03",
+    "building_id": "swiss-1689",
+    "source_file": "data/dev/swiss-1689/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_via_outside",
+    "tier": "hard",
+    "note": "Expected labelled route explicitly leaves and re-enters via local zero-cost outside node. Expected 62.71 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "swiss-1689-Q04",
+    "building_id": "swiss-1689",
+    "source_file": "data/dev/swiss-1689/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "cross_floor_via_outside",
+    "tier": "hard",
+    "note": "Expected labelled route explicitly leaves and re-enters via local zero-cost outside node. Expected 55.78 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "swiss-1689-Q05",
+    "building_id": "swiss-1689",
+    "source_file": "data/dev/swiss-1689/questions_basic.jsonl",
+    "kind": "route_step_free",
+    "subtype": "cross_floor_unreachable",
+    "tier": "hard",
+    "note": "Expected reachable=false; no distance or path supplied. A constrained route is unavailable; do not relax the no-stairs requirement."
+  },
+  {
+    "question_id": "swiss-1689-Q06",
+    "building_id": "swiss-1689",
+    "source_file": "data/dev/swiss-1689/questions_basic.jsonl",
+    "kind": "route_with_closure",
+    "subtype": "staircase_closure_unreachable",
+    "tier": "hard",
+    "note": "Close named connector swiss-1689-V08 in isolated state; expected reachable=false. No alternative unconstrained route may be substituted."
+  },
+  {
+    "question_id": "swiss-1689-Q07",
+    "building_id": "swiss-1689",
+    "source_file": "data/dev/swiss-1689/questions_basic.jsonl",
+    "kind": "tour",
+    "subtype": "ordered_tour_with_floor_detour",
+    "tier": "hard",
+    "note": "Preserve three specified stops and two leg boundaries; expected total 156.85 m. First leg begins/ends on level 1 but must go via level 0; second leg descends before ascending to level 3."
+  },
+  {
+    "question_id": "resplan-8269-H01",
+    "building_id": "resplan-8269",
+    "source_file": "data/dev/resplan-8269/questions.jsonl",
+    "kind": "wide_delivery_count",
+    "subtype": "width_reachability_includes_start_room",
+    "tier": "medium",
+    "note": "Step-free and width >= 1.0 m; count eligible type=room spaces on target floor, including entrance living room. Expected exact 4. Entry is wide enough; no observed width equals the threshold."
+  },
+  {
+    "question_id": "resplan-8269-H02",
+    "building_id": "resplan-8269",
+    "source_file": "data/dev/resplan-8269/questions.jsonl",
+    "kind": "shared_walls_count",
+    "subtype": "thick_wall_adjacency",
+    "tier": "medium",
+    "note": "Expected exact 3 same-floor eligible neighbours using >=1 m boundary within 0.35 m tolerance. Exact coincident-boundary count is zero on this example."
+  },
+  {
+    "question_id": "resplan-8269-Q01",
+    "building_id": "resplan-8269",
+    "source_file": "data/dev/resplan-8269/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected resplan-8269-A00018 in Kitchen 0.05 on level 0."
+  },
+  {
+    "question_id": "resplan-8269-Q02",
+    "building_id": "resplan-8269",
+    "source_file": "data/dev/resplan-8269/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected resplan-8269-A00017 in Kitchen 0.05 on level 0."
+  },
+  {
+    "question_id": "resplan-8269-Q03",
+    "building_id": "resplan-8269",
+    "source_file": "data/dev/resplan-8269/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected resplan-8269-A00015 in Kitchen 0.05 on level 0."
+  },
+  {
+    "question_id": "resplan-8269-Q04",
+    "building_id": "resplan-8269",
+    "source_file": "data/dev/resplan-8269/questions_basic.jsonl",
+    "kind": "count",
+    "subtype": "exact_asset_type_floor",
+    "tier": "easy",
+    "note": "Exact asset type sink on level 0; expected count 2."
+  },
+  {
+    "question_id": "resplan-8269-Q05",
+    "building_id": "resplan-8269",
+    "source_file": "data/dev/resplan-8269/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_indoor",
+    "tier": "medium",
+    "note": "Ordinary same-floor route. Expected 12.01 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "resplan-8269-Q06",
+    "building_id": "resplan-8269",
+    "source_file": "data/dev/resplan-8269/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_indoor",
+    "tier": "medium",
+    "note": "Ordinary same-floor route. Expected 12.01 m and valid ordered spaces/openings. Exact duplicate prompt and label of resplan-8269-Q05; avoid redundant representative selection."
+  },
+  {
+    "question_id": "resplan-8269-Q07",
+    "building_id": "resplan-8269",
+    "source_file": "data/dev/resplan-8269/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_indoor",
+    "tier": "easy",
+    "note": "Ordinary same-floor route. Expected 5.41 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "resplan-8269-Q08",
+    "building_id": "resplan-8269",
+    "source_file": "data/dev/resplan-8269/questions_basic.jsonl",
+    "kind": "route_step_free",
+    "subtype": "same_floor_reachable",
+    "tier": "medium",
+    "note": "Step-free route exists; expected 2.04 m."
+  },
+  {
+    "question_id": "resplan-8269-Q09",
+    "building_id": "resplan-8269",
+    "source_file": "data/dev/resplan-8269/questions_basic.jsonl",
+    "kind": "tour",
+    "subtype": "ordered_tour_same_floor",
+    "tier": "medium",
+    "note": "Preserve three specified stops and two leg boundaries; expected total 18.33 m."
+  },
+  {
+    "question_id": "resplan-14509-H01",
+    "building_id": "resplan-14509",
+    "source_file": "data/dev/resplan-14509/questions.jsonl",
+    "kind": "wide_delivery_count",
+    "subtype": "width_reachability_includes_start_room",
+    "tier": "medium",
+    "note": "Step-free and width >= 1.0 m; count eligible type=room spaces on target floor, including entrance living room. Expected exact 3. Entry is wide enough; no observed width equals the threshold."
+  },
+  {
+    "question_id": "resplan-14509-H02",
+    "building_id": "resplan-14509",
+    "source_file": "data/dev/resplan-14509/questions.jsonl",
+    "kind": "shared_walls_count",
+    "subtype": "thick_wall_adjacency",
+    "tier": "medium",
+    "note": "Expected exact 3 same-floor eligible neighbours using >=1 m boundary within 0.35 m tolerance. Exact coincident-boundary count is zero on this example."
+  },
+  {
+    "question_id": "resplan-14509-Q01",
+    "building_id": "resplan-14509",
+    "source_file": "data/dev/resplan-14509/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected resplan-14509-A00017 in Bathroom 0.04 on level 0."
+  },
+  {
+    "question_id": "resplan-14509-Q02",
+    "building_id": "resplan-14509",
+    "source_file": "data/dev/resplan-14509/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected resplan-14509-A00006 in Living room 0.01 on level 0."
+  },
+  {
+    "question_id": "resplan-14509-Q03",
+    "building_id": "resplan-14509",
+    "source_file": "data/dev/resplan-14509/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected resplan-14509-A00011 in Bedroom 0.02 on level 0."
+  },
+  {
+    "question_id": "resplan-14509-Q04",
+    "building_id": "resplan-14509",
+    "source_file": "data/dev/resplan-14509/questions_basic.jsonl",
+    "kind": "count",
+    "subtype": "exact_asset_type_floor",
+    "tier": "easy",
+    "note": "Exact asset type dining_chair on level 0; expected count 3."
+  },
+  {
+    "question_id": "resplan-14509-Q05",
+    "building_id": "resplan-14509",
+    "source_file": "data/dev/resplan-14509/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_indoor",
+    "tier": "easy",
+    "note": "Ordinary same-floor route. Expected 4.38 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "resplan-14509-Q06",
+    "building_id": "resplan-14509",
+    "source_file": "data/dev/resplan-14509/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_indoor",
+    "tier": "medium",
+    "note": "Ordinary same-floor route. Expected 10.39 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "resplan-14509-Q07",
+    "building_id": "resplan-14509",
+    "source_file": "data/dev/resplan-14509/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_indoor",
+    "tier": "easy",
+    "note": "Ordinary same-floor route. Expected 2.84 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "resplan-14509-Q08",
+    "building_id": "resplan-14509",
+    "source_file": "data/dev/resplan-14509/questions_basic.jsonl",
+    "kind": "route_step_free",
+    "subtype": "same_floor_reachable",
+    "tier": "medium",
+    "note": "Step-free route exists; expected 6.01 m."
+  },
+  {
+    "question_id": "resplan-14509-Q09",
+    "building_id": "resplan-14509",
+    "source_file": "data/dev/resplan-14509/questions_basic.jsonl",
+    "kind": "tour",
+    "subtype": "ordered_tour_same_floor",
+    "tier": "medium",
+    "note": "Preserve three specified stops and two leg boundaries; expected total 16.40 m."
+  },
+  {
+    "question_id": "resplan-15179-H01",
+    "building_id": "resplan-15179",
+    "source_file": "data/dev/resplan-15179/questions.jsonl",
+    "kind": "floor_area_total",
+    "subtype": "exact_room_type_area_sum",
+    "tier": "easy",
+    "note": "Sum all exact bathroom polygons on level 0; expected one number 19.67 within 5%."
+  },
+  {
+    "question_id": "resplan-15179-H02",
+    "building_id": "resplan-15179",
+    "source_file": "data/dev/resplan-15179/questions.jsonl",
+    "kind": "wide_delivery_count",
+    "subtype": "width_reachability_excludes_outdoor",
+    "tier": "medium",
+    "note": "Step-free and width >= 1.1 m; count eligible type=room spaces on target floor, including entrance living room. Expected exact 6. Entry is wide enough; no observed width equals the threshold. Three outdoor polygons must not count; 1.096 m doors are too narrow for 1.1 m."
+  },
+  {
+    "question_id": "resplan-15179-H03",
+    "building_id": "resplan-15179",
+    "source_file": "data/dev/resplan-15179/questions.jsonl",
+    "kind": "shared_walls_count",
+    "subtype": "thick_wall_adjacency",
+    "tier": "medium",
+    "note": "Expected exact 3 same-floor eligible neighbours using >=1 m boundary within 0.35 m tolerance. Exact coincident-boundary count is zero on this example."
+  },
+  {
+    "question_id": "resplan-15179-Q01",
+    "building_id": "resplan-15179",
+    "source_file": "data/dev/resplan-15179/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected resplan-15179-A00028 in Kitchen 0.09 on level 0."
+  },
+  {
+    "question_id": "resplan-15179-Q02",
+    "building_id": "resplan-15179",
+    "source_file": "data/dev/resplan-15179/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected resplan-15179-A00002 in Living room 0.01 on level 0."
+  },
+  {
+    "question_id": "resplan-15179-Q03",
+    "building_id": "resplan-15179",
+    "source_file": "data/dev/resplan-15179/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected resplan-15179-A00026 in Bathroom 0.08 on level 0."
+  },
+  {
+    "question_id": "resplan-15179-Q04",
+    "building_id": "resplan-15179",
+    "source_file": "data/dev/resplan-15179/questions_basic.jsonl",
+    "kind": "count",
+    "subtype": "exact_asset_type_floor",
+    "tier": "easy",
+    "note": "Exact asset type nightstand on level 0; expected count 2."
+  },
+  {
+    "question_id": "resplan-15179-Q05",
+    "building_id": "resplan-15179",
+    "source_file": "data/dev/resplan-15179/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_indoor",
+    "tier": "easy",
+    "note": "Ordinary same-floor route. Expected 3.51 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "resplan-15179-Q06",
+    "building_id": "resplan-15179",
+    "source_file": "data/dev/resplan-15179/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_indoor",
+    "tier": "easy",
+    "note": "Ordinary same-floor route. Expected 10.06 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "resplan-15179-Q07",
+    "building_id": "resplan-15179",
+    "source_file": "data/dev/resplan-15179/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_indoor",
+    "tier": "easy",
+    "note": "Ordinary same-floor route. Expected 10.06 m and valid ordered spaces/openings. Exact duplicate prompt and label of resplan-15179-Q06; avoid redundant representative selection."
+  },
+  {
+    "question_id": "resplan-15179-Q08",
+    "building_id": "resplan-15179",
+    "source_file": "data/dev/resplan-15179/questions_basic.jsonl",
+    "kind": "route_step_free",
+    "subtype": "same_floor_reachable",
+    "tier": "medium",
+    "note": "Step-free route exists; expected 14.22 m."
+  },
+  {
+    "question_id": "resplan-15179-Q09",
+    "building_id": "resplan-15179",
+    "source_file": "data/dev/resplan-15179/questions_basic.jsonl",
+    "kind": "tour",
+    "subtype": "ordered_tour_same_floor",
+    "tier": "medium",
+    "note": "Preserve three specified stops and two leg boundaries; expected total 21.37 m."
+  },
+  {
+    "question_id": "resplan-1677-H01",
+    "building_id": "resplan-1677",
+    "source_file": "data/dev/resplan-1677/questions.jsonl",
+    "kind": "largest_room",
+    "subtype": "exact_room_type_max_area",
+    "tier": "easy",
+    "note": "Filter exact bedroom on level 0; expected 0.03 first, area 24.94 m² within 5%."
+  },
+  {
+    "question_id": "resplan-1677-H02",
+    "building_id": "resplan-1677",
+    "source_file": "data/dev/resplan-1677/questions.jsonl",
+    "kind": "floor_area_total",
+    "subtype": "exact_room_type_area_sum",
+    "tier": "easy",
+    "note": "Sum all exact bathroom polygons on level 0; expected one number 16.45 within 5%."
+  },
+  {
+    "question_id": "resplan-1677-H03",
+    "building_id": "resplan-1677",
+    "source_file": "data/dev/resplan-1677/questions.jsonl",
+    "kind": "errand",
+    "subtype": "nearest_pickup_before_delivery_optimization",
+    "tier": "hard",
+    "note": "Choose nearest reachable room with exact asset type plant from start first, then largest bedroom on requested floor. Label via=resplan-1677-F0-S009, target=resplan-1677-F0-S003, total=19.82 m (1% or 1 m tolerance). Stairs explicitly permitted. Globally shortest two-leg pickup/delivery choice would instead be 12.31 m and is wrong for this request. Selected pickup is Balcony 0.09 (type=outdoor): do not apply room-count eligibility to asset pickup candidates."
+  },
+  {
+    "question_id": "resplan-1677-H04",
+    "building_id": "resplan-1677",
+    "source_file": "data/dev/resplan-1677/questions.jsonl",
+    "kind": "shared_walls_count",
+    "subtype": "thick_wall_adjacency_excludes_outdoor",
+    "tier": "medium",
+    "note": "Expected exact 3 same-floor eligible neighbours using >=1 m boundary within 0.35 m tolerance. Exact coincident-boundary count is zero on this example. Nearby outdoor balcony excluded, beyond exclusions explicitly named in question prose."
+  },
+  {
+    "question_id": "resplan-1677-Q01",
+    "building_id": "resplan-1677",
+    "source_file": "data/dev/resplan-1677/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected resplan-1677-A00002 in Living room 0.01 on level 0."
+  },
+  {
+    "question_id": "resplan-1677-Q02",
+    "building_id": "resplan-1677",
+    "source_file": "data/dev/resplan-1677/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected resplan-1677-A00023 in Bathroom 0.06 on level 0."
+  },
+  {
+    "question_id": "resplan-1677-Q03",
+    "building_id": "resplan-1677",
+    "source_file": "data/dev/resplan-1677/questions_basic.jsonl",
+    "kind": "locate",
+    "subtype": "unambiguous_asset_lookup",
+    "tier": "easy",
+    "note": "Unique matching asset phrase; expected resplan-1677-A00032 in Kitchen 0.08 on level 0."
+  },
+  {
+    "question_id": "resplan-1677-Q04",
+    "building_id": "resplan-1677",
+    "source_file": "data/dev/resplan-1677/questions_basic.jsonl",
+    "kind": "count",
+    "subtype": "exact_asset_type_floor",
+    "tier": "easy",
+    "note": "Exact asset type sink on level 0; expected count 3."
+  },
+  {
+    "question_id": "resplan-1677-Q05",
+    "building_id": "resplan-1677",
+    "source_file": "data/dev/resplan-1677/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_indoor",
+    "tier": "easy",
+    "note": "Ordinary same-floor route. Expected 4.06 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "resplan-1677-Q06",
+    "building_id": "resplan-1677",
+    "source_file": "data/dev/resplan-1677/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_indoor",
+    "tier": "easy",
+    "note": "Ordinary same-floor route. Expected 4.06 m and valid ordered spaces/openings. Exact duplicate prompt and label of resplan-1677-Q05; avoid redundant representative selection."
+  },
+  {
+    "question_id": "resplan-1677-Q07",
+    "building_id": "resplan-1677",
+    "source_file": "data/dev/resplan-1677/questions_basic.jsonl",
+    "kind": "route",
+    "subtype": "same_floor_indoor",
+    "tier": "easy",
+    "note": "Ordinary same-floor route. Expected 3.98 m and valid ordered spaces/openings."
+  },
+  {
+    "question_id": "resplan-1677-Q08",
+    "building_id": "resplan-1677",
+    "source_file": "data/dev/resplan-1677/questions_basic.jsonl",
+    "kind": "route_step_free",
+    "subtype": "same_floor_reachable",
+    "tier": "medium",
+    "note": "Step-free route exists; expected 16.37 m."
+  },
+  {
+    "question_id": "resplan-1677-Q09",
+    "building_id": "resplan-1677",
+    "source_file": "data/dev/resplan-1677/questions_basic.jsonl",
+    "kind": "tour",
+    "subtype": "ordered_tour_same_floor",
+    "tier": "medium",
+    "note": "Preserve three specified stops and two leg boundaries; expected total 28.75 m."
+  }
+]
