@@ -1,0 +1,74 @@
+[
+  {
+    "file": "health.json",
+    "schema": "Health"
+  },
+  {
+    "file": "buildings.json",
+    "schema": "BuildingPage"
+  },
+  {
+    "file": "building.json",
+    "schema": "BuildingDetail"
+  },
+  {
+    "file": "session.json",
+    "schema": "Session"
+  },
+  {
+    "file": "floors.json",
+    "schema": "FloorIndex"
+  },
+  {
+    "file": "plan.json",
+    "schema": "FloorPlan"
+  },
+  {
+    "file": "places.json",
+    "schema": "PlacePage"
+  },
+  {
+    "file": "route.json",
+    "schema": "Route"
+  },
+  {
+    "file": "message.json",
+    "schema": "MessageAccepted"
+  },
+  {
+    "file": "messages.json",
+    "schema": "MessagePage"
+  },
+  {
+    "file": "action_pending.json",
+    "schema": "Action"
+  },
+  {
+    "file": "session_pending.json",
+    "schema": "Session"
+  },
+  {
+    "file": "action_confirmed.json",
+    "schema": "Action"
+  },
+  {
+    "file": "session_confirmed.json",
+    "schema": "Session"
+  },
+  {
+    "file": "plan_confirmed.json",
+    "schema": "FloorPlan"
+  },
+  {
+    "file": "error_validation.json",
+    "schema": "Error"
+  },
+  {
+    "file": "error_not_found.json",
+    "schema": "Error"
+  },
+  {
+    "file": "error_model.json",
+    "schema": "Error"
+  }
+]

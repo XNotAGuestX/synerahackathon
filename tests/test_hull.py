@@ -94,7 +94,11 @@ class ScriptedClient:
         self.turns = list(turns)
         self.results: list[tuple[str, bool, str]] = []
         self.history_lengths: list[int] = []
-        self.beta = SimpleNamespace(messages=SimpleNamespace(tool_runner=self.tool_runner))
+        self.beta = SimpleNamespace(messages=SimpleNamespace(tool_runner=self.tool_runner, parse=self.parse))
+
+    def parse(self, **request) -> SimpleNamespace:
+        """A scripted structuring request: the model returns no schema-valid reply."""
+        return SimpleNamespace(parsed_output=None, stop_reason="end_turn", usage=reply().usage)
 
     def tool_runner(self, **request) -> ScriptedRunner:
         self.history_lengths.append(len(request["messages"]))
@@ -275,7 +279,7 @@ class BadToolArgumentTests(unittest.TestCase):
             tool.call({"item": "key"})
 
     def test_schemas_unchanged_by_the_wrapper(self):
-        self.assertEqual(len(self.tools), 24)
+        self.assertEqual(len(self.tools), 25)
         for tool in self.tools.values():
             plain = anthropic.beta_tool(tool.func).to_dict()
             self.assertEqual(tool.to_dict(), plain)

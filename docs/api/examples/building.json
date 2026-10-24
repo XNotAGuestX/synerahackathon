@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "id": "proc-factory-dev-003",
+  "name": "Fertigung Ost 27",
+  "source": "procedural",
+  "split": "dev",
+  "license": "CC0-1.0",
+  "level_count": 2,
+  "levels": [
+    0,
+    1
+  ],
+  "space_count": 79,
+  "asset_count": 505,
+  "has_stairs": true,
+  "has_lift": true,
+  "has_step_free_entrance": true,
+  "units": "m",
+  "attribution": "Procedurally generated for the Munich hackathon (CC0)",
+  "floors": [
+    {
+      "id": "proc-factory-dev-003-F0",
+      "level": 0,
+      "name": "Ground floor",
+      "elevation_m": 0.0,
+      "height_m": 8.0,
+      "space_count": 47
+    },
+    {
+      "id": "proc-factory-dev-003-F1",
+      "level": 1,
+      "name": "Floor 1",
+      "elevation_m": 3.5,
+      "height_m": 3.5,
+      "space_count": 32
+    }
+  ]
+}

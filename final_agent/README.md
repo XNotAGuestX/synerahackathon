@@ -9,6 +9,9 @@ package was verified to contain all of its files, map functions and tools.
 # Conversation (requires Claude API credentials)
 uv run python -m final_agent data/dev/proc-factory-dev-003
 
+# Frontend HTTP API (only /messages needs model credentials)
+uv run python -m final_agent.api
+
 # Free deterministic warm-up evaluation
 uv run python -m final_agent.evaluate data/dev --oracle
 
@@ -50,4 +53,5 @@ labelled what-if doors also pass with the corrected answers.
 
 - [Complete challenge and implementation reference](../README.md)
 - [Remaining implementation work](../BACKLOG.md)
+- [HTTP API configuration, contract and frontend fixtures](../docs/api/README.md)
 - [Grading and submission](../README.md#1-the-challenge)

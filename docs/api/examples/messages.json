@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "id": "00000000-0000-0000-0000-000000000003",
+      "session_id": "00000000-0000-0000-0000-000000000001",
+      "role": "user",
+      "text": "How do I get from H-A2 to H-A1?",
+      "created_at": "2026-10-24T12:00:00Z",
+      "understood": null,
+      "effects": [],
+      "pending_action_id": null
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000004",
+      "session_id": "00000000-0000-0000-0000-000000000001",
+      "role": "guide",
+      "text": "The route is 17.1 m.",
+      "created_at": "2026-10-24T12:00:00Z",
+      "pending_action_id": null,
+      "effects": [
+        {
+          "type": "draw_route",
+          "route_id": "00000000-0000-0000-0000-000000000002"
+        }
+      ],
+      "understood": {
+        "intent": "route",
+        "summary": "Walking route from H-A2 to H-A1.",
+        "constraints": {
+          "step_free": false,
+          "via": [],
+          "closed_ids": []
+        },
+        "resolved": {
+          "start_space_id": "proc-factory-dev-003-F0-S002",
+          "destination_space_id": "proc-factory-dev-003-F0-S001",
+          "space_ids": [
+            "proc-factory-dev-003-F0-S002",
+            "proc-factory-dev-003-F0-S001"
+          ],
+          "asset_ids": [],
+          "count": null
+        },
+        "missing": []
+      }
+    }
+  ],
+  "next_cursor": null,
+  "has_more": false
+}
