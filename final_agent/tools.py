@@ -37,25 +37,88 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
         """Floors, stairs and lifts, entrances and current closures of the building. Call this first."""
         return as_json(building_map.overview())
 
+    def page_json(items: list[dict], page: int, page_size: int, empty_hint: str) -> str:
+        paged = building_map.paginate(items, page, page_size)
+        if not items:
+            paged["hint"] = empty_hint
+        return as_json(paged)
+
     @register
-    def search_building(query: str, floor_level: int | None = None) -> str:
-        """Find rooms and things (furniture, machines, equipment) by name, room number or type.
+    def search_building(
+        query: str = "", floor_level: int | None = None, kind: str = "all",
+        room_type: str | None = None, asset_type: str | None = None, space_type: str | None = None,
+        page: int = 1, page_size: int = MAX_SEARCH_RESULTS,
+    ) -> str:
+        """Find rooms and things (furniture, machines, equipment) by name/number/type, or count and list them exactly.
+
+        `matches` is the exact number of hits over the whole building (or floor), not just this page. Results
+        are sorted (assets, then spaces; by floor, name, id). If has_more is true, call again with page=next_page
+        and the same arguments to see the rest. A map edit can change the inventory: restart at page 1 afterwards.
+        Exact filters (case, spaces, hyphens and underscores are ignored; never partial matches) are separate
+        from the fuzzy `query`; an empty query is allowed when a filter is given, e.g. query="",
+        asset_type="chair", floor_level=2 gives the exact number of chairs on floor 2 in `matches`.
 
         Args:
-            query: Words to look for, e.g. "3d printer", "2.03", "toilet", "cnc mill", "lecture hall".
-            floor_level: Only search this floor (0 = ground floor, -1 = basement). Omit to search all floors.
+            query: Words that must all appear in a name, room number or type, e.g. "3d printer", "2.03",
+                "lecture hall". May be empty if a filter is given.
+            floor_level: Only this floor (0 = ground floor, -1 = basement). Omit to search all floors.
+            kind: "all" (default), "space" (rooms, halls, corridors, stairs, ...) or "asset" (things in rooms).
+            room_type: Exact room subtype of a space, e.g. "office", "lobby", "warehouse_zone". Returns spaces only.
+            asset_type: Exact asset type, e.g. "chair", "desk", "printer". Returns assets only.
+            space_type: Exact broad space type: room, hall, corridor, stair, lift or outdoor. Returns spaces only.
+            page: Page number, starting at 1.
+            page_size: Results per page, 1 to 100 (default 15).
         """
-        results = building_map.search(query, floor_level)
-        if not results:
-            raise ToolError(f"Nothing matches '{query}'. Try a shorter or more general query.")
-        return as_json({"matches": len(results), "results": results[:MAX_SEARCH_RESULTS]})
+        try:
+            results = building_map.search(query, floor_level, kind, room_type, asset_type, space_type)
+            return page_json(
+                results, page, page_size,
+                "Nothing matches. Check the spelling, drop a filter, or use a shorter, more general query.",
+            )
+        except MapError as error:
+            raise ToolError(str(error)) from error
+
+    @register
+    def list_spaces(
+        floor_level: int | None = None, room_type: str | None = None, space_type: str | None = None,
+        page: int = 1, page_size: int = MAX_SEARCH_RESULTS,
+    ) -> str:
+        """List every space (rooms, halls, corridors, stairs, lifts, outdoor areas; never assets) completely.
+
+        `matches` is the exact number of spaces with these filters, not just this page. Sorted by floor, name,
+        id. If has_more is true, call again with page=next_page and the same arguments. A map edit can change
+        the inventory: restart at page 1 afterwards. With no filters every space type is included.
+
+        Args:
+            floor_level: Only this floor (0 = ground floor, -1 = basement). Omit for all floors.
+            room_type: Exact room subtype, e.g. "office", "toilet", "warehouse_zone" (case, spaces and
+                hyphens are ignored; never partial matches).
+            space_type: Exact broad type: room, hall, corridor, stair, lift or outdoor.
+            page: Page number, starting at 1.
+            page_size: Results per page, 1 to 100 (default 15).
+        """
+        try:
+            spaces = [
+                building_map.space_record(space)
+                for space in building_map.filter_spaces(floor_level, room_type, space_type)
+            ]
+            return page_json(
+                spaces, page, page_size,
+                f"No spaces match. Room types here: {building_map.room_types(floor_level)}.",
+            )
+        except MapError as error:
+            raise ToolError(str(error)) from error
 
     @register
     def spatial_search(
         x_m: float, y_m: float, floor_level: int, radius_m: float = 0,
-        kind: str = "all",
+        kind: str = "all", page: int = 1, page_size: int = MAX_SEARCH_RESULTS,
     ) -> str:
         """Find rooms, assets and doors near a point using a per-floor spatial index.
+
+        `matches` is the exact number of hits within the radius, not just this page. Sorted by distance, then
+        kind and id. If has_more is true, call again with page=next_page and the same arguments. A map edit
+        can change the inventory: restart at page 1 afterwards.
 
         Args:
             x_m: X coordinate in the building's local metre frame.
@@ -63,13 +126,14 @@ def make_tools(building_map: BuildingMap, output_directory: Path) -> list:
             floor_level: Floor to search (0 = ground floor, -1 = basement).
             radius_m: Maximum distance in metres; 0 finds rooms covering the point.
             kind: all, space, asset or opening. Rooms use polygons; other kinds use positions.
+            page: Page number, starting at 1.
+            page_size: Results per page, 1 to 100 (default 15).
         """
         try:
             results = building_map.spatial_search(x_m, y_m, floor_level, radius_m, kind)
+            return page_json(results, page, page_size, "Nothing within that radius. Try a larger radius_m.")
         except MapError as error:
             raise ToolError(str(error)) from error
-        return as_json({"matches": len(results), "results": results[:MAX_SEARCH_RESULTS]})
-
     # ---------- inspection ----------
 
     @register

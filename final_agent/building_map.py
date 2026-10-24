@@ -174,35 +174,109 @@ class BuildingMap:
 
     # ---------- search ----------
 
-    def search(self, query: str, floor_level: int | None = None) -> list[dict]:
-        """Spaces and assets whose name, ref or type contains every word of the query."""
+    MAX_PAGE_SIZE = 100
+
+    @staticmethod
+    def paginate(items: list, page: int = 1, page_size: int = MAX_SEARCH_RESULTS) -> dict:
+        """One page of an already sorted, complete list plus the counts a client needs to continue.
+
+        An out-of-range page is a normal empty page. Counts always describe the full list.
+        """
+        for name, value in (("page", page), ("page_size", page_size)):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise MapError(f"{name} must be an integer, got {value!r}.")
+        if page < 1:
+            raise MapError(f"page must be at least 1 (the first page is 1), got {page}.")
+        if not 1 <= page_size <= BuildingMap.MAX_PAGE_SIZE:
+            raise MapError(f"page_size must be between 1 and {BuildingMap.MAX_PAGE_SIZE}, got {page_size}.")
+        total_pages = -(-len(items) // page_size)
+        start = (page - 1) * page_size
+        has_more = page < total_pages
+        return {
+            "matches": len(items),
+            "results": items[start:start + page_size],
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+            "has_more": has_more,
+            "next_page": page + 1 if has_more else None,
+        }
+
+    def space_record(self, space: dict) -> dict:
+        """Search-result identity of a space: broad type and room_type are kept separate."""
+        floor = self.floors[space["floor_id"]]
+        return {
+            "kind": "space", "id": space["id"], "name": space["name"], "ref": space.get("ref"),
+            "type": space.get("type"), "room_type": space["room_type"],
+            "floor_level": floor["level"], "floor": floor["name"],
+        }
+
+    def asset_record(self, asset: dict) -> dict:
+        """Search-result identity of an asset: its own id and the space that contains it."""
+        return {
+            "kind": "asset", "id": asset["id"], "name": asset["name"], "type": asset["type"],
+            "category": asset.get("category"), "space_id": asset["space_id"],
+            "in": self.describe_space(asset["space_id"]), "floor_level": self.floor_level(asset["floor_id"]),
+        }
+
+    @staticmethod
+    def type_filter(name: str, value: str | None) -> str | None:
+        """Normalized exact type filter; None or blank means no filter."""
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise MapError(f"{name} must be text, got {value!r}.")
+        return normalize_type(value) or None
+
+    def search(
+        self, query: str = "", floor_level: int | None = None, kind: str = "all",
+        room_type: str | None = None, asset_type: str | None = None, space_type: str | None = None,
+    ) -> list[dict]:
+        """Every space and asset matching, sorted by kind, floor level, name and id; never a page.
+
+        query words must all occur in a name, ref, id or type (fuzzy); room_type, space_type and
+        asset_type are exact normalized filters. Without a query at least one filter is required.
+        """
+        if not isinstance(query, str):
+            raise MapError(f"query must be text, got {query!r}.")
         words = [word for word in query.lower().replace("_", " ").split() if word]
+        kind = normalize_type(kind) if isinstance(kind, str) else kind
+        if kind not in ("all", "space", "asset"):
+            raise MapError(f"kind must be all, space or asset, got {kind!r}.")
+        if isinstance(floor_level, bool) or not (floor_level is None or isinstance(floor_level, int)):
+            raise MapError(f"floor_level must be an integer, got {floor_level!r}.")
+        room_type = self.type_filter("room_type", room_type)
+        space_type = self.type_filter("space_type", space_type)
+        asset_type = self.type_filter("asset_type", asset_type)
+        if asset_type and (room_type or space_type):
+            raise MapError("asset_type selects assets while room_type/space_type select spaces; use one kind per call.")
+        if kind == "asset" and (room_type or space_type):
+            raise MapError("room_type and space_type select spaces and cannot be combined with kind='asset'.")
+        if kind == "space" and asset_type:
+            raise MapError("asset_type selects assets and cannot be combined with kind='space'.")
+        if not (words or room_type or space_type or asset_type or floor_level is not None):
+            raise MapError(
+                "Give a query or at least one filter (floor_level, room_type, space_type, asset_type). "
+                "To list all rooms use list_spaces."
+            )
+        if floor_level is not None:
+            self.floor_by_level(floor_level)
+
         results = []
-        for space in self.spaces.values():
-            room_type = space["room_type"].replace("_", " ")
-            text = f"{space['name']} {space.get('ref') or ''} {room_type} {space['id']}"
-            if self.matches(text, words, space["floor_id"], floor_level):
-                results.append(
-                    {
-                        "kind": "space",
-                        "id": space["id"],
-                        "name": space["name"],
-                        "room_type": space["room_type"],
-                        "floor": self.floor_name(space["floor_id"]),
-                    }
-                )
-        for asset in self.assets.values():
-            text = f"{asset['name']} {asset['type'].replace('_', ' ')} {asset['id']}"
-            if self.matches(text, words, asset["floor_id"], floor_level):
-                results.append(
-                    {
-                        "kind": "asset",
-                        "id": asset["id"],
-                        "name": asset["name"],
-                        "type": asset["type"],
-                        "in": self.describe_space(asset["space_id"]),
-                    }
-                )
+        if kind in ("all", "space") and not asset_type:
+            for space in self.filter_spaces(floor_level, room_type, space_type):
+                room_words = space["room_type"].replace("_", " ")
+                text = f"{space['name']} {space.get('ref') or ''} {room_words} {space['id']}"
+                if self.matches(text, words, space["floor_id"], floor_level):
+                    results.append(self.space_record(space))
+        if kind in ("all", "asset") and not (room_type or space_type):
+            for asset in self.assets.values():
+                if asset_type and normalize_type(asset["type"]) != asset_type:
+                    continue
+                text = f"{asset['name']} {asset['type'].replace('_', ' ')} {asset['id']}"
+                if self.matches(text, words, asset["floor_id"], floor_level):
+                    results.append(self.asset_record(asset))
+        results.sort(key=lambda item: (item["kind"], item["floor_level"], item["name"], item["id"]))
         if any(result["kind"] == "asset" for result in results):
             self.located_asset_ids = [result["id"] for result in results if result["kind"] == "asset"]
         return results
@@ -211,20 +285,28 @@ class BuildingMap:
         self, x_m: float, y_m: float, floor_level: int, radius_m: float = 0,
         kind: str = "all",
     ) -> list[dict]:
-        """Find nearby spaces, assets and openings in the building's local metre frame."""
+        """Every nearby space, asset and opening in the local metre frame, sorted by distance, kind, id.
+
+        Spaces and assets also carry the identity fields of search results.
+        """
         if self._spatial_index is None:
             self._spatial_index = BuildingSpatialIndex(self.data)
         try:
-            return self._spatial_index.search(x_m, y_m, floor_level, radius_m, kind)
+            results = self._spatial_index.search(x_m, y_m, floor_level, radius_m, kind)
         except ValueError as error:
             raise MapError(str(error)) from error
+        for result in results:
+            if result["kind"] == "space":
+                result.update(self.space_record(self.spaces[result["id"]]))
+            elif result["kind"] == "asset":
+                result.update(self.asset_record(self.assets[result["id"]]))
+        return results
 
     def matches(self, text: str, words: list[str], floor_id: str, floor_level: int | None) -> bool:
         if floor_level is not None and self.floors[floor_id]["level"] != floor_level:
             return False
         lowered = text.lower()
         return all(word in lowered for word in words)
-
     def resolve_space(self, reference: str) -> str:
         """Accept a space id, asset id, exact room ref/name or asset name; return a space id."""
         if reference in self.spaces:
