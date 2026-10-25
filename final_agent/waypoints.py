@@ -223,15 +223,27 @@ def route_walk(building_map: BuildingMap, route: RouteResult, start_point: Point
             connector = building_map.connectors[element]
             before_floor, before_point = node_location(building_map, nodes[index])
             after_floor, after_point = node_location(building_map, node)
-            shared = {"connector_kind": connector["kind"], "name": connector["name"],
-                      "direction": "up" if building_map.floor_level(after_floor) > building_map.floor_level(before_floor) else "down"}
+            direction = "up" if building_map.floor_level(after_floor) > building_map.floor_level(before_floor) else "down"
+            if index and elements[index - 1] in building_map.connectors:
+                # Continuation of one stair/lift run: extend the previous pair to the new final floor.
+                entry_key, entry = next(item for item in reversed(events) if item[1]["kind"] == "connector_entry")
+                exit_key, exit_ = next(item for item in reversed(events) if item[1]["kind"] == "connector_exit")
+                direction = "up" if building_map.floor_level(after_floor) > building_map.floor_level(entry["floor_id"]) else "down"
+                events.remove((exit_key, exit_))
+                phase += 1
+                for fields in (entry, exit_):
+                    fields.update(direction=direction, target_floor_id=after_floor,
+                                  target_floor_name=building_map.floor_name(after_floor))
+                exit_.update(floor_id=after_floor, at=after_point, space_id=node, next_space_id=node, arc_m=arc_at_node[index + 1])
+                events.append(((phase, arc_at_node[index + 1], -1), exit_))
+                continue
+            shared = {"connector_kind": connector["kind"], "name": connector["name"], "direction": direction,
+                      "target_floor_id": after_floor, "target_floor_name": building_map.floor_name(after_floor)}
             add(phase, arc_at_node[index], 2, kind="connector_entry", floor_id=before_floor, at=before_point,
-                space_id=nodes[index], next_space_id=None, target_floor_id=after_floor,
-                target_floor_name=building_map.floor_name(after_floor), **shared)
+                space_id=nodes[index], next_space_id=None, **shared)
             phase += 1
             add(phase, arc_at_node[index + 1], -1, kind="connector_exit", floor_id=after_floor, at=after_point,
-                space_id=node, next_space_id=node, target_floor_id=before_floor,
-                target_floor_name=building_map.floor_name(before_floor), **shared)
+                space_id=node, next_space_id=node, **shared)
         elif node.startswith(DOOR_PREFIX) and index + 1 < len(elements) and elements[index + 1] != element:
             into = elements[index + 1]
             floor_id, point = node_location(building_map, node)

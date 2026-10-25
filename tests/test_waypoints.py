@@ -45,6 +45,16 @@ class WaypointRouteTests(unittest.TestCase):
         self.assertAlmostEqual(sum(w.distance_m for w in walk.waypoints), walk.total_m, delta=0.01)
         self.assertAlmostEqual(walk.total_m, drawn_length(self.building, self.route), delta=0.5)
 
+    def test_multi_floor_stair_run_is_one_pair(self):
+        building = BuildingMap.load(DEV / "swiss-460" / "building.json")
+        route = building.compute_route("swiss-460-F0-S001", "swiss-460-F4-S018")
+        self.assertTrue(any(a in building.connectors and b in building.connectors for a, b in zip(route.edge_path, route.edge_path[1:])))
+        pair = [w for w in route_walk(building, route).waypoints if w.kind.startswith("connector")]
+        self.assertEqual([w.kind for w in pair], ["connector_entry", "connector_exit"])
+        self.assertEqual((pair[0].floor_id, pair[1].floor_id), ("swiss-460-F0", "swiss-460-F4"))
+        self.assertEqual({w.target_floor_id for w in pair}, {"swiss-460-F4"})
+        self.assertEqual({w.direction for w in pair}, {"up"})
+
     def test_sample_of_dev_routes_sums_to_total(self):
         for folder in sorted(DEV.iterdir(), key=lambda folder: (folder / "building.json").stat().st_size)[:8]:
             building = BuildingMap.load(folder / "building.json")
