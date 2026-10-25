@@ -13,12 +13,20 @@ import { addObjectModels } from './object-models'
 type FloorStack3DProps = {
   plans: FloorPlan[]
   route: Route | null
+  /** Closure route left behind the new one, drawn as a faint tube. */
+  previousRoute?: Route | null
+  /** Forklift tape. It does not replace the walking route. */
+  forkliftRoute?: Route | null
+  /** Current spoken step. The marker sits here instead of looping the whole route. */
+  storyIndex?: number
   activeFloorId: string
   onSelectFloor?: (floorId: string) => void
   /** Clicked items, and clicked rooms of the single-floor view. */
   onSelect?: (selection: Selection) => void
   /** The selected element; an item gets an outline. */
   selectedId?: string | null
+  startSpaceId?: string | null
+  onRequestStart?: () => void
 }
 
 /** `single` shows only the viewed floor; `all` is the exploded overview of every floor. */
@@ -91,6 +99,17 @@ function toneOf(space: Space, escapeIds?: Set<string>): Tone {
   if (type === 'restroom' || type === 'toilet') return 'restroom'
   if (type === 'office') return 'office'
   return 'room'
+}
+
+
+function pointInPolygon(point: Point, polygon: Point[]): boolean {
+  let inside = false
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+    const [x, y] = polygon[index]
+    const [px, py] = polygon[previous]
+    if ((y > point[1]) !== (py > point[1]) && point[0] < ((px - x) * (point[1] - y)) / (py - y) + x) inside = !inside
+  }
+  return inside
 }
 
 function centroid(polygon: Point[]): Point {
@@ -238,9 +257,14 @@ function LayersIcon() {
   )
 }
 
-export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activeFloorId, onSelectFloor, onSelect, selectedId = null }: FloorStack3DProps) {
+export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, previousRoute: incomingPrevious = null, forkliftRoute: incomingForklift = null, storyIndex = 0, activeFloorId, onSelectFloor, onSelect, selectedId = null, startSpaceId = null, onRequestStart }: FloorStack3DProps) {
   const plans = useStableItems(incomingPlans)
   const route = useStableRoute(incomingRoute)
+  const previousRoute = useStableRoute(incomingPrevious)
+  const forkliftRoute = useStableRoute(incomingForklift)
+  const storyPointRef = useRef<{ floorId: string; at: Point } | null>(null)
+  const storyDirection = route?.directions[storyIndex]
+  storyPointRef.current = storyDirection?.floor_id && storyDirection.at ? { floorId: storyDirection.floor_id, at: storyDirection.at } : null
   const host = useRef<HTMLDivElement>(null)
   const api = useRef<SceneApi | null>(null)
   const savedView = useRef<{ key: string; view: View; atHome: boolean } | null>(null)
@@ -250,6 +274,11 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
   const [expanded, setExpanded] = useState(false)
   const sectionRef = useRef<HTMLElement>(null)
   const [mode, setMode] = useState<StackMode>('all')
+  const [walkActive, setWalkActive] = useState(false)
+  const [firstPerson, setFirstPerson] = useState(false)
+  const walkActiveRef = useRef(false)
+  const firstPersonRef = useRef(false)
+  const startSpaceRef = useRef(startSpaceId)
   // The floor shown in the stack. It follows the plan's floor, and picking a floor here updates the plan too.
   const [viewedId, setViewedId] = useState(activeFloorId)
   useEffect(() => setViewedId(activeFloorId), [activeFloorId])
@@ -257,6 +286,9 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
   const modeRef = useRef(mode)
   viewedRef.current = viewedId
   modeRef.current = mode
+  walkActiveRef.current = walkActive
+  firstPersonRef.current = firstPerson
+  startSpaceRef.current = startSpaceId
 
   const selectFloor = (floorId: string) => {
     setViewedId(floorId)
@@ -322,6 +354,32 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
     scene.add(hemisphere, sun)
 
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -span * 40, span * 40)
+    const walkCamera = new THREE.PerspectiveCamera(62, 1, 0.05, span * 80)
+    let activeCamera: THREE.Camera = camera
+    const walker = new THREE.Group()
+    const personHeight = THREE.MathUtils.clamp(maxStorey * 0.58, 1.45, 1.8)
+    const personRadius = personHeight * 0.18
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(personRadius, personHeight * 0.55, 4, 8), new THREE.MeshStandardMaterial({ color: 0x22d3ee }))
+    body.position.y = personHeight * 0.43
+    const head = new THREE.Mesh(new THREE.SphereGeometry(personRadius * 1.15, 12, 8), new THREE.MeshStandardMaterial({ color: 0xf4c7a1 }))
+    head.position.y = personHeight * 0.78
+    walker.add(body, head)
+    scene.add(walker)
+    const keys = new Set<string>()
+    let yaw = 0
+    let pitch = -0.18
+    let dragging = false
+    let lastPointer = { x: 0, y: 0 }
+    const onKeyDown = (event: KeyboardEvent) => { if (walkActiveRef.current && ['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(event.key.toLowerCase())) { event.preventDefault(); keys.add(event.key.toLowerCase()) } }
+    const onKeyUp = (event: KeyboardEvent) => keys.delete(event.key.toLowerCase())
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    const onWalkPointerDown = (event: PointerEvent) => { if (!walkActiveRef.current || event.button !== 0) return; event.preventDefault(); event.stopPropagation(); dragging = true; lastPointer = { x: event.clientX, y: event.clientY }; renderer.domElement.setPointerCapture(event.pointerId) }
+    const onWalkPointerMove = (event: PointerEvent) => { if (!dragging || !walkActiveRef.current) return; event.preventDefault(); event.stopPropagation(); yaw -= (event.clientX - lastPointer.x) * 0.006; pitch = THREE.MathUtils.clamp(pitch + (event.clientY - lastPointer.y) * 0.004, -1.05, 0.7); lastPointer = { x: event.clientX, y: event.clientY } }
+    const onWalkPointerUp = () => { dragging = false }
+    renderer.domElement.addEventListener('pointerdown', onWalkPointerDown)
+    renderer.domElement.addEventListener('pointermove', onWalkPointerMove)
+    renderer.domElement.addEventListener('pointerup', onWalkPointerUp)
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
     controls.dampingFactor = 0.08
@@ -431,6 +489,39 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
         group.add(mesh)
         polygons.push(space.polygon)
       }
+      const doorMaterial = new THREE.MeshLambertMaterial({ color: 0xf4b860, transparent: true })
+      for (const opening of plan.openings) {
+        const [doorX, doorZ] = toWorld(opening.position)
+        const nearest = polygons.flatMap((polygon) => polygon.map((point, index) => {
+          const next = polygon[(index + 1) % polygon.length]
+          const dx = next[0] - point[0]
+          const dy = next[1] - point[1]
+          const lengthSq = dx * dx + dy * dy || 1
+          const t = THREE.MathUtils.clamp(((opening.position[0] - point[0]) * dx + (opening.position[1] - point[1]) * dy) / lengthSq, 0, 1)
+          const distance = Math.hypot(opening.position[0] - (point[0] + dx * t), opening.position[1] - (point[1] + dy * t))
+          return { distance, angle: Math.atan2(dy, dx) }
+        })).sort((left, right) => left.distance - right.distance)[0]
+        const width = Math.max(opening.width_m ?? 0.9, 0.8)
+        const height = Math.min(Math.max(wallHeight * 0.82, 1.8), 2.4)
+        const postWidth = Math.max(wallThickness * 1.25, 0.1)
+        const depth = Math.max(wallThickness * 1.5, 0.12)
+        const frame = new THREE.Group()
+        frame.add(
+          new THREE.Mesh(new THREE.BoxGeometry(postWidth, height, depth), doorMaterial),
+          new THREE.Mesh(new THREE.BoxGeometry(postWidth, height, depth), doorMaterial),
+          new THREE.Mesh(new THREE.BoxGeometry(width + postWidth, postWidth, depth), doorMaterial),
+        )
+        frame.children[0].position.x = -width / 2
+        frame.children[1].position.x = width / 2
+        frame.children[0].position.y = height / 2
+        frame.children[1].position.y = height / 2
+        frame.children[2].position.y = height
+        frame.position.set(doorX, 0, doorZ)
+        frame.rotation.y = nearest?.angle ?? 0
+        frame.userData.floorId = plan.floor.id
+        group.add(frame)
+      }
+
       const wall = fader(new THREE.MeshLambertMaterial({ transparent: true, side: THREE.DoubleSide, depthWrite: false }))
       const wallTop = fader(new THREE.LineBasicMaterial({ transparent: true }))
       group.add(new THREE.Mesh(wallGeometry(polygons, wallHeight, toWorld), wall.material))
@@ -582,12 +673,30 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       for (const marker of [startMarker, pin, ring]) marker.renderOrder = 10
       floors[first.index].group.add(startMarker)
       floors[last.index].group.add(pin, ring)
-      if (!reducedMotion) {
-        pulse = new THREE.Mesh(new THREE.SphereGeometry(tubeRadius * 2.2, 16, 10), pulseMaterial)
-        pulse.renderOrder = 11
-        scene.add(pulse)
+      pulse = new THREE.Mesh(new THREE.SphereGeometry(tubeRadius * 2.2, 16, 10), pulseMaterial)
+      pulse.renderOrder = 11
+      scene.add(pulse)
+    }
+
+    const comparisonTubes: { floorIndex: number; material: THREE.MeshBasicMaterial; base: number }[] = []
+    const layRoute = (source: Route | null, color: number, opacity: number, height: number, order: number) => {
+      if (!source?.reachable) return
+      for (const leg of source.legs) {
+        if (leg.points.length < 2 || !floorIndex.has(leg.floor_id)) continue
+        const index = floorIndex.get(leg.floor_id)!
+        const points = leg.points.map((point) => { const [x, z] = toWorld(point); return new THREE.Vector3(x, height, z) })
+        const path = new THREE.CurvePath<THREE.Vector3>()
+        for (let point = 1; point < points.length; point += 1) path.add(new THREE.LineCurve3(points[point - 1], points[point]))
+        const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, depthTest: false })
+        const tube = new THREE.Mesh(new THREE.TubeGeometry(path, Math.max(points.length * 6, 12), tubeRadius * 0.72, 6, false), material)
+        tube.renderOrder = order
+        floors[index].group.add(tube)
+        comparisonTubes.push({ floorIndex: index, material, base: opacity })
       }
     }
+    // The closed route stays visible under the new walk. The forklift tape stays above both.
+    layRoute(previousRoute, 0xa8b2bc, 0.4, 0.22, 8)
+    layRoute(forkliftRoute, 0xf2bd4e, 0.95, 0.62, 9)
 
     let viewedFloor = viewedRef.current
     let stackMode = modeRef.current
@@ -694,6 +803,8 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       size = { width, height }
       renderer.setSize(width, height)
       labels.setSize(width, height)
+      walkCamera.aspect = width / height
+      walkCamera.updateProjectionMatrix()
       camera.left = -width / height
       camera.right = width / height
       camera.top = 1
@@ -868,6 +979,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
           facade.edge.material.opacity = facade.edge.base * Math.max(facade.facing, 0.35) * floor.fade
         }
       }
+      for (const tube of comparisonTubes) tube.material.opacity = tube.base * floors[tube.floorIndex].fade
       linkFade = reducedMotion ? (stackMode === 'all' ? 1 : 0) : approach(linkFade, stackMode === 'all' ? 1 : 0, delta * 7)
       shaftMaterials.lift.opacity = 0.9 * linkFade
       shaftMaterials.stair.opacity = 0.9 * linkFade
@@ -893,8 +1005,15 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
         mesh.scale.set(1, Math.max(length, 0.001), 1)
         if (length > 0) mesh.quaternion.setFromUnitVectors(up, b.clone().sub(a).normalize())
       }
-      if (pulse && routeWorld.length > 1) {
-        // The pulse runs the whole route, so it only shows when every floor it crosses is visible.
+      const storyPoint = storyPointRef.current
+      const storyFloor = storyPoint ? floorIndex.get(storyPoint.floorId) : undefined
+      const pinStory = Boolean(pulse && storyPoint && storyFloor !== undefined && !walkActiveRef.current)
+      if (pinStory && pulse && storyPoint && storyFloor !== undefined) {
+        const [x, z] = toWorld(storyPoint.at)
+        worldOf([storyFloor, new THREE.Vector3(x, 0.55, z)], pulse.position)
+        pulse.visible = floors[storyFloor].fade > 0.15
+      } else if (pulse && !reducedMotion && !walkActiveRef.current && routeWorld.length > 1) {
+        // With no current step yet, the pulse still runs the whole route once every floor is visible.
         pulse.visible = legs.every((leg) => floors[leg.index].fade > 0.99)
         let cursor = 0
         for (const leg of legs) for (const point of leg.points) worldOf([leg.index, point], routeWorld[cursor++])
@@ -909,7 +1028,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
           }
           travelled -= piece
         }
-      }
+      } else if (pulse) pulse.visible = false
       if (tween) {
         const to = tween.to ?? home
         const t = Math.min((now - tween.start) / 650, 1)
@@ -921,8 +1040,76 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
         if (t >= 1) tween = null
       }
       controls.update()
-      renderer.render(scene, camera)
-      labels.render(scene, camera)
+      if (walkActiveRef.current) {
+        const floor = floors.find((item) => item.id === viewedFloor) ?? floors[0]
+        walker.rotation.y = yaw
+        if (walker.position.lengthSq() === 0) {
+          const startPlan = ordered.find((plan) => plan.spaces.some((space) => space.id === startSpaceRef.current))
+          const startSpace = startPlan?.spaces.find((space) => space.id === startSpaceRef.current)
+          const startPoint = startSpace && startSpace.polygon.length >= 3 ? centroid(startSpace.polygon) : null
+          if (startPlan && startPoint && startPlan.floor.id === viewedFloor) { const [x, z] = toWorld(startPoint); walker.position.set(x, floor.y, z) }
+          else walker.position.set((floor.box.x0 + floor.box.x1) / 2, floor.y, (floor.box.z0 + floor.box.z1) / 2)
+        }
+        const speed = span * delta * 0.1
+        const forward = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0)
+        const strafe = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0)
+        const cameraForward = new THREE.Vector3()
+        walkCamera.getWorldDirection(cameraForward)
+        cameraForward.y = 0
+        if (cameraForward.lengthSq() < 0.0001) cameraForward.set(Math.sin(yaw), 0, -Math.cos(yaw))
+        else cameraForward.normalize()
+        const cameraRight = new THREE.Vector3(-cameraForward.z, 0, cameraForward.x)
+        const dx = (cameraForward.x * forward + cameraRight.x * strafe) * speed
+        const dz = (cameraForward.z * forward + cameraRight.z * strafe) * speed
+        const candidate = new THREE.Vector3(walker.position.x + dx, walker.position.y, walker.position.z + dz)
+        const source = ordered.find((plan) => plan.floor.id === viewedFloor)
+        const planPoint: Point = [centerX + candidate.x, centerY - candidate.z]
+        const currentPlanPoint: Point = [centerX + walker.position.x, centerY - walker.position.z]
+        const currentSpace = source?.spaces.find((space) => space.polygon.length >= 3 && pointInPolygon(currentPlanPoint, space.polygon))
+        const containingSpace = source?.spaces.find((space) => space.polygon.length >= 3 && pointInPolygon(planPoint, space.polygon))
+        const clearance = personRadius * 1.8
+        const segmentDistance = (point: Point, start: Point, end: Point) => {
+          const edgeX = end[0] - start[0]
+          const edgeY = end[1] - start[1]
+          const lengthSq = edgeX * edgeX + edgeY * edgeY || 1
+          const t = THREE.MathUtils.clamp(((point[0] - start[0]) * edgeX + (point[1] - start[1]) * edgeY) / lengthSq, 0, 1)
+          return Math.hypot(point[0] - (start[0] + edgeX * t), point[1] - (start[1] + edgeY * t))
+        }
+        const doorHeight = 2.1
+        const crossingDoor = currentSpace && containingSpace && currentSpace.id !== containingSpace.id
+          ? source?.openings.some((opening) => opening.space_ids.includes(currentSpace.id) && opening.space_ids.includes(containingSpace.id) && doorHeight >= personHeight && segmentDistance(opening.position, currentPlanPoint, planPoint) <= (opening.width_m ?? 0.9) / 2 + clearance) ?? false
+          : true
+        const blockedByAsset = source?.assets.some((asset) => {
+          const dx = planPoint[0] - asset.position[0]
+          const dy = planPoint[1] - asset.position[1]
+          const angle = -asset.footprint.rotation_deg * Math.PI / 180
+          const localX = dx * Math.cos(angle) - dy * Math.sin(angle)
+          const localY = dx * Math.sin(angle) + dy * Math.cos(angle)
+          return Math.abs(localX) <= asset.footprint.width_m / 2 + clearance && Math.abs(localY) <= asset.footprint.depth_m / 2 + clearance
+        }) ?? false
+        const nearWall = containingSpace ? containingSpace.polygon.some(([x, y], index, polygon) => {
+          const [nextX, nextY] = polygon[(index + 1) % polygon.length]
+          const edgeX = nextX - x
+          const edgeY = nextY - y
+          const lengthSq = edgeX * edgeX + edgeY * edgeY || 1
+          const t = THREE.MathUtils.clamp(((planPoint[0] - x) * edgeX + (planPoint[1] - y) * edgeY) / lengthSq, 0, 1)
+          return Math.hypot(planPoint[0] - (x + edgeX * t), planPoint[1] - (y + edgeY * t)) < clearance
+        }) : true
+        const canWalk = Boolean(containingSpace) && crossingDoor && !blockedByAsset && (currentSpace !== containingSpace ? true : !nearWall)
+        if (canWalk) { walker.position.x = candidate.x; walker.position.z = candidate.z; walker.rotation.y = yaw }
+        walker.position.y = floor.y
+        const eye = walker.position.clone().add(new THREE.Vector3(0, personHeight * 0.82, 0))
+        const offset = firstPersonRef.current ? new THREE.Vector3(0, 0, 0) : new THREE.Vector3(span * 0.16, span * 0.12, span * 0.16)
+        activeCamera = walkCamera
+        const orbitDistance = firstPersonRef.current ? 0 : span * 0.16
+        const cameraTarget = eye.clone().add(new THREE.Vector3(Math.sin(yaw) * orbitDistance, Math.sin(pitch) * orbitDistance + span * 0.02, Math.cos(yaw) * orbitDistance))
+        walkCamera.position.lerp(cameraTarget, 0.18)
+        const lookDirection = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch))
+        walkCamera.lookAt(eye.clone().add(lookDirection))
+        walker.visible = !firstPersonRef.current
+      } else { activeCamera = camera; walker.visible = false }
+      renderer.render(scene, activeCamera)
+      labels.render(scene, activeCamera)
     }
     frame = requestAnimationFrame(animate)
 
@@ -938,6 +1125,11 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       canvas.removeEventListener('pointerup', onPointerUp)
       canvas.removeEventListener('pointerleave', onPointerLeave)
       canvas.removeEventListener('dblclick', resetView)
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      renderer.domElement.removeEventListener('pointerdown', onWalkPointerDown, { capture: true })
+      renderer.domElement.removeEventListener('pointermove', onWalkPointerMove, { capture: true })
+      renderer.domElement.removeEventListener('pointerup', onWalkPointerUp, { capture: true })
       controls.dispose()
       for (const remove of removeModels) remove()
       scene.traverse((object) => {
@@ -956,9 +1148,29 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       setHoveredId(null)
       setTip(null)
     }
-  }, [ordered, route])
+  }, [ordered, route, previousRoute, forkliftRoute])
 
   useEffect(() => { api.current?.focus(viewedId, mode) }, [viewedId, mode])
+  const storyFloorId = route?.directions[storyIndex]?.floor_id ?? null
+  const storyFloorSeen = useRef<string | null>(null)
+  useEffect(() => {
+    if (walkActive || !storyFloorId || storyIndex <= 0) {
+      storyFloorSeen.current = storyFloorId
+      return
+    }
+    const previousFloor = storyFloorSeen.current
+    storyFloorSeen.current = storyFloorId
+    if (!previousFloor || previousFloor === storyFloorId) return
+    setViewedId(storyFloorId)
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setMode('single')
+      return
+    }
+    // Keep both floors and the shaft visible for a moment, then peel to this step.
+    setMode('all')
+    const timer = window.setTimeout(() => setMode('single'), 720)
+    return () => window.clearTimeout(timer)
+  }, [storyFloorId, storyIndex, route?.id, walkActive])
   useEffect(() => { api.current?.select(selectedId) }, [selectedId])
 
   useEffect(() => {
@@ -984,6 +1196,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
   const summary = [
     mode === 'single' && viewed ? `${copy.stackShowing} ${viewed.floor.name}` : `${ordered.length} ${ordered.length === 1 ? copy.stackFloor : copy.stackFloorsCount}`,
     route?.length_m != null ? `${copy.route} ${Math.round(route.length_m)} m` : null,
+    forkliftRoute?.reachable && forkliftRoute.length_m != null ? `${copy.forklift} ${Math.round(forkliftRoute.length_m)} m` : null,
     routeFloors.size > 1 ? `${copy.stackRouteSpans} ${routeFloors.size} ${copy.stackFloorsCount}` : null,
   ].filter(Boolean).join(' · ')
 
@@ -992,7 +1205,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       {expanded && <div className="floor-stack-backdrop" aria-hidden="true" onClick={() => setExpanded(false)} />}
       <section
         ref={sectionRef}
-        className={expanded ? 'floor-stack-3d is-expanded' : 'floor-stack-3d'}
+        className={walkActive ? 'floor-stack-3d is-walking' : expanded ? 'floor-stack-3d is-expanded' : 'floor-stack-3d'}
         aria-label={copy.stackTitle}
         // Expanded, the stack covers the page like a dialog: focus stays inside until it collapses.
         role={expanded ? 'dialog' : undefined}
@@ -1033,6 +1246,8 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
             )}
           </div>
           <div className="stack-actions">
+            <button type="button" className={walkActive ? 'is-active' : undefined} aria-pressed={walkActive} title={copy.stackWalkHint} onClick={() => { if (!walkActive && !startSpaceId) { onRequestStart?.(); return } if (!walkActive) { const startFloor = plans.find((plan) => plan.spaces.some((space) => space.id === startSpaceId))?.floor.id; if (startFloor && startFloor !== viewedId) selectFloor(startFloor) } setWalkActive((active) => !active) }}><span aria-hidden="true">●</span><span>{walkActive ? copy.stackWalkStop : copy.stackWalk}</span></button>
+            {walkActive && <button type="button" aria-pressed={firstPerson} title={copy.stackViewHint} onClick={() => setFirstPerson((value) => !value)}><span aria-hidden="true">◉</span><span>{firstPerson ? copy.stackThirdPerson : copy.stackFirstPerson}</span></button>}
             <button type="button" onClick={() => api.current?.resetView()} title={copy.stackResetHint} aria-label={copy.stackReset}>
               <ResetIcon /><span>{copy.stackReset}</span>
             </button>

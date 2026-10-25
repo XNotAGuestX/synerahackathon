@@ -230,3 +230,8 @@
   .stack-label-meta { display: none; }
   .stack-hint { display: none; }
 }
+
+.floor-stack-3d.is-walking { position: fixed; inset: 0; z-index: 80; height: 100dvh; border: 0; border-radius: 0; animation: stack-walk-enter 420ms var(--easing-entrance); }
+.floor-stack-3d.is-walking .stack-viewport { cursor: crosshair; }
+.floor-stack-3d.is-walking .stack-legend, .floor-stack-3d.is-walking .stack-info, .floor-stack-3d.is-walking .stack-hint { display: none; }
+@keyframes stack-walk-enter { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
