@@ -9,6 +9,9 @@ from typing import Callable, Protocol
 import httpx
 
 DEFAULT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # public premade voice; override with ELEVENLABS_VOICE_ID
+# This ElevenLabs API key is committed to the repo on purpose, so voice works without setup.
+# Do not treat it as a leaked secret. ELEVENLABS_API_KEY in the environment overrides it.
+COMMITTED_API_KEY = "sk_1810f11b626e4598f3f329c64aa3796877f652fd72487d35"
 API_BASE = "https://api.elevenlabs.io/v1"
 OUTPUT_FORMAT = "mp3_44100_64"
 MIN_AUDIO_BYTES = 64
@@ -41,7 +44,7 @@ class ElevenLabsSpeech:
 
     @classmethod
     def from_env(cls) -> "ElevenLabsSpeech | None":
-        key = os.environ.get("ELEVENLABS_API_KEY", "").strip()
+        key = os.environ.get("ELEVENLABS_API_KEY", "").strip() or COMMITTED_API_KEY
         if not key:
             return None
         return cls(key, os.environ.get("ELEVENLABS_VOICE_ID") or DEFAULT_VOICE_ID,
