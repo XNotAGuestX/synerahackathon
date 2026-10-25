@@ -6,6 +6,7 @@ import csv
 import hashlib
 import hmac
 import json
+import logging
 import secrets
 import threading
 from dataclasses import dataclass, field
@@ -23,6 +24,8 @@ from .building_map import BuildingMap, MapError, RouteResult
 from .storage import RoomNoteStore
 from .tools import ArgumentCheckedTool, as_json, make_tools, route_json
 from .viewer import landmark_targets, node_location, route_polylines
+
+LOG = logging.getLogger("final_agent.api_session")
 
 
 ERRORS = {
@@ -679,12 +682,12 @@ class SessionService:
             agent = BuildingAgent(
                 work.map, self.output_directory / session.id, client=client,
                 registered_tools=bridge.tools, response_format=ApiReply,
-                turn_context=API_PROMPT + "\nCurrent turn context: " + json.dumps({**context, "current_space_id": work.current_space_id,
-                    "pending_navigation": work.pending_navigation, "step_free_default": step_free}),
-                request_timeout=self.model_timeout,
+                extra_prompt=API_PROMPT, request_timeout=self.model_timeout,
             )
             agent.messages = work.history
-            reply = ApiReply.model_validate_json(agent.ask(body["text"]))
+            turn_context = "Current turn context: " + json.dumps({**context, "current_space_id": work.current_space_id,
+                "pending_navigation": work.pending_navigation, "step_free_default": step_free})
+            reply = ApiReply.model_validate_json(agent.ask(body["text"], turn_context))
             reply = self.finish_navigation(work, bridge, reply, step_free, context)
             effects = bridge.effects
             if reply.intent == "locate" and not any(effect["type"] == "highlight_spaces" for effect in effects):
@@ -751,6 +754,17 @@ class SessionService:
         except (anthropic.APITimeoutError, TimeoutError) as error:
             raise ApiError("40003_model_timeout") from error
         except (anthropic.APIError, MissingCredentialsError, ValueError) as error:
+            if isinstance(error, anthropic.APIStatusError):
+                LOG.error(
+                    "model request failed status=%s request_id=%s message=%s body=%s",
+                    error.status_code,
+                    getattr(error, "request_id", None),
+                    error.message,
+                    getattr(error, "body", None),
+                    exc_info=True,
+                )
+            else:
+                LOG.error("model request failed type=%s message=%s", type(error).__name__, error, exc_info=True)
             raise ApiError("40001_model_unavailable", retry_after=1) from error
         finally:
             if client is not None and hasattr(client, "close"):
