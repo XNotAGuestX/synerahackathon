@@ -1,0 +1,250 @@
+{
+  "schema_version": 1,
+  "building_id": "proc-factory-dev-003",
+  "active": true,
+  "reason": "Fire alarm in hall B",
+  "started_at": "2026-10-24T12:00:00Z",
+  "elapsed_s": 20.0,
+  "counts": {
+    "inside": 9,
+    "outside": 1,
+    "outside_manual": 3,
+    "stale": 0,
+    "total": 13
+  },
+  "people": [
+    {
+      "id": "P10",
+      "name": "Alex Becker",
+      "kind": "simulated",
+      "status": "inside",
+      "auto_status": "inside",
+      "floor_id": "proc-factory-dev-003-F0",
+      "position": [
+        -28.43,
+        25.65
+      ],
+      "space_id": "proc-factory-dev-003-F0-S007",
+      "space_name": "Main aisle H-B2",
+      "last_seen_at": "2026-10-24T12:00:00Z",
+      "stale": false,
+      "manual": null
+    },
+    {
+      "id": "D01",
+      "name": "Demo phone",
+      "kind": "session",
+      "status": "inside",
+      "auto_status": "inside",
+      "floor_id": "proc-factory-dev-003-F0",
+      "position": [
+        -7.25,
+        25.65
+      ],
+      "space_id": "proc-factory-dev-003-F0-S002",
+      "space_name": "Assembly zone H-A2",
+      "last_seen_at": "2026-10-24T12:00:00Z",
+      "stale": false,
+      "manual": null
+    },
+    {
+      "id": "P06",
+      "name": "Emma Wolf",
+      "kind": "simulated",
+      "status": "inside",
+      "auto_status": "inside",
+      "floor_id": "proc-factory-dev-003-F0",
+      "position": [
+        5.55,
+        32.9
+      ],
+      "space_id": "proc-factory-dev-003-F0-S016",
+      "space_name": "Office corridor 0.16",
+      "last_seen_at": "2026-10-24T12:00:00Z",
+      "stale": false,
+      "manual": null
+    },
+    {
+      "id": "P07",
+      "name": "Hannah Klein",
+      "kind": "simulated",
+      "status": "inside",
+      "auto_status": "inside",
+      "floor_id": "proc-factory-dev-003-F0",
+      "position": [
+        4.03,
+        11.83
+      ],
+      "space_id": "proc-factory-dev-003-F0-S021",
+      "space_name": "Quality lab 0.21",
+      "last_seen_at": "2026-10-24T12:00:00Z",
+      "stale": false,
+      "manual": null
+    },
+    {
+      "id": "P04",
+      "name": "Jonas Fischer",
+      "kind": "simulated",
+      "status": "inside",
+      "auto_status": "inside",
+      "floor_id": "proc-factory-dev-003-F0",
+      "position": [
+        -25.5,
+        38.1
+      ],
+      "space_id": "proc-factory-dev-003-F0-S008",
+      "space_name": "Main aisle H-B3",
+      "last_seen_at": "2026-10-24T12:00:00Z",
+      "stale": false,
+      "manual": null
+    },
+    {
+      "id": "P03",
+      "name": "Lukas Yilmaz",
+      "kind": "simulated",
+      "status": "inside",
+      "auto_status": "inside",
+      "floor_id": "proc-factory-dev-003-F0",
+      "position": [
+        -34.11,
+        25.65
+      ],
+      "space_id": "proc-factory-dev-003-F0-S012",
+      "space_name": "Warehouse zone H-C2",
+      "last_seen_at": "2026-10-24T12:00:00Z",
+      "stale": false,
+      "manual": null
+    },
+    {
+      "id": "P05",
+      "name": "Maria Schmidt",
+      "kind": "simulated",
+      "status": "inside",
+      "auto_status": "inside",
+      "floor_id": "proc-factory-dev-003-F0",
+      "position": [
+        6.27,
+        50.1
+      ],
+      "space_id": "proc-factory-dev-003-F0-S016",
+      "space_name": "Office corridor 0.16",
+      "last_seen_at": "2026-10-24T12:00:00Z",
+      "stale": false,
+      "manual": null
+    },
+    {
+      "id": "P09",
+      "name": "Mia Weber",
+      "kind": "simulated",
+      "status": "inside",
+      "auto_status": "inside",
+      "floor_id": "proc-factory-dev-003-F0",
+      "position": [
+        -34.94,
+        25.65
+      ],
+      "space_id": "proc-factory-dev-003-F0-S012",
+      "space_name": "Warehouse zone H-C2",
+      "last_seen_at": "2026-10-24T12:00:00Z",
+      "stale": false,
+      "manual": null
+    },
+    {
+      "id": "P02",
+      "name": "Sofia Kaya",
+      "kind": "simulated",
+      "status": "inside",
+      "auto_status": "inside",
+      "floor_id": "proc-factory-dev-003-F0",
+      "position": [
+        -28.7,
+        10.61
+      ],
+      "space_id": "proc-factory-dev-003-F0-S006",
+      "space_name": "Main aisle H-B1",
+      "last_seen_at": "2026-10-24T12:00:00Z",
+      "stale": false,
+      "manual": null
+    },
+    {
+      "id": "P12",
+      "name": "Elias Hoffmann",
+      "kind": "simulated",
+      "status": "outside",
+      "auto_status": "outside",
+      "floor_id": "proc-factory-dev-003-F0",
+      "position": [
+        -46.0,
+        42.75
+      ],
+      "space_id": null,
+      "space_name": null,
+      "last_seen_at": "2026-10-24T12:00:00Z",
+      "stale": false,
+      "manual": null
+    },
+    {
+      "id": "P01",
+      "name": "Deniz Novak",
+      "kind": "simulated",
+      "status": "outside_manual",
+      "auto_status": "outside",
+      "floor_id": "proc-factory-dev-003-F0",
+      "position": [
+        -46.0,
+        25.65
+      ],
+      "space_id": null,
+      "space_name": null,
+      "last_seen_at": "2026-10-24T12:00:00Z",
+      "stale": false,
+      "manual": {
+        "marked_at": "2026-10-24T12:00:00Z",
+        "marked_by": "Assembly point warden",
+        "note": "Checked in at the assembly point"
+      }
+    },
+    {
+      "id": "P08",
+      "name": "Lea Rossi",
+      "kind": "simulated",
+      "status": "outside_manual",
+      "auto_status": "outside",
+      "floor_id": "proc-factory-dev-003-F0",
+      "position": [
+        -46.0,
+        25.65
+      ],
+      "space_id": null,
+      "space_name": null,
+      "last_seen_at": "2026-10-24T12:00:00Z",
+      "stale": false,
+      "manual": {
+        "marked_at": "2026-10-24T12:00:00Z",
+        "marked_by": "Assembly point warden",
+        "note": "Checked in at the assembly point"
+      }
+    },
+    {
+      "id": "P11",
+      "name": "Noah Wagner",
+      "kind": "simulated",
+      "status": "outside_manual",
+      "auto_status": "outside",
+      "floor_id": "proc-factory-dev-003-F0",
+      "position": [
+        -46.0,
+        25.65
+      ],
+      "space_id": null,
+      "space_name": null,
+      "last_seen_at": "2026-10-24T12:00:00Z",
+      "stale": false,
+      "manual": {
+        "marked_at": "2026-10-24T12:00:00Z",
+        "marked_by": "Assembly point warden",
+        "note": "Checked in at the assembly point"
+      }
+    }
+  ]
+}

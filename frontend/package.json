@@ -13,9 +13,14 @@
     "test:voice": "node --experimental-strip-types src/features/voice/vad.check.ts && node --experimental-strip-types src/features/voice/wav.check.ts && node --experimental-strip-types src/features/voice/speech-queue.check.ts",
     "test:perimeter": "node --experimental-strip-types src/rendering/floor-stack-3d/perimeter.check.ts",
     "test:editor": "node --experimental-strip-types src/domain/editor.check.ts",
-    "test:e2e": "python e2e/smoke.py"
+    "test:emergency": "node --experimental-strip-types src/domain/emergency.check.ts",
+    "test:e2e": "python e2e/smoke.py",
+    "test:layout": "python e2e/layout_check.py"
   },
   "dependencies": {
+    "@fontsource/dm-mono": "^5.3.0",
+    "@fontsource/dm-sans": "^5.3.0",
+    "@fontsource/space-grotesk": "^5.3.0",
     "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "latest",
     "react": "latest",

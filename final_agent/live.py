@@ -90,6 +90,11 @@ class LiveState:
         with self._cond:
             return self._position()
 
+    def last_fix(self) -> Fix | None:
+        """The latest applied fix, for emergency mode; None before the first one."""
+        with self._cond:
+            return self._fix
+
     # Guidance
 
     def start(self, building_map: BuildingMap, route_id: str, route_record: dict, route_result, spoken: bool) -> threading.Event:

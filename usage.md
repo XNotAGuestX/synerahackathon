@@ -13,13 +13,25 @@ print the money spent so far after every question (an estimate at list prices).
 - `--output DIR`: where route images and edits go (default `agent_output`)
 - `--model NAME`: `opus`, `sonnet` or `haiku` (default)
 
-**Emergency roll call (mock, chat is paid):** in a loaded building, ask
-“Start an emergency roll call”, “Skip ahead 120 seconds”, “Mark P03 safe; seen
-at the assembly point”, then “End the roll call”. People, alerts, phone/badge
-locations and replies are simulated; no real messages are sent. Each building
-has its own in-memory roll call and floor maps. Exiting/resuming or replacing
-the building starts with no active roll call. Benchmark agents omit these tools.
-The branch was merged on 25 October 2026; tests were not rerun at the user's request.
+**Share a route (app):** generate a route, then click **Share route** directly below
+**Show on map** in the route card in the chat, and send the copied
+link. It opens the building, map and directions in a separate session, preserving
+ordered stops, step-free/width/travel-mode constraints and closures. If clipboard
+access is unavailable, copy from the displayed link field. The recipient needs
+access to the same running app URL. Links recompute against current building data;
+session-only structural edits and browser-only imported plans are not included.
+No link database or model call is needed.
+
+**Emergency mode (app):** start the API with `EMERGENCY_ADMIN_PIN=<pin>`. In the app, tap
+Emergency, enter your name and the admin password, and activate. Every phone then shows the people
+still inside as red dots with names on the plan, and anyone can open the live list. Three simulated
+people start already marked outside; the others walk out within about 45 s, a few stay inside.
+Every open app session with a position appears too (each phone is asked for a name). Marking,
+undoing and ending need name + password once per device; ending deletes all positions. See ADR-0004.
+
+**Emergency mode (terminal chat, simulated people only, chat is paid):** ask “Start emergency
+mode”, “Skip ahead 90 seconds”, “Mark P03 outside; seen at the assembly point”, then “End emergency
+mode”. Floor maps are drawn per floor. Benchmark agents omit these tools.
 
 **Benchmark** (*paid*): `uv run python -m benchmark.evaluate data/dev`
 - `--per-kind N`: sample N questions per kind (default: all)

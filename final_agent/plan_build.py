@@ -74,10 +74,38 @@ class Calibration:
                                    "y_axis_inverted": True}}
 
 
+def rasterize_plan_page(path: str | Path) -> Path:
+    """Return a PNG or JPEG path. A one-page PDF is rendered to a sibling PNG first."""
+    source = Path(path)
+    content = source.read_bytes()
+    if content.startswith(b"\x89PNG\r\n\x1a\n") or content.startswith(b"\xff\xd8\xff"):
+        return source
+    if not content.startswith(b"%PDF"):
+        raise PlanError("Plan input must be a PNG, JPEG, or one-page PDF.")
+    import pypdfium2 as pdfium
+    document = pdfium.PdfDocument(content)
+    try:
+        if len(document) != 1:
+            raise PlanError(
+                f"PDF has {len(document)} pages. Supply one page per floor as its own PDF or image."
+            )
+        page = document[0]
+        try:
+            image = page.render(scale=2).to_pil()
+        finally:
+            page.close()
+    finally:
+        document.close()
+    target = source.with_name(f"{source.stem}.page.png")
+    image.save(target, format="PNG")
+    return target
+
+
 def extract_plan(client: Any, model: str, image_path: str | Path, *, floor_id: str,
                  calibration: Calibration | None = None, metadata: dict | None = None) -> dict:
     """Ask a vision model for raw pixel observations from actual PNG/JPEG bytes."""
-    path = Path(image_path)
+    original = Path(image_path)
+    path = rasterize_plan_page(original)
     content = path.read_bytes()
     if content.startswith(b"\x89PNG\r\n\x1a\n"):
         mime="image/png"
@@ -154,6 +182,7 @@ def extract_plan(client: Any, model: str, image_path: str | Path, *, floor_id: s
         except (KeyError,TypeError,PlanError) as exc:
             data["calibration_issue"]={"severity":"error","reason":f"Invalid visible calibration: {exc}"}
     data["_provenance"] = {"source_path": str(path.resolve()), "source_sha256": hashlib.sha256(content).hexdigest(),
+                           "original_source_path": str(original.resolve()),
                            "source_license": (metadata or {}).get("license"),
                            "image_width_px": width_px,"image_height_px": height_px,
                            "source_page": (metadata or {}).get("page"),
@@ -259,6 +288,10 @@ def validate_building(raw: dict, *, strict: bool = True) -> list[dict]:
     opening_ids = _unique_records(openings, "opening", issues, global_ids)
     connector_ids = _unique_records(connectors, "connector", issues, global_ids)
     asset_ids = _unique_records(assets, "asset", issues, global_ids)
+    # Invalid IDs were reported above; do not index untrusted lists/dicts as keys.
+    if any(not isinstance(row, dict) or not isinstance(row.get("id"), str) or not row["id"].strip()
+           for records in (floors, spaces, openings, connectors, assets) for row in records):
+        return issues
     levels = set()
     for f in floors:
         if not isinstance(f,dict): continue
@@ -364,7 +397,7 @@ def validate_building(raw: dict, *, strict: bool = True) -> list[dict]:
         if (not isinstance(fid,str) or fid not in floor_ids or not isinstance(sid,str) or sid not in space_ids): issue("Asset must reference a known floor and room.",aid,fid)
         elif space_map[sid].get("floor_id")!=fid: issue("Asset floor must match its containing room.",aid,fid)
         if not _valid_pair(a.get("position")): issue("Asset position must be finite XY metres.",aid,fid)
-        elif sid in polygons:
+        elif isinstance(sid, str) and sid in polygons:
             try:
                 from shapely.geometry import Point
                 if not polygons[sid].covers(Point(a["position"])):
@@ -469,6 +502,8 @@ class PlanDraft:
         if expected != self.current_revision: raise PlanError("Draft is stale; revalidate against the current revision.")
         errors=[i for i in self.validate() if i["severity"]=="error"]
         if errors: raise PlanError("Cannot apply invalid draft: " + "; ".join(x["reason"] for x in errors))
+        from .building_map import require_navigation_records
+        require_navigation_records(self.data)
         warnings=[i for i in self.validate() if i["severity"]=="warning"]
         if warnings and not (acknowledge_warnings or self.acknowledged_warnings):
             raise PlanError("Draft has warnings; review them and pass acknowledge_warnings=True to apply.")

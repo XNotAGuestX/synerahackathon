@@ -51,7 +51,7 @@ Eine brechende Änderung braucht eine neue ADR und `/api/v2`. Der Server sendet 
 - FR-2: Sitzung anlegen, Stufenfrei-Präferenz ersetzen, Sitzung löschen.
 - FR-3: Zeichenbare Geometrie pro Etage lesen, inklusive bestätigter neuer Türen. `closed_ids` entspricht der Sitzung derselben `revision`.
 - FR-4: Räume und Geräte nach Wörtern suchen.
-- FR-5: Route berechnen und die Polylinie pro Etage liefern. Unerreichbar bleibt eine Route mit `reachable: false`.
+- FR-5: Route berechnen und die Polylinie pro Etage liefern. Unerreichbar bleibt eine Route mit `reachable: false`. Optionales `profile` ist `kit-1.1.0` oder `synera-industrial`. `persist: false` liefert nur den Vergleich und ändert `last_route_id` und `revision` nicht.
 - FR-6: Einen Satz senden und Antworttext, `understood`, `effects` und die zitierten Routen erhalten.
 - FR-7: Schließen, Wiederöffnen oder eine Tür vorschlagen. Erst die Bestätigung ändert die Sitzung.
 - FR-8: Den Dialog seitenweise lesen. Nach einem Reload stellen `last_route_id` und `pending_action_id` die Karte wieder her.
@@ -100,6 +100,14 @@ Ablauf:
 3. Suche oder ein Klick erzeugt eine Id, keine Route.
 4. Route oder Nachricht liefert `route_id` und `points` pro Etage.
 5. Eine Gebäudeänderung erscheint zuerst als `pending`. Nach der Bestätigung steigt `revision`.
+
+Bestätigte Möbel-/Geräteänderungen gelten gemeinsam pro Datensatz/Gebäude und bleiben
+nach Neustarts erhalten. `Session.object_revision` versioniert diesen Bestand;
+Höhen und Stapelbeziehungen werden mit den Objekten atomar gespeichert. Andere
+Sitzungen übernehmen Änderungen vor Zugriffen und im sichtbaren Browser alle zwei
+Sekunden. Alte Vorschauen werden verworfen (409 bei Bestätigungsversuch), unsichere
+Undo-Snapshots gelöscht und Routen/Sprachausgabe gestoppt. Türen, Verbindungen,
+Sperrungen und Gespräch bleiben sitzungsbezogen. Details: [Speichervertrag](docs/api/README.md#shared-room-objects).
 
 `revision` folgt nur dem Kartenzustand: Präferenz, Schließmenge, bestätigte Edits, `last_route_id`, `pending_action_id`. Reiner Text erhöht `revision` nicht.
 
@@ -179,7 +187,7 @@ Normative Details stehen in OpenAPI. Hier steht die Semantik.
 | 500 | `00001_internal` | Unerwarteter Fehler |
 | 429 | `00002_rate_limited` | Gateway- oder App-Limit. Mit `Retry-After`. |
 | 401 | `10001_unauthenticated` | `API_TOKEN` ist gesetzt, Token fehlt oder stimmt nicht. |
-| 403 | `10002_forbidden` | Authentifiziert, aber ohne Recht. v1 kann das ungenutzt lassen. |
+| 403 | `10002_forbidden` | Authentifiziert, aber ohne Recht. Auch bei eingefrorenem Objekteditor: `POST .../actions` und Bestätigungen für `add_object`, `update_object`, `remove_object`, `add_opening`, `add_connector`, `undo_edit` ohne `MAP_EDITING=1` bzw. `--map-editing`; Detail `{"field": "kind", "code": "map_editing_disabled"}`. |
 | 400 | `20001_validation_failed` | Feldweise `details` |
 | 400 | `20010_idempotency_key_required` | POST ohne Schlüssel |
 | 409 | `20011_idempotency_key_mismatch` | Gleicher Schlüssel, anderer Body |
@@ -235,7 +243,7 @@ In Array-Reihenfolge anwenden. Unbekannter `type`: dieses Element überspringen.
 
 ### Auth, Limit, CSRF
 
-v1 nutzt keine Cookies und damit kein CSRF-Token. Cross-Origin steuert das Backend über `CORS_ORIGINS`. Über dem Limit: 429 und `Retry-After`. JSON-Bodies höchstens 64 KiB. Kein Upload.
+v1 nutzt keine Cookies und damit kein CSRF-Token. Cross-Origin steuert das Backend über `CORS_ORIGINS`. Über dem Limit: 429 und `Retry-After`. JSON-Bodies höchstens 64 KiB; rohe Audio-Uploads an `transcriptions` höchstens 2 MiB.
 
 Logs auf Info: `trace_id`, Methode, Pfad, Status, Dauer, `session_id`. Der originale Nutzersatz nur auf Debug. Kein Authorization-Header im Log.
 
@@ -244,12 +252,12 @@ Logs auf Info: `trace_id`, Methode, Pfad, Status, Dauer, `session_id`. Der origi
 - M1: v1-Vertrag und dev-Mock. Das Frontend entwickelt dagegen.
 - M2: Backend implementiert buildings, sessions, plan, places, routes, actions.
 - M3: Backend hängt messages an den Agenten. Fällt das Modell aus, bleiben die M2-Endpunkte nutzbar.
-- Später: Sprache über `input_mode: transcript`, Streaming, Entwurfsgebäude, mehrere Häuser. `input_mode` fehlt es, gilt `text`.
+- Sprachmodus: WAV an `POST transcriptions`, den erkannten Text mit `input_mode: voice` an messages. `guide_message.text` bleibt ausführlich; `speech_text` enthält die kurze gesprochene Antwort und `speech_clip_id` ihren Clip. `input_mode: transcript` bleibt reine Texteingabe; ohne input_mode gilt `text`. Führung nutzt den bestehenden Long-Poll-Feed (ADR-0003). Der Browser nutzt keine direkten Provider-WebSockets mehr; der Token-Endpunkt bleibt kompatibel verfügbar.
 
 ## 9. Offene Punkte
 
 - Ob ein Gebäude aus einem Plan eine Sitzung ohne Datensatz-Id bekommen darf. v1 unterstützt das nicht.
-- Wer Sprache in Text wandelt. Die API nimmt nur schon vorhandenen `text` an.
+- Physisches Mikrofon, Echo und iPhone Safari sind noch nicht gerätegeprüft. Implementierung und fokussierte Browserprüfungen: [VOICE_AUDIO_HANDOFF.md](VOICE_AUDIO_HANDOFF.md).
 
 ## 10. Änderungsmatrix
 

@@ -7,6 +7,7 @@ export type RecoveredSession = {
   stepFree: boolean
   lastRouteId: string | null
   pendingActionId: string | null
+  currentSpaceId?: string | null
 }
 
 export function readRecovery(buildingId: string): RecoveredSession | null {

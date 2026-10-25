@@ -15,7 +15,7 @@ from pathlib import Path
 
 from anthropic.lib.tools import ToolError
 
-from .building_map import BuildingMap, MapError
+from .building_map import BuildingMap, MapError, require_navigation_records
 from .campus import Campus
 from .plan_build import Calibration, PlanDraft, PlanError, extract_plan, observations_to_building
 from .storage import JsonBuildingStore
@@ -47,7 +47,7 @@ class Workspace:
         self.current_location: dict | None = None
         self.preferences: dict = {}
         self.pending_plan: dict | None = None
-        # Mock roll calls last only for this process and are isolated by building/map instance.
+        # Mock emergencies last only for this process and are isolated by building/map instance.
         self.emergency_tools: dict[str, tuple[BuildingMap, dict]] = {}
         state = self.directory / "session.json"
         if state.exists():
@@ -104,7 +104,9 @@ class Workspace:
         return self.campus.buildings[building_id]
 
     def register(self, path: str, *, facility_number: str | None = None) -> dict:
-        source = BuildingMap.load(Path(path))
+        raw_path = Path(path)
+        require_navigation_records(JsonBuildingStore.load(raw_path))
+        source = BuildingMap.load(raw_path)
         bid = safe_id(source.data["building"]["id"])
         if facility_number is not None and not str(facility_number).strip():
             raise ValueError("Give a non-empty facility number.")
@@ -125,9 +127,9 @@ class Workspace:
             raise PlanError("There is no plan draft. Create a plan or begin a building edit first.")
         result = self.draft.preview()
         before = {row["id"]: row for key in ("spaces", "openings", "vertical_connectors", "assets")
-                  for row in self.draft.base_data.get(key, []) if isinstance(row, dict) and "id" in row}
+                  for row in self.draft.base_data.get(key, []) if isinstance(row, dict) and isinstance(row.get("id"), str)}
         after = {row["id"]: row for key in ("spaces", "openings", "vertical_connectors", "assets")
-                 for row in self.draft.data.get(key, []) if isinstance(row, dict) and "id" in row}
+                 for row in self.draft.data.get(key, []) if isinstance(row, dict) and isinstance(row.get("id"), str)}
         changed_ids = [eid for eid in before.keys() | after.keys() if before.get(eid) != after.get(eid)]
         result["changed_ids"] = sorted(changed_ids)
         images = []
@@ -140,11 +142,15 @@ class Workspace:
                 missing_sources.append(str(source_path))
                 source_path = None
             output = self.directory / "drafts" / self.draft_id / f"preview-{safe_id(floor['id'])}.png"
-            draw_plan_preview(self.draft.data, output,
-                              source_path=source_path,
-                              calibration=metadata.get("calibrations", {}).get(floor["id"]),
-                              floor_id=floor["id"], issues=result["validation_issues"], changed_ids=changed_ids)
-            images.append({"floor_id": floor["id"], "image": str(output)})
+            try:
+                draw_plan_preview(self.draft.data, output,
+                                  source_path=source_path,
+                                  calibration=metadata.get("calibrations", {}).get(floor["id"]),
+                                  floor_id=floor["id"], issues=result["validation_issues"], changed_ids=changed_ids)
+            except (MapError, KeyError, TypeError, ValueError) as error:
+                images.append({"floor_id": floor["id"], "error": f"Correct invalid draft records before rendering: {error}"})
+            else:
+                images.append({"floor_id": floor["id"], "image": str(output)})
         result.update(draft_id=self.draft_id, images=images, status="pending_review", missing_source_images=missing_sources)
         self.save_session()
         return result
@@ -159,6 +165,8 @@ class Workspace:
         return self.preview()
 
     def _check_no_pending_draft(self):
+        if self.pending_plan:
+            raise PlanError("Calibrate or cancel the pending plan before starting another draft.")
         if self.draft is not None and not self.draft.cancelled:
             bid = self.draft.data.get("building", {}).get("id")
             if bid not in self.campus.buildings or self.draft.data != self.draft.base_data:
@@ -200,25 +208,28 @@ class Workspace:
             shutil.copyfile(image_path, saved_source)
             result = extract_plan(self.client, self.model, saved_source, floor_id=fid,
                                   calibration=cal, metadata={"license": license, "floor": floor})
-            if cal is None:
+            if cal is None and result.get("calibration_transform"):
                 evidence = result.get("calibration", {})
-                if not result.get("calibration_transform"):
-                    self.pending_plan = {"building_id": building_id, "name": name, "floor": floor,
-                                         "observations": result, "license": license, "attribution": attribution}
-                    self.save_session()
-                    return {"status": "needs_calibration", "building_id": building_id,
-                            "source_image": str(saved_source), "observations": result,
-                            "reason": "No explicit metric scale could be read from this image. Geometry remains uncalibrated; navigation is unavailable.",
-                            "resume": str(self.directory)}
                 cal = Calibration.from_known_distance(evidence["point_a_px"], evidence["point_b_px"], evidence["distance_m"])
             result["_provenance"]["original_source_path"] = str(image_path)
-            calibrations[fid], sources[fid] = cal, result.get("_provenance", {})
+            if cal is not None:
+                calibrations[fid] = cal
+            sources[fid] = result.get("_provenance", {})
             records.append({key: floor[key] for key in ("id", "name", "level", "elevation_m")})
             for key in observations:
                 for row in result.get(key, []):
                     if key not in ("vertical_connectors", "uncertainties"):
                         row.setdefault("floor_id", fid)
                     observations[key].append(row)
+        if len(calibrations) != len(records):
+            # Keep every floor's pixels and copied source, so later calibration cannot
+            # silently turn a multi-floor request into a single-floor building.
+            self.pending_plan = {"building_id": building_id, "name": name, "floors": records,
+                                 "calibrations": {fid: cal.as_dict() for fid, cal in calibrations.items()},
+                                 "sources": sources, "observations": observations,
+                                 "license": license, "attribution": attribution}
+            self.save_session()
+            return self._pending_calibration_status()
         data = observations_to_building(building_id=building_id, name=name, floors=records,
                                         observations=observations, calibrations=calibrations,
                                         source_ref=sources, license=license, attribution=attribution)
@@ -234,20 +245,47 @@ class Workspace:
         return self.create_plan(bid, source.stem, [{"id": "F0", "name": "Plan floor",
             "level": 0, "elevation_m": 0.0, "source_path": str(source)}], "unknown", "User-supplied plan; attribution unspecified")
 
-    def calibrate_pending(self, calibration: dict) -> dict:
+    def _pending_calibration_status(self) -> dict:
+        pending = self.pending_plan
+        missing = [floor["id"] for floor in pending["floors"] if floor["id"] not in pending["calibrations"]]
+        return {"status": "needs_calibration", "building_id": pending["building_id"],
+                "pending_floor_ids": missing, "source_image": pending["sources"][missing[0]]["source_path"],
+                "sources": copy.deepcopy(pending["sources"]), "observations": copy.deepcopy(pending["observations"]),
+                "reason": "Supply a measured calibration for each listed floor. Geometry remains uncalibrated; navigation is unavailable.",
+                "resume": str(self.directory)}
+
+    def calibrate_pending(self, calibration: dict, floor_id: str | None = None) -> dict:
         if not self.pending_plan:
             raise PlanError("There is no uncalibrated plan awaiting a scale.")
-        pending = self.pending_plan
+        pending = copy.deepcopy(self.pending_plan)
+        # Sessions saved before multi-floor calibration used a single floor record.
+        if "floors" not in pending:
+            floor = pending.pop("floor")
+            pending["floors"] = [floor]
+            pending["calibrations"] = {}
+            pending["sources"] = {floor["id"]: pending["observations"]["_provenance"]}
+        missing = [floor["id"] for floor in pending["floors"] if floor["id"] not in pending["calibrations"]]
+        if floor_id is None:
+            if len(missing) != 1:
+                raise PlanError(f"Supply floor_id to calibrate one of {missing}.")
+            floor_id = missing[0]
+        if floor_id not in missing:
+            raise PlanError(f"Floor {floor_id!r} is not awaiting calibration; choose one of {missing}.")
         cal = Calibration.from_known_distance(**calibration)
-        floor = pending["floor"]
-        fid = floor["id"]
-        observation = pending["observations"]
-        observation["_provenance"]["calibration"] = cal.as_dict()
+        pending["calibrations"][floor_id] = cal.as_dict()
+        pending["sources"][floor_id]["calibration"] = cal.as_dict()
+        if len(missing) > 1:
+            self.pending_plan = pending
+            self.save_session()
+            return self._pending_calibration_status()
+        calibrations = {fid: Calibration(tuple(value["anchor_px"]), value["metres_per_pixel"],
+                                         tuple(value["origin_m"]), value["rotation_deg"])
+                        for fid, value in pending["calibrations"].items()}
         data = observations_to_building(building_id=pending["building_id"], name=pending["name"],
-                                        floors=[{key: floor[key] for key in ("id", "name", "level", "elevation_m")}],
-                                        observations=observation, calibrations={fid: cal},
-                                        source_ref=observation["_provenance"], license=pending["license"], attribution=pending["attribution"])
-        data["import_metadata"]["sources"] = {fid: observation["_provenance"]}
+                                        floors=pending["floors"], observations=pending["observations"],
+                                        calibrations=calibrations, source_ref=pending["sources"],
+                                        license=pending["license"], attribution=pending["attribution"])
+        data["import_metadata"]["sources"] = pending["sources"]
         self.pending_plan = None
         self._new_draft(data, 0)
         return self.preview()
@@ -365,14 +403,14 @@ class ScopedTool(ArgumentCheckedTool):
 
 
 class ScopedEmergencyTool(ArgumentCheckedTool):
-    """Resolve emergency tools at call time without binding a roll call to an old selected map."""
+    """Resolve emergency tools at call time without binding an emergency to an old selected map."""
 
     def __init__(self, template, workspace: Workspace):
         super().__init__(template.func)
         self.workspace = workspace
         self.input_schema = copy.deepcopy(template.input_schema)
         self.input_schema.setdefault("properties", {})["building_id"] = {
-            "type": "string", "description": "Building for this simulated roll call; omitted uses the selected building."}
+            "type": "string", "description": "Building for this simulated emergency; omitted uses the selected building."}
 
     def call(self, input: object) -> str:
         if not isinstance(input, dict):
@@ -439,13 +477,20 @@ def make_workspace_tools(workspace: Workspace, emergency: bool = False) -> list:
         """Record a user-confirmed current room and optional accessibility preferences; selection alone is not location."""
         item = workspace.building(building_id)
         sid = item["map"].resolve_space(element_id)
-        workspace.current_location = {"building_id": building_id, "element_id": sid, "kind": "space"}
+        preferences = dict(workspace.preferences)
         if step_free is not None:
-            workspace.preferences["step_free"] = step_free
+            preferences["step_free"] = step_free
         if min_width_m is not None:
             from .building_map import check_number
-            workspace.preferences["min_width_m"] = check_number("min_width_m", min_width_m, 0)
-        workspace.save_session()
+            preferences["min_width_m"] = check_number("min_width_m", min_width_m, 0)
+        old_location, old_preferences = workspace.current_location, workspace.preferences
+        workspace.current_location = {"building_id": building_id, "element_id": sid, "kind": "space"}
+        workspace.preferences = preferences
+        try:
+            workspace.save_session()
+        except OSError:
+            workspace.current_location, workspace.preferences = old_location, old_preferences
+            raise
         return {"current_location": workspace.current_location, "preferences": workspace.preferences}
 
     @register
@@ -488,24 +533,25 @@ def make_workspace_tools(workspace: Workspace, emergency: bool = False) -> list:
         Each floor needs id,name,level,elevation_m,source_path,calibration. calibration contains point_a_px:[x,y],
         point_b_px:[x,y],distance_m; optionally origin_m:[x,y],rotation_deg. Multi-floor imports also need
         alignment_confirmed:true and calibrated common-frame anchors/orientations. Ask for missing scale/elevation/
-        alignment or attribution rather than inventing it. PDF users must export each page as PNG/JPEG first.
+        alignment or attribution rather than inventing it. A one-page PDF is rendered to PNG before extraction.
         """
         return workspace.create_plan(building_id, name, floors, license, attribution)
 
     @register
     def import_plan_image(path: str) -> dict:
-        """Start from just a PNG/JPEG path. Printed dimensions/scale are metres; use visible metric evidence only.
+        """Start from a PNG, JPEG, or one-page PDF path. Printed dimensions/scale are metres; use visible metric evidence only.
         The first single floor uses level 0 and elevation 0 as a local datum, source/license stay explicitly unknown.
         Produces a pending draft or needs_calibration; never claims navigation on an uncalibrated image.
         """
         return workspace.import_image(path)
 
     @register
-    def calibrate_plan(calibration: dict) -> dict:
+    def calibrate_plan(calibration: dict, floor_id: str | None = None) -> dict:
         """Calibrate already-extracted pending pixels without another vision request. Supply point_a_px,
-        point_b_px,distance_m and optional origin_m/rotation_deg. All drawing dimensions are metres.
+        point_b_px,distance_m and optional origin_m/rotation_deg. Choose floor_id when multiple floors
+        await scale; omitted uses the sole remaining floor. All drawing dimensions are metres.
         """
-        return workspace.calibrate_pending(calibration)
+        return workspace.calibrate_pending(calibration, floor_id)
 
     @register
     def correct_plan_pixels(floor_id: str, actions: list[dict]) -> dict:

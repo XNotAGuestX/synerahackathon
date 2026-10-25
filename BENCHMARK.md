@@ -4,7 +4,8 @@ From the repository root, with dependencies installed:
 
 ```bash
 uv sync
-uv run --env-file .env python -m benchmark.evaluate data/dev --agent final_agent.benchmark:answer --name final-dev
+EMERGENCY_ADMIN_PIN='123456' uv run -m final_agent.api
+
 ```
 
 The command reads each building directory, writes answers, and does not persist what-if edits. Expected labels are for scoring only. `final_agent.benchmark:answer` is also the runner default and uses the retrieved run library. `answer_without_examples` preserves the model baseline without retrieval.
@@ -18,3 +19,11 @@ uv run --env-file .env python -m benchmark.evaluate data/test --agent final_agen
 ```
 
 Do not commit `.env`. Live runs need configured model credentials and spend API credits.
+
+Sunday input uses a separate command. The organizers have not announced its schema, so the command exits without writing answers:
+
+```bash
+uv run python -m benchmark.sunday path/to/sunday_input
+```
+
+When the file is missing, or when it exists before the announced fields are recorded, the command prints what is missing and exits 1. Do not fill in a guessed answers file.

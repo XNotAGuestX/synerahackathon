@@ -1,4 +1,4 @@
-"""Flat 2D floor plans: one renderer draws every display (route, located room/asset, landmarks, emergency roll call).
+"""Flat 2D floor plans: one renderer draws every display (route, located room/asset, landmarks, emergency mode).
 
 The renderer only draws what BuildingMap already computed: the route's selected doors (route_polylines),
 its stops and connectors, the explicit selection, closures and the landmark ids it is given.
@@ -18,7 +18,7 @@ from matplotlib.patches import Polygon as PolygonPatch
 from shapely.errors import GEOSException
 
 from .building_map import DOOR_PREFIX, OUTSIDE, BuildingMap, MapError, RouteResult, door_landing, normalize_type, outline, walking_path
-from .emergency import PENDING, RFID_BADGE, SAFE, STATUS_ORDER, UNSAFE
+from .emergency import INSIDE, OUTSIDE_AUTO, OUTSIDE_MANUAL, STATUS_ORDER
 
 ROOM_COLOURS = {"hall": "#ece6d6", "corridor": "#faf8f2", "stair": "#dce6f2", "lift": "#dce6f2"}
 ROOM_COLOUR = "#f3efe6"
@@ -33,8 +33,9 @@ SELECTION_FILL = "#ffe0a3"
 LANDMARK_COLOUR = "#6a1b9a"
 LANDMARK_FILL = "#ead7f2"
 OUTLINE_COLOUR = "#666666"
-PERSON_COLOURS = {SAFE: "#2e7d32", PENDING: "#f9a825", UNSAFE: "#c62828"}
-PERSON_LABELS = {SAFE: "Safe (confirmed)", PENDING: "Pending (no reply yet)", UNSAFE: "Unsafe (no confirmation in time)"}
+PERSON_COLOURS = {INSIDE: "#c62828", OUTSIDE_AUTO: "#2e7d32", OUTSIDE_MANUAL: "#1565c0"}
+PERSON_LABELS = {INSIDE: "Phone inside the building", OUTSIDE_AUTO: "Phone outside",
+                 OUTSIDE_MANUAL: "Marked outside by an admin"}
 
 FIGURE_INCHES = 9
 DPI = 100
@@ -253,7 +254,7 @@ def draw_floor(
     building_map: BuildingMap, floor_id: str, path: Path, route: RouteResult | None = None,
     selection: dict | None = None, landmark_ids: list[str] | None = None, people: list[dict] | None = None,
 ) -> Path:
-    """Render one floor with the optional route, selection, landmarks and roll-call people; return the PNG path."""
+    """Render one floor with the optional route, selection, landmarks and emergency people; return the PNG path."""
     spaces = [space for space in building_map.spaces.values() if space["floor_id"] == floor_id]
     targets = [
         target for target in landmark_targets(building_map, landmark_ids or [])
@@ -430,26 +431,21 @@ def draw_floor(
             legend.append(Patch(facecolor=LANDMARK_FILL, edgecolor=LANDMARK_COLOUR, linewidth=2, label="Landmark / destination context room"))
         if any(kind == "asset" for kind, _ in targets):
             legend.append(Line2D([], [], marker="P", linestyle="", color=LANDMARK_COLOUR, markersize=9, label="Landmark object"))
-        # Emergency roll call: each person's last known position (square = badge reader), coloured by status.
+        # Emergency mode: each phone's current position, coloured by inside/outside status.
         people_here = [person for person in people or [] if person["floor_id"] == floor_id]
         for person in people_here:
-            marker = "s" if person["tracker"] == RFID_BADGE else "o"
-            axes.plot(*person["position"], marker, color=PERSON_COLOURS[person["status"]], markeredgecolor="white",
+            axes.plot(*person["position"], "o", color=PERSON_COLOURS[person["status"]], markeredgecolor="white",
                       markersize=11, zorder=11)
             labels.reserve(*person["position"])
-        for person in people_here:  # name everyone not yet confirmed safe, after all markers are reserved
-            if person["status"] != SAFE:
+        for person in people_here:  # name everyone still inside, after all markers are reserved
+            if person["status"] == INSIDE:
                 labels.place(short(person["name"]), around(*person["position"]),
-                             color=PERSON_COLOURS[person["status"]], fontweight="bold")
+                             color=PERSON_COLOURS[INSIDE], fontweight="bold")
         statuses_here = {person["status"] for person in people_here}
         for status in STATUS_ORDER:
             if status in statuses_here:
                 legend.append(Line2D([], [], marker="o", linestyle="", color=PERSON_COLOURS[status], markersize=9,
                                      label=PERSON_LABELS[status]))
-        if people_here:
-            legend.append(Line2D([], [], marker="o", linestyle="", color="#777777", markersize=8, label="Smartphone fix"))
-            legend.append(Line2D([], [], marker="s", linestyle="", color="#777777", markersize=8,
-                                 label="Badge reader last passed"))
         # Remaining room names, only where they fit.
         for space in sorted(spaces, key=lambda item: -building_map.space_area_m2(item["id"])):
             space_id = space["id"]
@@ -463,7 +459,7 @@ def draw_floor(
                          max_width_pixels=abs(upper[0] - lower[0]), color="#444444",
                          bbox={"boxstyle": "round,pad=0.1", "fc": "white", "ec": "none", "alpha": 0.55})
         title = f"{building_map.data['building']['name']} — {building_map.floor_name(floor_id)}"
-        axes.set_title(f"EMERGENCY ROLL CALL (simulated)\n{title}" if people is not None else title)
+        axes.set_title(f"EMERGENCY MODE\n{title}" if people is not None else title)
         if legend:
             axes.legend(handles=legend, loc="upper center", bbox_to_anchor=(0.5, -0.01), ncol=2, fontsize=8, frameon=False)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -750,7 +746,7 @@ def draw_campus_route(campus: dict, route: dict, output_dir: Path) -> list[dict]
 
 
 def draw_emergency(building_map: BuildingMap, people: list[dict], output_directory: Path) -> list[Path]:
-    """One whole-floor PNG per floor with people on it: last known positions coloured by roll-call status."""
+    """One whole-floor PNG per floor with people on it: current positions coloured by inside/outside status."""
     floor_ids = sorted({person["floor_id"] for person in people}, key=building_map.floor_level)
     return [
         draw_floor(

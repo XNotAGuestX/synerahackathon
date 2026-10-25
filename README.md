@@ -1,5 +1,44 @@
 # Talk to Your Building: Agent-First Indoor Navigation
 
+**Shareable routes — 25 October 2026:** **Share route** copies a URL that opens the
+building, map and directions in a fresh session using existing APIs. Ordered stops,
+step-free/width/travel-mode constraints and closures travel with the link; routes
+are recomputed against current building data. The frontend build and two-browser
+checks pass, including clipboard fallback, 390 px layout, same-tab links and
+invalid/unreachable cases. Recipients need access to the same app; session-only
+structural edits are excluded. [Usage](usage.md).
+The chat redesign's missing button was restored below **Show on map** in the
+active route card; the build and desktop/phone copy-and-open browser checks pass.
+
+**3D wall clipping fix — 25 October 2026:** room boundaries now split into interior
+walls and exterior facades, removing overlapping surfaces that caused striped
+patches along exterior walls. Identical shared interior edges render once.
+Perimeter regression checks and the production frontend build pass; UI verification
+was omitted at the user's request.
+
+**Complete README verification — 25 October 2026:**
+[README_VERIFICATION.md](README_VERIFICATION.md) checks every required level,
+all nine scored kinds, dated additions, optional extensions and delivery requirements.
+All **138/138** resolved-input dev components and **369/369** oracle warm-ups pass;
+these are not live conversational scores. The full suite runs **367 tests: 363 pass,
+3 skip, 1 error** from treating `data/dev/.DS_Store` as a building directory.
+The frontend build and all seven frontend check scripts pass. Remaining work is
+ordered from Level 1 ambiguity/accessibility context to Level 2 HTTP rerouting and
+guidance, then browser integration of the existing campus/plan workflows and
+submission validation. The pre-existing `test_run_1.csv` covers all 145 public test
+IDs and passes static format checks; hidden-answer correctness is unverified.
+No new UI acceptance or paid model run is claimed. Older audit tables below are
+historical where they conflict with this verification.
+
+**Voice reliability — 25 October 2026:** voice now sends WAV recordings through the
+backend, with automatic silence detection and **Finish speaking**, visible progress,
+serialized typed/spoken requests, interruption and session cleanup. Written answers
+retain their detail; `speech_text` supplies a brief spoken summary and automatic
+waypoint guidance remains available. Focused checks pass: 40 API, five speech and
+nine navigator tests, frontend voice checks/build, and four fake-microphone Chrome
+scenarios. Sampled live STT/agent/TTS, clarification, step-free guidance and stop checks pass; physical microphone/iPhone Safari remain unverified.
+[Current voice handoff and verification limits](VOICE_AUDIO_HANDOFF.md).
+
 **Object heights and lightweight 3D assets — 25 October 2026:**
 `final_agent/object_catalog.json` is shared by Python and the frontend and supplies
 reasoned height estimates and local GLBs for all 96 current asset types. The floor
@@ -39,6 +78,7 @@ loader, scale individual objects and connect new-object creation.
 | Run, evaluate, score and submit | [5. Quick start](#5-quick-start), [6. Submission format](#6-submission-format), [7. Rules and tips](#7-rules-and-tips) |
 | Current features and verified evaluation | [9. Current implementation](#9-current-implementation-and-verified-baseline) |
 | Prioritized tasks and acceptance criteria | [Implementation backlog](BACKLOG.md), [10. Tasks](#10-tasks-priorities-and-completion-criteria) |
+| Today's remaining work, ordered so it can finish on 25 October | [docs/TODOLIST-2026-10-25.md](docs/TODOLIST-2026-10-25.md) |
 | Unresolved requirements and source discrepancies | [11. Open decisions](#11-open-decisions-and-source-discrepancies) |
 | Consolidated agent commands, tools and storage reference | [12. Consolidated agent reference](#12-consolidated-agent-reference) |
 | Complete challenge PDF text, including its grading table | [13. Challenge PDF reference](#13-challenge-pdf-reference) |
@@ -52,15 +92,31 @@ loader, scale individual objects and connect new-object creation.
 
 **Supplied benchmark kind — 25 October 2026:** Training builds, actual benchmark runs (with or without retrieved examples) and analysis-agent runs include the dataset's public `kind` when supplied. Missing, null or empty kinds send the original question text without throwing; sampling and result logging handle them too. Labelled `inputs` and expected answers stay with the evaluator. Direct answer calls also accept `kind=`. Twenty-one focused offline checks pass in an isolated checkout, including actual entry-point/model-message checks; no paid rerun or change to saved training acceptance flags is claimed.
 
-**Latest implementation audit — 24 October 2026:** [CODEBASE_AUDIT.md](CODEBASE_AUDIT.md) compares every required level, all nine scored kinds and delivery requirements with current code. After the tool-contract/pagination integration, **202 tests run: 199 pass, 3 skip**; resolved-input scored dev components pass **138/138** and the warm-up oracle passes **369/369**. These are offline checks, not live conversational accuracy. Search/inspection, highlights, width constraints, route identities, transactional edits and tours are substantially implemented; several older section 9 rows and backlog descriptions understate them. The largest remaining gaps are the connected conversation/map workflow, multi-building walkways and plan-to-building creation; the audit ranks these and records reproduced correctness defects.
+**Historical implementation audit — 24 October 2026:** [CODEBASE_AUDIT.md](CODEBASE_AUDIT.md) records the earlier 202-test baseline and reproduced defects. Its missing web/campus/plan assessments predate those implementations. Use [the complete 25 October verification](README_VERIFICATION.md) for current feature status and remaining defects.
 
 **Implementation handoffs — 25 October 2026:** [Level 3: multiple floors, buildings and walkways](LEVEL_3_HANDOFF.md) and [Level 4: create and correct buildings from plans](LEVEL_4_HANDOFF.md) specify the remaining work, shared contracts, acceptance flows and verification. They reuse the existing deterministic core and keep frontend ownership explicit; they do not mark either level complete.
 
-**Level 3/4 implementation — 25 October 2026:** The CLI now includes an isolated multi-building workspace, explicit measured walkways, constrained campus routes and ordered floor/link views; closures reroute the retained request. PNG/JPEG plans become calibrated, validated drafts with source overlays, metre/pixel corrections, apply/cancel/undo, export and exact-session resume. Start with `uv run python -m final_agent --plan /absolute/plan.png`, or load several buildings with `uv run python -m final_agent.workspace --building BUILDING_A --building BUILDING_B`. Printed dimensions are metres; images without scale remain explicitly uncalibrated. User-approved AI integration is confined to the workspace; the single-building benchmark adapter remains isolated. [Launch commands, supported inputs, attributed fixtures and actual live evidence](examples/level34/README.md) document a 9.07-second image extraction and corrected/reloaded 5 m step-free route, plus a real 35 m cross-building conversational route. Multi-floor plan extraction has not been exercised live; these small demos are not general extraction-accuracy or benchmark scores. The older audit/status tables below describe the earlier baseline where they conflict with this dated entry.
+**Level 3/4 implementation — 25 October 2026:** The CLI now includes an isolated multi-building workspace, explicit measured walkways, constrained campus routes and ordered floor/link views; closures reroute the retained request. PNG/JPEG plans become calibrated, validated drafts with source overlays, metre/pixel corrections, apply/cancel/undo, export and exact-session resume. Start with `uv run python -m final_agent --plan /absolute/plan.png`, or load several buildings with `uv run python -m final_agent.workspace --building BUILDING_A --building BUILDING_B`. Printed dimensions are metres; images without scale remain explicitly uncalibrated. User-approved AI integration is confined to the workspace; the single-building benchmark adapter remains isolated. [Launch commands, supported inputs, attributed fixtures and actual live evidence](examples/level34/README.md) document a 9.07-second image extraction and corrected/reloaded 5 m step-free route, plus a real 35 m cross-building conversational route. Multi-floor plan extraction has not been exercised live; these small demos are not general extraction-accuracy or benchmark scores. **Compliance status — 25 October 2026, documentation reconciliation:** the project does **not** yet meet the full challenge. Levels 1–4 have working code and recorded demos; the 55-point automatic check, the 25-point interaction script and the 10-point demo package are still open. This reconciliation inspected current source and the dated records already in this file. It did not rerun the suite, call a live model or generate test answers.
+
+| Challenge item | Status on 25 October | What is evidenced | What is still open |
+|---|---|---|---|
+| L1 locate on a view | Partial | CLI and web chat, search, highlights, one live nearest-coffee turn | Merged tricky-user script not rerun |
+| L2 route, step-free, closures, tours | Partial | Router, width filter, confirm-to-close, ordered and optimized tours | Full locate-to-reopen acceptance flow not recorded after the merge |
+| L3 floors, stairs, lifts | Done for one building | Height costs, direct lift rides, per-floor views | Connector-only floors now come from route nodes; keep that in review |
+| L3 buildings and walkways | Partial | CLI campus, measured links, 35 m → 57 m → 35 m, one live conversation | Web/OpenAPI session is one building; no shared campus frame |
+| L4 plan to navigable building | Partial | CLI PNG/JPEG extraction, calibration, review, 9.07 s draft, 5 m step-free route. A one-page PDF is rendered to PNG before extraction | Multi-floor extraction is not live-checked in this pass. Web import still does not create rooms from an image |
+| Nine scored tools | Live dev run passed; public CSV generated | Resolved-input dev 138/138; oracle 369/369; live agent **138/138** on 25 October. `team_answers.csv` has the 145 public replies and passed the submission checks | Test labels are hidden, so the public file is not a scored result |
+| Kit 1.1.0 walking model | Done for labelled answers | Door-to-door, 15 cm clearance, stair/lift costs, no outside shortcut | Disconnected in-room walks still use the inherited 1.5× straight-line estimate |
+| Forklift and destination-only bays | Implemented as a separate profile | `profile=synera-industrial` requires 3 m openings and does not cross production, assembly or additive bays. Default routes stay kit 1.1.0 | A live forklift question has not been scored. Pedestrian doors are excluded by the 3 m rule |
+| Interaction, 25 points | Partial | Clarification, confirmed edits, sampled live turns | `docs/INTERACTION_SCRIPT.md` not rerun after integration |
+| Creativity, 10 points | Partial | 3D floor stack and object models browser-checked; voice and emergency code exist | No single extension is accepted end to end. AR, quiet routes and phone capture are absent |
+| Pitch, demo and submission | Missing | `BENCHMARK.md` command, attribution, demo script | No validated answer file, no recorded 3–5 minute run, no demo video, no Sunday output |
+
+Today's execution order is [docs/TODOLIST-2026-10-25.md](docs/TODOLIST-2026-10-25.md). Section 9 below is updated to this same status. Older paragraphs in section 9 keep their original dates and counts.
 
 The original `uv run python -m final_agent BUILDING` chat command also starts a workspace, so buildings/plans can be added during that conversation. It prints the exact resume directory; source datasets stay unchanged.
 
-**Emergency-roll-call mock — merged 25 October 2026:** interactive chats include simulated people, a 120-second confirmation window, manual safe confirmation and coloured floor maps. State is isolated per building/session and is not persisted; no real alerts, phone tracking or badge integration is connected. Benchmark agents do not expose these tools. See [usage](usage.md) and the imported [handoff](EMERGENCY_ROLL_CALL_HANDOFF.md). No tests were rerun for this merge, as requested; this is not a verified completion claim for the optional extension.
+**Emergency mode — 25 October 2026:** replaces the roll-call mock. An admin (name plus the password from `EMERGENCY_ADMIN_PIN`) activates the alarm for a building; every phone then shows the people still inside as named red dots on the plan, and a live list shows every phone inside or outside (simulated people who evacuate over time, three already marked outside, plus every app session with a position), with manual “mark outside”. In memory only; ending deletes all positions. See [ADR-0004](docs/adr/ADR-0004-emergency-mode.md), [usage](usage.md) and the [handoff](EMERGENCY_ROLL_CALL_HANDOFF.md).
 
 **Kit 1.1.0 data refresh:** [CHANGELOG.md](CHANGELOG.md) preserves the upstream release notes. All 3,474 files in `data/` match the supplied release. The update changes **1,314 expected answers in 334 files**: 1,217 warm-up answers and 97 scored answers (errands and what-if doors). Question IDs, wording and inputs, building geometry, equipment, images, manifest and all 145 public test questions are unchanged. The existing `data_old/` backup is preserved. Previous 1.0.0 evaluation evidence and handoff examples are historical; use `data/` for current checks. The router reports `distance_model="kit-1.1.0"`.
 
@@ -68,7 +124,7 @@ The original `uv run python -m final_agent BUILDING` chat command also starts a 
 
 [FEATURE_SHORTLIST.md](FEATURE_SHORTLIST.md) records proposed features, prompt-related implementation gaps and the future switch to automatic mobile location updates; these capabilities remain unimplemented.
 
-[TASK_TARGET_OBJECT_HANDOFF.md](TASK_TARGET_OBJECT_HANDOFF.md) specifies typed user tasks, follow-up patches, session context and application-owned completion checks (L1-06). The system prompt includes completion-evidence rules and use cases; task classes and the controller are not implemented, and these prompt changes have no live interpretation result yet.
+The proposed typed tasks, follow-up patches, session context and application-owned completion checks are tracked as L1-06. The system prompt includes completion-evidence rules and use cases; task classes and the controller are not implemented, and these prompt changes have no live interpretation result yet. The referenced `TASK_TARGET_OBJECT_HANDOFF.md` is absent from this checkout.
 
 [Benchmark request analysis](bench_analsysis/README.md) reviews 280 questions across 20 varied dev buildings plus three scarce-kind train supplements, with implementation/missing-tool tables, underdocumented expected results and 71 runnable representatives in three difficulty tiers. Thirteen kinds have five cases each; lift-outage reachability and door what-if use all two and four available labelled examples respectively. Its offline evidence distinguishes passing component checks from missing capabilities; it does not claim live benchmark accuracy.
 
@@ -213,6 +269,8 @@ Questions? Ask any of the Synera folks on site or in the channel.
 Designate approved forklift aisles/delivery spaces and their passages with optional boolean `forklift_access` fields in building JSON: `true` means approved for forklift use (including the aisle's usable clearance), `false` excludes pedestrian-only or prohibited areas, and absence means unverified. A wide opening or a room name alone never grants access. Existing supplied data has no such designations, so it must be annotated from verified information before forklift routes can be certified; the implementation does not modify kit inputs or guess access. If missing designation could connect a failed route, tools report access unverified; the HTTP endpoint returns a validation error with detail code `access_unverified`, rather than asserting no route exists.
 
 In forklift mode, spaces with `room_type` `production_zone`, `assembly_zone` or `additive_zone`, plus any space marked `destination_only: true`, may be starts, destinations or explicit pickup/delivery stops. They cannot be transit shortcuts: their door-to-door edges are removed and their room anchors are terminal except when departing from that leg's start. Each explicit stop begins a new leg. Forklift paths also exclude the inherited disconnected-geometry distance fallback. For an optimised tour whose supplied order is impossible but another order works, `given_order_length_m` and `saving_m` are null.
+
+Verification: 13 focused logistics checks and 37 HTTP checks pass, including computed map polylines, missing-access errors, follow-ups and workspace resume. Walking compatibility remains 369/369 on the dev oracle (expected-answer tools, not live conversational accuracy or a scored benchmark). The frontend production build and all 44 API examples validate. The full suite ran 345 tests: 341 passed, 3 skipped and one existing waypoint-discovery test errored because it treats `data/dev/.DS_Store` as a building directory. Cross-building forklift routing is unsupported. Live model interpretation and browser interaction were not exercised.
 
 ### Submission and judging process (earlier brief)
 
@@ -491,7 +549,7 @@ A reply with no `Answer:` line is wrong. So is an answer line with a range or se
 The Wayfinder frontend connects to the existing HTTP API under `/api/v1`. The authoritative contract is [openapi.yaml](openapi.yaml); the frontend copy has identical path and component schemas. See [API setup](docs/api/README.md) for sessions, authentication, errors and deterministic fixtures. The benchmark remains a separate CLI.
 
 ```bash
-uv run python -m final_agent.api
+uv run python -m final_agent.api --map-editing   # omit the flag in production: object edits are frozen
 # In a second terminal:
 cd frontend
 npm ci
@@ -499,6 +557,16 @@ npm run dev
 ```
 
 Claude-backed chat requires configured Anthropic credentials; use `uv run --env-file .env python -m final_agent.api` to load a local `.env`. It uses main's standard Anthropic SDK client. Main's map, report, emergency, campus and plan-workspace features remain available. The frontend retains discovery, text/transcript input, confirmed closures, route playback, floor stacking, map controls, plan import and the walk pad with its speed slider.
+
+Confirmed room-object edits now persist across HTTP sessions and backend restarts,
+including removals of original furniture/equipment. Other foreground sessions
+refresh within a few seconds. Objects behave normally in search, counts, maps and
+navigation targets. One confirmation saves an edit; room-report voting is separate.
+Explicit editor commands do not also create room reports; only separately stated
+conditions/facts follow the two-chat rule (concrete hazards are active immediately).
+Shared inventories live in `agent_output/api/shared_objects/` (or under `--output`);
+keep that directory across restarts. Structural edits and closures remain local to
+the session. See [shared object storage and conflicts](docs/api/README.md#shared-room-objects).
 
 All live browser chat and benchmark answers use main's agent implementation. The browser connects to the main API through `VITE_API_BASE_URL` (default `/api/v1`, proxied by Vite to port 8000). API failures remain visible. `scripts/serve_api.py` is a compatibility launcher for that same API. Static debug previews and both fixture sets remain; regenerate them with `uv run python scripts/generate_api_fixtures.py` and validate with `uv run python scripts/validate_api_fixtures.py`.
 
@@ -510,7 +578,11 @@ The data comes under several licences: CC BY 4.0 (Swiss Dwellings, ResPlan), ODb
 
 ## 9. Current implementation and verified baseline
 
-This section retains the earlier 24 October 2026 audit, not an organizer specification. The release-refresh verification below supersedes its old route model and test counts; other historical gap assessments have not been re-audited here. Sections 1–8 incorporate the kit 1.1.0 documentation. Section 12 consolidates the package READMEs, including the storage documentation added during consolidation. Section 13 preserves the challenge PDF. Source claims, measured results, proposed tasks and unresolved requirements are distinguished below.
+The tables below summarize the [complete 25 October verification](README_VERIFICATION.md).
+The individual verification narratives retain their original dates and test counts;
+they are historical evidence, not a claim that the current full suite is green.
+Sections 1–8 contain the challenge/kit specification, section 12 retains the agent
+reference and section 13 preserves the earlier PDF.
 
 ### Kit 1.1.0 refresh verification
 
@@ -546,35 +618,39 @@ benchmark.evaluate → agent(building_directory, question_text) → reply
 
 **HTTP verification:** 16 API scenarios cover all contract operations and validate responses against the supplied OpenAPI schemas, including concurrency, retry semantics, expiry, rollback, preference overrides and a real SDK runner with a mocked HTTP transport. The full suite runs **205 tests: 202 pass, 3 credential-dependent skips**. A real loopback server passed session → route → proposal → confirmation → updated plan → unreachable route → historical-route reload → deletion. All 18 generated frontend examples validate and regenerate byte-for-byte. These checks use temporary data/output databases and no paid model calls; they do not establish live conversational accuracy.
 
+**Chat and navigation UI — 25 October 2026:** the web app now keeps a chronological bubble conversation, clears the composer on Send, preserves new drafts and retries failed messages with the same idempotency key. Desktop keeps map/chat in the viewport; mobile has Chat/Map tabs and opens Map for a ready route. Search is a drawer; import, 3D, simulation and diagnostics are secondary controls. Map selection never opens Debug, and walking simulation starts disabled. Confirmed location is distinct from selection; the API retains incomplete navigation requests and compares every matching asset by constrained walking distance for nearest-place requests. Full route legs remain visible through explanatory follow-ups, with start/destination markers and route fitting. Reload restores server conversation, location and the active route. Normal startup requires the backend; saved examples are an explicit demo. Restart both servers after updating. See [startup and API details](docs/api/README.md).
+
+**Verification of this UI update:** frontend build and effects/walk checks pass; the complete Python suite runs **266 tests: 263 pass, 3 credential-dependent skips**. Connected-Chrome checks cover composer clearing/draft preservation, failed-send retry without duplicate bubbles, location clarification/resumption, persisted route during a follow-up, reload and exact waypoint comparison. The 390 px phone check opens Map automatically for a new route and keeps the full map within the viewport without horizontal/page overflow. A real configured-agent location request succeeded; its nearest-coffee request first returned a model error, then Retry returned the verified **19.92 m** route from Office 1.04 to Coffee machine 1.07 on Floor 1. This sampled live conversation is not a general accuracy result. The standalone Playwright smoke was updated but not run because its Python package is unavailable; browser checks used connected Chrome. Earlier Web route verification also covered separate geometry, unreachable/clearing and mobile light/dark views.
+
 **Main/Max merge verification — 25 October 2026:** the combined implementation runs **263 tests: 260 pass, 3 credential-dependent skips**, and the oracle warm-up passes **369/369**. Regression checks cover stable workspace report identities, shared storage through rendering/door edits/resume, facility isolation, and selected-model/fallback/timeout preservation in structured replies. The combined 70-package lock installs successfully. These are offline checks, including mocked model transport, rather than a live benchmark score.
 
 ### What exists and what it does not yet cover
 
 | Area | Implemented | Remaining limitation |
 |---|---|---|
-| Building input | Loads `building.json` from a directory or file; indexes floors, spaces, assets, openings and vertical connectors; preserves custom fields on save | No schema-validation pipeline, image/PDF ingestion or building creation workflow |
-| Conversation | Claude tool loop, full in-session message history, cached initial overview, token accounting and CLI API-error messages | No web/mobile interface, durable user preferences or explicit location state; clarification and preference retention rely on the prompt |
-| Overview | Floor summaries, entrances, stairs/lifts, asset count and current closures | No detailed spatial analysis or room/door inspection tool |
-| Search | Case-insensitive matching of every query word against names, room refs/types and IDs; optional floor filter; assets resolve to their containing room | No synonyms/semantic search, exact typed enumeration or pagination; tool exposes only the first 15 results, though it reports the total match count |
-| Spatial queries and storage | Final package integrates its own per-floor STRtree, atomic saves, directory creation and closure snapshots; storage and integration checks pass | No pagination or merged writes |
-| Routes | Dijkstra on a MultiGraph, openings as nodes, room representative points, multiple floors, stairs/lifts, step-free filtering and ordered via stops | No minimum door width, reachable-room counts, nearest-equipment selection, optimal stop ordering or cross-building routing |
-| Closures | Final tools close/reopen rooms, openings, stairs and lifts; snapshots serialize closures and reload restores them | No automatic route invalidation/recalculation or event history; save failures are not transactional with in-memory edits |
-| Edits | Adds a synthetic 0.9 m door between nearby spaces on one floor and exports edited building JSON | No reliable shared-wall midpoint, custom width, preview/undo or transactional save; validation is incomplete |
-| Directions | Room/floor transitions and distance estimates from the computed route | No geometric left/right turns, equipment landmarks or live positioning |
-| Visualization | Static PNG per crossed floor, space polygons, route line and closed-room shading | No asset markers, interactive locate view, animation or stacked 3D floors; selected opening identities are not preserved for rendering |
-| Evaluation | Project warm-up evaluator, isolated benchmark callable, official scorer/runner, CSV export and 11 passing storage/integration tests | No measured live benchmark baseline, complete geometry/interaction regression coverage or Sunday adapter |
-| Assets | Reads/searches equipment supplied in building JSON | No movement/update API, barcode/RFID ingestion or asset history |
-| Room reports (current addition) | Durable local SQLite reports scoped to facility and stable room id; add/confirm/read/resolve tools; two-chat activation for ordinary reports, immediate hazards, active-only automatic context | Classification, semantic matching and relevance depend on the model; chats are not verified people. Reports do not themselves change route constraints; new classification behavior is not live-verified |
+| Building input | JSON loading plus CLI PNG/JPEG extraction, calibrated validated drafts, correction, commit/cancel/undo and resume | No built-in PDF conversion; browser image upload is not connected to extraction; direct raw-map validation is incomplete |
+| Conversation | Canonical Claude tool loop, history, model/usage controls, CLI workspace and HTTP/browser text/voice integration | No new live interpretation result in this audit; exact room/asset name collisions can bypass clarification |
+| Overview | Floors, entrances, connectors, asset counts and closures; separate complete inspection and inventory tools | Overview intentionally is not a full inventory |
+| Search | Literal search plus exact type/floor filters, complete inventory and paginated results | Synonyms depend on model translation; cross-kind exact-name ambiguity remains |
+| Spatial queries and storage | Per-floor STRtree, paged proximity, atomic saves, closure snapshots and shared object inventories | Concurrent raw JSON saves do not merge structural changes |
+| Routes | Width/step-free/closure filters, selected edge identities, reachability, errands, ordered/optimal tours and CLI campus routes | Walking geometry fallback is not certified navigation; HTTP width preferences are not retained |
+| Closures | Transactional CLI close/reopen, retained-request rerouting, saved state; confirmed session-local HTTP edits | HTTP confirmation clears the active journey instead of computing a replacement; direct failed retries can lose intent |
+| Edits | Validated shared-wall/custom-width doors; object/opening/connector edits, previews, confirmation, rollback and undo; CLI plan correction | Full plan correction is not integrated with browser conversations |
+| Directions | Selected room/door/floor transitions, waypoint turns, optional landmark narration, simulated/manual position feed | Arrival proximity can cross a wall; connector exit accepts any fix on its floor; no deployed real positioning |
+| Visualization | Highlighted PNGs, selected route geometry, browser 2D controls/playback and 3D floor/object stack | No new UI verification in this audit; failed static renders can leave selection changed |
+| Evaluation | All nine deterministic dev kinds pass 138/138; warm-up 369/369; current Python/frontend checks recorded above | No new live benchmark score, submission validation gate or announced Sunday adapter |
+| Assets | Add/move/update/remove original or new objects, stacking/heights, shared persistent HTTP edits | No barcode/RFID ingestion or general asset-history workflow |
+| Room reports | Durable facility/room SQLite reports, two-chat ordinary confirmation, immediate hazards, resolution/history and relevant tool context | Classification/relevance depend on the model; chats approximate people; reports do not automatically close routes |
 
 ### Status against challenge levels
 
 | Level | Current status | Completion work |
 |---|---|---|
-| 1 — Locate | Search and conversation exist | Show and highlight the selected room/equipment on a usable map; handle ambiguous/nonexistent references |
-| 2 — Route | Core routing, in-memory closures, step-free routing and ordered tours exist | Reliable visualization, route invalidation, closure persistence and stronger interaction checks; width filtering is also needed for scored delivery questions |
+| 1 — Locate | Text/voice conversation, exact/paged search, room/equipment highlighting, context and persistent reports are implemented | Fix cross-kind name ambiguity; retain HTTP width preferences; complete current live interaction acceptance |
+| 2 — Route | Constrained routing, selected-path views, reachability, ordered/optimal tours, transactional closures and CLI rerouting are implemented | HTTP closure/reopen must retain/recompute the journey; repair guidance arrival/handoff validation and failed-retry retention |
 | 3 — Scale | Workspace registry, scoped IDs, measured walkways, retained requests, constrained cross-building/floor routes and ordered views; CLI and live conversational demo pass | Outdoor links are explicit measured schematic links; no shared campus XY transform |
 | 4 — Build | PNG/JPEG vision import, visible metric calibration, validation, source overlay, draft corrections, apply/cancel/undo, export/reload and usable locate/route; small live image-to-route demo passes | No PDF converter; unscaled or unobservable access facts need review; multi-floor extraction is supported with explicit alignment/elevations but not live-verified |
-| 5 — Extend | No complete optional extension is demonstrated | Select and finish one extension after the core workflow works |
+| 5 — Extend | Shared object edits, explicit forklift mode, voice, 3D models/stacking and emergency mode exist with offline evidence | Choose a demonstration after lower-level correctness; real positioning, physical-device audio and general visual performance remain unverified |
 
 ### Evaluation evidence and limits
 
@@ -604,7 +680,7 @@ The original README's “under 5%” benchmark statement remains a source claim.
 
 [BACKLOG.md](BACKLOG.md) is the canonical implementation checklist, audited against the actual code and rerun checks on 24 October 2026. It separates supplied starter capabilities, partially integrated additions, required base levels 1–4, all nine scored question kinds, submission work and optional level 5. Every open task has a stable ID, priority, dependencies where relevant and a completion criterion.
 
-**CORE-01–02 and CORE-04 are implemented:** the final package is independently wired, its storage/spatial tools are active and its benchmark callable isolates each question. Packaging now includes the final package; remaining configuration work is tracked in CORE-03. Next complete the visual locate/route slice, deterministic benchmark tools, multi-building navigation, plan ingestion and submission artifacts.
+**CORE-01–02, CORE-04 and CORE-06 are implemented.** The nine scored tools, CLI campus routes and CLI plan import are also implemented. They do not close the challenge. The remaining work is the industrial route profile, a validated public answer file, the interaction and demo runs, and one finished extension. Execute that work from [docs/TODOLIST-2026-10-25.md](docs/TODOLIST-2026-10-25.md). [BACKLOG.md](BACKLOG.md) keeps the stable task IDs.
 
 - [Starter-template inventory and measured baseline](BACKLOG.md#1-what-the-starter-already-supplies)
 - [Required base levels and exit criteria](BACKLOG.md#3-required-base-levels-and-exit-criteria)
@@ -627,11 +703,11 @@ P0/P1/P2 are project delivery priorities, not organizer weights. P1 includes req
 | Sunday timing and schema | PDF literally contains “TODO: exact time” and a schema/example “(TODO)”. Repository section 1 says the exact release time and file format will be announced with the release. | Organizer-dependent open points. Record the announcement and implement/verify the actual adapter when available; no exact time or schema is established here. |
 | PDF data description has placeholders | “several buildings”, a “[FORMAT, e.g. JSON; the schema is in the kit.]” placeholder, and a general test-set description | Use the concrete repository data schema and split counts for current development. The public test has no answer labels; train/dev do. Keep the PDF wording as source material, not a claim that hidden answers are present. |
 | Project package | Entry point and internal imports now use the final package; storage is local and the wheel includes it | Use the final CLI; the benchmark runner calls it by default. The kit's starter baseline was removed on 24 October 2026. |
-| Persistent changes vs. what-if analysis | Final closures/doors save snapshots and reload correctly; benchmark questions have isolated maps and temporary outputs | Add transactional edits, preview/undo and dedicated what-if analysis; isolate concurrent interactive outputs. |
-| New-building ingestion quality | Only JSON loading and one door edit exist; no image ingestion implementation | Decide extraction method and uncertainty handling; demonstrate geometry and connectivity validation on a genuinely new plan. |
-| Supplied kit vs. Synera automatic route check | Kit 1.1.0 aligns expected answers with wall-respecting door-to-door walks and height costs, and forbids outside shortcuts. The announcement also specifies forklift restrictions, destination-only production bays and ordered-space validation. | Use the 1.1.0 model for current data; keep its heuristic disconnected-geometry fallback explicit. Forklift profiles and the actual Sunday schema still need implementation/confirmation. |
+| Persistent changes vs. what-if analysis | Transactional edits, preview/undo, isolated what-if and session/building output paths exist; HTTP objects share persistent inventory | Retain/recompute HTTP journeys after confirmed closures; keep structural edits/closures session-local. |
+| New-building ingestion quality | CLI PNG/JPEG extraction, calibration, validation, correction and save/reload work; small historical live demo retained | Browser integration, live multi-floor extraction and arbitrary-plan accuracy remain open. PDF needs image conversion. |
+| Supplied kit vs. Synera automatic route check | Kit 1.1.0 geometry and explicit forklift/terminal-bay rules are implemented | Keep the walking fallback explicit; supplied kit forklift access is unverified. Actual Sunday structured output remains organizer-dependent. |
 | Demo format | The 1.1.0 kit README requests a 3–5 minute live demo without restart; the earlier PDF describes online video submission and finalist pitches. | Preserve the earlier source below and confirm the final process with organizers. |
-| Optional extension scope | Source recommends picking one add-in | Choose based on the completed core workflow and available time; no optional extension is selected or finished by this document. |
+| Optional extension scope | Shared objects, forklift, voice/3D and emergency implementations now exist | Establish lower-level correctness and select one complete demonstrated flow; do not infer physical-device or AR capability. |
 | Setup/reference drift | `.env.example` now documents optional model credentials, API token and browser origins. Attribution still references `config/furniture_catalog.yaml`, absent from the supplied tree | API startup and frontend examples are documented in `docs/api/README.md`; the furniture catalogue is a historical generation reference, not needed by the server. |
 
 ## 12. Consolidated agent reference

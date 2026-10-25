@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "token": "example-admin-token",
+  "name": "Ada Admin",
+  "expires_at": "2026-10-24T12:30:00Z"
+}

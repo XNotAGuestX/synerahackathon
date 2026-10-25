@@ -1,5 +1,5 @@
 import type { Point } from '../../domain/types.ts'
-import { perimeterSegments } from './perimeter.ts'
+import { perimeterSegments, wallSegments } from './perimeter.ts'
 
 function fail(message: string): never {
   throw new Error(message)
@@ -13,9 +13,15 @@ function rect(x: number, y: number, w: number, h: number, clockwise = false): Po
 const total = (segments: ReturnType<typeof perimeterSegments>) =>
   segments.reduce((sum, { a, b }) => sum + Math.hypot(b[0] - a[0], b[1] - a[1]), 0)
 
+// A single room's boundary belongs only to the facade: no coplanar room walls.
+const single = wallSegments([rect(0, 0, 10, 10)])
+if (single.interior.length !== 0 || total(single.exterior) !== 40) fail('exterior walls must not also be drawn as interior walls')
+
 // Two rooms sharing a wall: the shared edge is interior, the outline is the 20 x 10 box.
 const pair = perimeterSegments([rect(0, 0, 10, 10), rect(10, 0, 10, 10, true)])
 if (Math.abs(total(pair) - 60) > 1e-6) fail(`shared wall should be interior, outline was ${total(pair)}`)
+const shared = wallSegments([rect(0, 0, 10, 10), rect(10, 0, 10, 10, true)])
+if (Math.abs(total(shared.interior) - 10) > 1e-6) fail('shared interior wall should be drawn once')
 
 // A corridor along three small rooms: partial overlaps along one long edge still cancel.
 const strip = perimeterSegments([rect(0, 0, 30, 4), rect(0, 4, 10, 6), rect(10, 4, 10, 6), rect(20, 4, 10, 6)])

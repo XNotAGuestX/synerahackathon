@@ -19,3 +19,11 @@ const item = (kind: 'reply' | 'instruction' | 'wrong_way', clipId: string) => ({
   assert.equal(q.next(), null); assert.equal(q.size(), 0)
 }
 console.log('queue ok')
+{
+  const q = createSpeechQueue()
+  q.enqueue({ ...item('instruction', 'old'), routeId: 'old-route' })
+  q.enqueue({ ...item('wrong_way', 'new'), routeId: 'new-route' })
+  q.enqueue(item('reply', 'lead-in'))
+  q.retainRoute('new-route')
+  assert.deepEqual([q.next()?.clipId, q.next()?.clipId, q.next()], ['lead-in', 'new', null])
+}

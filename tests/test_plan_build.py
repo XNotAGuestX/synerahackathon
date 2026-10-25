@@ -4,7 +4,9 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from final_agent.plan_build import Calibration, PlanBuilder, PlanDraft, PlanError, extract_plan, validate_building
+from final_agent.plan_build import (
+    Calibration, PlanBuilder, PlanDraft, PlanError, extract_plan, rasterize_plan_page, validate_building,
+)
 from final_agent.storage import JsonBuildingStore
 
 
@@ -21,10 +23,29 @@ def building():
 
 
 class PlanBuildTests(unittest.TestCase):
+    def test_validator_reports_unhashable_ids_and_asset_references(self):
+        for key in ("floors", "spaces", "openings", "vertical_connectors", "assets"):
+            with self.subTest(collection=key):
+                data = building()
+                data[key].append({"id": []})
+                self.assertTrue(any(i["severity"] == "error" for i in validate_building(data)))
+        data = building()
+        data["assets"] = [{"id": "a", "type": "desk", "floor_id": "f0", "space_id": [], "position": [1, 1]}]
+        self.assertTrue(any("known floor and room" in i["reason"] for i in validate_building(data)))
+
     def test_pixel_calibration_converts_scale_and_image_y_axis(self):
         cal = Calibration.from_known_distance((10, 10), (110, 10), 5, origin_m=(2, 3))
         self.assertEqual(cal.transform([110, 110]), [7.0, -2.0])
         self.assertEqual(cal.as_dict()["pixel_to_metre"]["scale_m_per_px"], 0.05)
+
+    def test_one_page_pdf_is_rendered_before_extraction(self):
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as temporary:
+            pdf = Path(temporary) / "plan.pdf"
+            Image.new("RGB", (32, 24), "white").save(pdf, "PDF")
+            rendered = rasterize_plan_page(pdf)
+            self.assertTrue(rendered.read_bytes().startswith(b"\x89PNG"))
+            self.assertEqual(rasterize_plan_page(rendered), rendered)
 
     def test_validator_rejects_duplicate_ids_and_cross_floor_opening(self):
         data = building()

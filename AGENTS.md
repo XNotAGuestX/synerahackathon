@@ -8,9 +8,10 @@ from plans. This is a hackathon. Ship the smallest complete solution that works;
 keep the codebase small and easy for teammates to understand.
 
 - Read the consolidated [README.md](README.md) for requirements, data contracts,
-  scoring rules and known limitations. Use [BACKLOG.md](BACKLOG.md) for task IDs,
-  priorities and acceptance criteria. Update these when behavior or verified status
-  changes; avoid duplicating the backlog here.
+  scoring rules and the 25 October compliance status. Use [BACKLOG.md](BACKLOG.md)
+  for stable task IDs. Execute open challenge gaps from
+  [docs/TODOLIST-2026-10-25.md](docs/TODOLIST-2026-10-25.md). Update these when
+  behavior or verified status changes; avoid duplicating the backlog here.
 - Prioritize working functionality (55 points), usable interaction (25), then
   creativity (10) and a clear submission demo (10).
 - Deliver in small end-to-end slices: locate on a usable 2D map; constrained routing
@@ -58,7 +59,9 @@ keep the codebase small and easy for teammates to understand.
   inherited disconnected-geometry fallback explicit. Forklift restrictions and
   destination-only production bays remain additional Synera automatic-check rules;
   never silently mix scoring models or use the old 1.0.0 labels in data_old/.
-- Isolate buildings, sessions and benchmark questions. What-if analysis must not
+- Isolate buildings, conversations and benchmark questions. In the HTTP app,
+  confirmed room-object edits share persistent state per dataset/building;
+  structural edits and closures remain session-local. What-if analysis must not
   persist edits or leak state. Relevant edits must invalidate routes and spatial
   indexes; save failures must not leave an unexplained partial change.
 - Generate answers from building data and the actual question. Use train/dev labels

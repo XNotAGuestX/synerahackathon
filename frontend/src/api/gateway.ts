@@ -1,18 +1,54 @@
 import { ApiError } from './errors'
 import type { ErrorDetail } from './errors'
-import type { Action, ClientContext, EditProposal, FloorPlan, FloorSummary, Guidance, GuidanceFeed, ObjectCatalog, PositionAccepted, PositionFix, Reply, ReplyId, Route } from '../domain/types'
+import type { Action, ClientContext, EditProposal, FloorPlan, FloorSummary, Guidance, GuidanceFeed, ObjectCatalog, PositionAccepted, PositionFix, Reply, ReplyId, Route, Session, TranscriptMessage } from '../domain/types'
+export type { Session } from '../domain/types'
 
 export type InputMode = 'text' | 'transcript' | 'voice'
 
 export type GatewayConfig = { baseUrl: string }
 export type BuildingSummary = { id: string; name: string; floors: number; has_lift: boolean; has_step_free_entrance: boolean }
-export type Session = { id: string; building_id: string; building_name: string; revision: number; preferences: { step_free: boolean }; closed_ids?: string[]; last_route_id?: string | null; pending_action_id?: string | null }
+export type CampusDemoImage = { name: string; kind: string; label: string }
+export type CampusDemo = { lengths_m: number[]; stages: { id: string; title: string; length_m: number; images: CampusDemoImage[] }[]; matches_expected: boolean }
 export type Place = { id: string; kind: string; name: string; floor_id: string; floor_level: number; space_id: string | null; position: [number, number] | null }
 type CursorPage<T> = { items: T[]; next_cursor?: string | null }
-export type RouteRequest = { start_space_id: string; destination_space_id: string; step_free?: boolean; via?: string[] }
+export type RouteRequest = {
+  start_space_id: string
+  destination_space_id: string
+  step_free?: boolean
+  via?: string[]
+  current_space_id?: string | null
+  profile?: 'kit-1.1.0' | 'synera-industrial'
+  /** False asks for a comparison snapshot that does not replace the session route. */
+  persist?: boolean
+  travel_mode?: 'walking' | 'forklift'
+  min_width_m?: number
+}
+type ClosureProposal = { kind: 'set_closed'; element_ref: string; closed: boolean }
+export type AdminToken = { token: string; name: string; expires_at: string }
+export type EmergencyStatus = { building_id: string; active: boolean; reason: string | null; started_at: string | null }
+export type EmergencyPersonStatus = 'inside' | 'outside' | 'outside_manual'
+export type EmergencyPerson = {
+  id: string
+  name: string | null
+  kind: 'simulated' | 'session'
+  status: EmergencyPersonStatus
+  auto_status: 'inside' | 'outside'
+  floor_id: string | null
+  position: [number, number] | null
+  space_id: string | null
+  space_name: string | null
+  last_seen_at: string
+  stale: boolean
+  manual: { marked_at: string; marked_by: string; note: string } | null
+}
+export type EmergencyRoster = EmergencyStatus & {
+  elapsed_s: number
+  counts: { inside: number; outside: number; outside_manual: number; stale: number; total: number }
+  people: EmergencyPerson[]
+}
 /** Full action as the API returns it, plus `closed_ids` lifted from a closure result for older callers. */
 export type ActionResult = Action & { closed_ids: string[] }
-function requestId(): string {
+export function requestId(): string {
   const browserCrypto = globalThis.crypto
   if (typeof browserCrypto?.randomUUID === 'function') return browserCrypto.randomUUID()
   if (typeof browserCrypto?.getRandomValues === 'function') {
@@ -31,17 +67,20 @@ function requestId(): string {
 export interface BuildingGateway {
   readonly mode: 'http'
   listBuildings(): Promise<BuildingSummary[]>
-  createSession(buildingId: string): Promise<Session>
+  runCampusDemo(): Promise<CampusDemo>
+  campusImageUrl(name: string): string
+  createSession(buildingId: string, preferences?: { step_free: boolean }): Promise<Session>
   getSession(sessionId: string): Promise<Session>
+  listMessages(sessionId: string): Promise<TranscriptMessage[]>
   listFloors(sessionId: string): Promise<FloorSummary[]>
   getFloorPlan(sessionId: string, floorId: string): Promise<FloorPlan>
   searchPlaces(sessionId: string, query: string, page?: number): Promise<{ items: Place[]; total: number }>
   createRoute(sessionId: string, input: RouteRequest): Promise<Route>
   getRoute(sessionId: string, routeId: string): Promise<Route>
   updatePreferences(sessionId: string, preferences: { step_free: boolean }): Promise<Session>
-  sendMessage(sessionId: string, text: string, inputMode?: InputMode, clientContext?: ClientContext): Promise<Reply>
+  sendMessage(sessionId: string, text: string, inputMode?: InputMode, context?: ClientContext, key?: string): Promise<Reply>
   listObjectTypes(): Promise<ObjectCatalog>
-  createAction(sessionId: string, proposal: EditProposal): Promise<ActionResult>
+  createAction(sessionId: string, proposal: EditProposal | ClosureProposal, revision?: number): Promise<ActionResult>
   confirmAction(sessionId: string, actionId: string): Promise<ActionResult>
   cancelAction(sessionId: string, actionId: string): Promise<ActionResult>
   getAction(sessionId: string, actionId: string): Promise<ActionResult>
@@ -49,12 +88,18 @@ export interface BuildingGateway {
   getGuidance(sessionId: string, after: number, waitS: number, signal?: AbortSignal): Promise<GuidanceFeed>
   startGuidance(sessionId: string, routeId: string): Promise<Guidance | null>
   stopGuidance(sessionId: string): Promise<void>
-  transcribe(sessionId: string, wav: Blob): Promise<{ text: string }>
-  createTranscriptionToken(sessionId: string): Promise<TranscriptionToken>
-  fetchSpeechClip(sessionId: string, clipId: string): Promise<Blob>
+  transcribe(sessionId: string, wav: Blob, signal?: AbortSignal): Promise<{ text: string }>
+  fetchSpeechClip(sessionId: string, clipId: string, signal?: AbortSignal): Promise<Blob>
+  voiceDelayMock(): Promise<boolean>
+  putProfile(sessionId: string, displayName: string): Promise<void>
+  createAdminToken(pin: string, name: string): Promise<AdminToken>
+  getEmergency(buildingId: string): Promise<EmergencyStatus>
+  startEmergency(buildingId: string, token: string): Promise<EmergencyRoster>
+  endEmergency(buildingId: string, token: string): Promise<void>
+  listEmergencyPeople(buildingId: string): Promise<EmergencyRoster>
+  markOutside(buildingId: string, token: string, personId: string, note: string): Promise<EmergencyRoster>
+  clearOutsideMark(buildingId: string, token: string, personId: string): Promise<void>
 }
-
-export type TranscriptionToken = { token: string; url: string; sample_rate: number }
 
 export type RequestOptions = { idempotencyKey?: string; signal?: AbortSignal; responseType?: 'json' | 'blob' }
 
@@ -89,7 +134,7 @@ function mapPlace(item: Place & { asset_type?: string | null }): Place {
 }
 
 function normalizeReply(value: unknown): Reply {
-  const envelope = value as { user_message?: { id?: string; text?: string }; guide_message?: { id?: string; text?: string; understood?: Reply['understood']; effects?: Reply['effects']; pending_action_id?: string | null }; routes?: Route[]; pending_action?: Reply['pending']; speech_clip_id?: string | null }
+  const envelope = value as { user_message?: TranscriptMessage; guide_message?: TranscriptMessage; routes?: Route[]; pending_action?: Reply['pending']; session?: Session; speech_clip_id?: string | null; speech_text?: string | null }
   if (!envelope.guide_message) return value as Reply
   return {
     id: envelope.guide_message.effects?.some((effect) => effect.type === 'ask') ? 'clarify' : envelope.pending_action ? 'pending' : 'accepted',
@@ -100,6 +145,9 @@ function normalizeReply(value: unknown): Reply {
     routes: envelope.routes ?? [],
     pending: envelope.pending_action ?? null,
     speechClipId: envelope.speech_clip_id ?? null,
+    speechText: envelope.speech_text ?? null,
+    messages: [envelope.user_message, envelope.guide_message].filter((message): message is TranscriptMessage => Boolean(message)),
+    session: envelope.session,
   }
 }
 
@@ -121,6 +169,8 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
   const json = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) })
   return {
     mode: 'http',
+    async runCampusDemo() { return request<CampusDemo>(config, '/campus-demo', json({})) },
+    campusImageUrl(name) { return `${config.baseUrl.replace(/\/$/, '')}/campus-demo/images/${encodeURIComponent(name)}` },
     async listBuildings() {
       const items: BuildingSummary[] = []
       let cursor: string | null = null
@@ -132,8 +182,18 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
       } while (cursor)
       return items
     },
-    async createSession(buildingId) { return request<Session>(config, '/sessions', json({ building_id: buildingId }), requestId()) },
+    async createSession(buildingId, preferences) { return request<Session>(config, '/sessions', json({ building_id: buildingId, ...(preferences ? { preferences } : {}) }), requestId()) },
     async getSession(sessionId) { return request<Session>(config, `/sessions/${sessionId}`) },
+    async listMessages(sessionId) {
+      const items: TranscriptMessage[] = []
+      let cursor: string | null = null
+      do {
+        const page: CursorPage<TranscriptMessage> = await request(config, `/sessions/${sessionId}/messages?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
+        items.push(...page.items)
+        cursor = page.next_cursor ?? null
+      } while (cursor)
+      return items
+    },
     async listFloors(sessionId) { const result = await request<{ floors: FloorSummary[] }>(config, `/sessions/${sessionId}/floors`); return result.floors },
     async getFloorPlan(sessionId, floorId) { return request<FloorPlan>(config, `/sessions/${sessionId}/floors/${floorId}/plan`) },
     async searchPlaces(sessionId, query, page = 1) {
@@ -153,19 +213,23 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
         destination: input.destination_space_id,
         step_free: input.step_free,
         via: input.via ?? [],
+        travel_mode: input.travel_mode,
+        min_width_m: input.min_width_m,
+        current_space_id: input.current_space_id ?? null,
+        ...(input.profile ? { profile: input.profile } : {}),
+        ...(input.persist === false ? { persist: false } : {}),
       }), requestId())
     },
     async getRoute(sessionId, routeId) { return request<Route>(config, `/sessions/${sessionId}/routes/${routeId}`) },
     async updatePreferences(sessionId, preferences) {
       return request<Session>(config, `/sessions/${sessionId}/preferences`, { method: 'PUT', body: JSON.stringify(preferences) })
     },
-    async sendMessage(sessionId, text, inputMode = 'text', clientContext) {
-      const body = clientContext ? { text, input_mode: inputMode, client_context: clientContext } : { text, input_mode: inputMode }
-      const result = await request<unknown>(config, `/sessions/${sessionId}/messages`, json(body), requestId())
+    async sendMessage(sessionId, text, inputMode = 'text', context = {}, key = requestId()) {
+      const result = await request<unknown>(config, `/sessions/${sessionId}/messages`, json({ text, input_mode: inputMode, client_context: context }), key)
       return normalizeReply(result)
     },
     async listObjectTypes() { return request<ObjectCatalog>(config, '/object-types') },
-    async createAction(sessionId, proposal) { return normalizeAction(await request<Action>(config, `/sessions/${sessionId}/actions`, json(proposal), requestId())) },
+    async createAction(sessionId, proposal, revision) { return normalizeAction(await request<Action>(config, `/sessions/${sessionId}/actions`, { ...json(proposal), ...(revision == null ? {} : { headers: { 'If-Match': `"${revision}"` } }) }, requestId())) },
     async confirmAction(sessionId, actionId) { return normalizeAction(await request<Action>(config, `/sessions/${sessionId}/actions/${actionId}/confirmations`, json({}), requestId())) },
     async cancelAction(sessionId, actionId) { return normalizeAction(await request<Action>(config, `/sessions/${sessionId}/actions/${actionId}/cancellations`, json({}), requestId())) },
     async getAction(sessionId, actionId) { return normalizeAction(await request<Action>(config, `/sessions/${sessionId}/actions/${actionId}`)) },
@@ -176,14 +240,30 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
       return result && 'guidance' in result ? result.guidance ?? null : (result as Guidance | undefined) ?? null
     },
     async stopGuidance(sessionId) { await request<unknown>(config, `/sessions/${sessionId}/guidance`, { method: 'DELETE' }) },
-    async transcribe(sessionId, wav) {
-      const result = await request<{ text?: string }>(config, `/sessions/${sessionId}/transcriptions`, { method: 'POST', body: wav, headers: { 'Content-Type': 'audio/wav' } }, requestId())
+    async transcribe(sessionId, wav, signal) {
+      const result = await request<{ text?: string }>(config, `/sessions/${sessionId}/transcriptions`, { method: 'POST', body: wav, headers: { 'Content-Type': 'audio/wav' } }, { idempotencyKey: requestId(), signal })
       return { text: result.text ?? '' }
     },
-    async createTranscriptionToken(sessionId) {
-      return request<TranscriptionToken>(config, `/sessions/${sessionId}/transcription-tokens`, { method: 'POST' }, requestId())
+    async fetchSpeechClip(sessionId, clipId, signal) { return request<Blob>(config, `/sessions/${sessionId}/speech-clips/${clipId}`, undefined, { responseType: 'blob', signal }) },
+    // Undocumented server flag --voice-delay-mock, only for speed in the demo video. Any failure means "off".
+    async voiceDelayMock() {
+      try { return (await fetch(`${config.baseUrl.replace(/\/$/, '')}/health`)).headers.get('X-Voice-Delay-Mock') === '1' }
+      catch { return false }
     },
-    async fetchSpeechClip(sessionId, clipId) { return request<Blob>(config, `/sessions/${sessionId}/speech-clips/${clipId}`, undefined, { responseType: 'blob' }) },
+    async putProfile(sessionId, displayName) { await request<unknown>(config, `/sessions/${sessionId}/profile`, { method: 'PUT', body: JSON.stringify({ display_name: displayName }) }) },
+    async createAdminToken(pin, name) { return request<AdminToken>(config, '/admin-tokens', json({ pin, name }), requestId()) },
+    async getEmergency(buildingId) { return request<EmergencyStatus>(config, `/buildings/${encodeURIComponent(buildingId)}/emergency`) },
+    async startEmergency(buildingId, token) {
+      return request<EmergencyRoster>(config, `/buildings/${encodeURIComponent(buildingId)}/emergency`, { method: 'PUT', body: JSON.stringify({}), headers: { 'X-Admin-Token': token } })
+    },
+    async endEmergency(buildingId, token) { await request<unknown>(config, `/buildings/${encodeURIComponent(buildingId)}/emergency`, { method: 'DELETE', headers: { 'X-Admin-Token': token } }) },
+    async listEmergencyPeople(buildingId) { return request<EmergencyRoster>(config, `/buildings/${encodeURIComponent(buildingId)}/emergency/people`) },
+    async markOutside(buildingId, token, personId, note) {
+      return request<EmergencyRoster>(config, `/buildings/${encodeURIComponent(buildingId)}/emergency/people/${encodeURIComponent(personId)}/exit-confirmation`, { method: 'PUT', body: JSON.stringify({ note }), headers: { 'X-Admin-Token': token } })
+    },
+    async clearOutsideMark(buildingId, token, personId) {
+      await request<unknown>(config, `/buildings/${encodeURIComponent(buildingId)}/emergency/people/${encodeURIComponent(personId)}/exit-confirmation`, { method: 'DELETE', headers: { 'X-Admin-Token': token } })
+    },
   }
 }
 

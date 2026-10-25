@@ -9,6 +9,28 @@ from final_agent.building_map import MapError
 
 
 class CampusTests(unittest.TestCase):
+    def test_same_room_keeps_its_floor_view_and_walkway_addition_recovers_route(self):
+        from test_workspace import model
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            campus = Campus(root / "campus.json")
+            for bid in ("a", "b"):
+                path = root / f"{bid}.json"
+                path.write_text(json.dumps(model(bid)))
+                campus.register_building(bid, path)
+            start = {"building_id": "a", "element_id": "r"}
+            end = {"building_id": "b", "element_id": "r"}
+            same = campus.find_route(start, start)
+            self.assertTrue(same["reachable"])
+            self.assertEqual(same["total_m"], 0)
+            self.assertEqual(same["space_path"], [{"building_id": "a", "space_id": "r"}])
+            self.assertEqual(same["legs"][0]["floor_segments"][0]["floor_id"], "f0")
+            self.assertFalse(campus.find_route(start, end)["reachable"])
+            campus.add_walkway("w", "Walk", {"building_id": "a", "opening_id": "entry"},
+                               {"building_id": "b", "opening_id": "entry"}, 10, 1.2, True)
+            self.assertTrue(campus.last_route["reachable"])
+            self.assertEqual(Campus(campus.path).last_route["route_id"], campus.last_route["route_id"])
+
     def test_registry_scoped_route_and_manifest_reload(self):
         with tempfile.TemporaryDirectory() as directory:
             manifest = Path(directory) / "campus.json"

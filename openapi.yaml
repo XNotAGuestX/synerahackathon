@@ -28,6 +28,7 @@ tags:
   - name: Actions
   - name: Guidance
   - name: Catalog
+  - name: Emergency
 paths:
   /api/v1/health:
     get:
@@ -1092,6 +1093,305 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /api/v1/sessions/{session_id}/profile:
+    put:
+      operationId: put_profile
+      tags: [Emergency]
+      summary: Anzeigenamen der Sitzung setzen
+      description: |
+        Der Name erscheint im Notfallmodus in der Admin-Liste. Ändert nie `revision`. Nur im Speicher.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Gespeicherter Name
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/admin-tokens:
+    post:
+      operationId: create_admin_token
+      tags: [Emergency]
+      summary: Admin-PIN gegen ein Admin-Token tauschen
+      description: |
+        Vergleicht `pin` mit `EMERGENCY_ADMIN_PIN` in konstanter Zeit. Ist die Variable leer: 403 `10003_admin_disabled`.
+        Falsche PIN: 403 `10002_forbidden` mit `details[].field = pin`. Nach 5 Fehlversuchen in 60 s: 429 `00002_rate_limited`.
+        Das Token gilt 30 Minuten und verlängert sich mit jeder Nutzung. Der Server speichert nur seinen Hash.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/Idempotency-Key"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminTokenCreate"
+      responses:
+        "201":
+          description: Admin-Token
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminToken"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/buildings/{building_id}/emergency:
+    get:
+      operationId: get_emergency
+      tags: [Emergency]
+      summary: Ob für das Gebäude ein Notfall aktiv ist
+      description: Öffentlich, ohne Personen und Positionen. Jedes Telefon fragt das ab, um das Alarmbanner zu zeigen.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/BuildingId"
+      responses:
+        "200":
+          description: Notfallstatus
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmergencyStatus"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+    put:
+      operationId: put_emergency
+      tags: [Emergency]
+      summary: Notfallmodus aktivieren
+      description: |
+        Braucht `X-Admin-Token` aus `create_admin_token`. Die Oberfläche fragt Name und PIN in einem Formular ab und ruft
+        beide Operationen nacheinander auf. Drei simulierte Personen starten schon draußen, markiert vom
+        „Assembly point warden“ (Demo). Schon aktiv: 409 `30020_emergency_already_active`.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/BuildingId"
+        - $ref: "#/components/parameters/X-Admin-Token"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmergencyStart"
+      responses:
+        "200":
+          description: Liste direkt nach dem Start
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmergencyRoster"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: delete_emergency
+      tags: [Emergency]
+      summary: Notfallmodus beenden
+      description: Löscht alle Positionen und Markierungen. Wiederholen liefert ebenfalls 204.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/BuildingId"
+        - $ref: "#/components/parameters/X-Admin-Token"
+      responses:
+        "204":
+          description: Beendet
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/buildings/{building_id}/emergency/people:
+    get:
+      operationId: list_emergency_people
+      tags: [Emergency]
+      summary: Live-Liste, wer drinnen und wer draußen ist
+      description: |
+        Öffentlich (ADR-0004): Während des Alarms zeigt jedes Telefon, wer noch drinnen ist. Ohne aktiven Notfall:
+        `active: false` und leere Liste. Sortierung: drinnen (veraltete Positionen zuerst), draußen, manuell draußen,
+        dann Name. Höchstens 200 Personen; `counts` zählt alle.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/BuildingId"
+      responses:
+        "200":
+          description: Liste
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmergencyRoster"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/buildings/{building_id}/emergency/people/{person_id}/exit-confirmation:
+    put:
+      operationId: put_exit_confirmation
+      tags: [Emergency]
+      summary: Person von Hand als draußen markieren
+      description: Zum Beispiel am Sammelplatz gesehen, Telefon liegt noch drinnen. Erneut setzen ändert nur die Notiz.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/BuildingId"
+        - $ref: "#/components/parameters/PersonId"
+        - $ref: "#/components/parameters/X-Admin-Token"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExitConfirmation"
+      responses:
+        "200":
+          description: Liste nach der Markierung
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmergencyRoster"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: delete_exit_confirmation
+      tags: [Emergency]
+      summary: Manuelle Markierung zurücknehmen
+      description: Der Status folgt wieder dem Telefon. Ohne Markierung ebenfalls 204.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/BuildingId"
+        - $ref: "#/components/parameters/PersonId"
+        - $ref: "#/components/parameters/X-Admin-Token"
+      responses:
+        "204":
+          description: Zurückgenommen
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+
+
 components:
   parameters:
     X-Request-Id:
@@ -1182,6 +1482,24 @@ components:
       required: true
       schema:
         $ref: "#/components/schemas/ResourceId"
+    PersonId:
+      name: person_id
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 16
+        examples: [P03, D01]
+    X-Admin-Token:
+      name: X-Admin-Token
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+      description: Token aus `create_admin_token`. Fehlt, unbekannt oder abgelaufen ist es 403 `10002_forbidden`.
 
   headers:
     X-Request-Id:
@@ -1267,6 +1585,19 @@ components:
             details:
               - field: destination
                 code: ambiguous
+    Forbidden:
+      description: Admin-Rechte fehlen oder Admin-Funktionen sind abgeschaltet
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: 10002_forbidden
+            message: Admin rights are required.
+            trace_id: "11111111-1111-4111-8111-1111111111a1"
+            details:
+              - field: X-Admin-Token
+                code: required
     PayloadTooLarge:
       description: Body über dem Limit
       content:
@@ -1385,6 +1716,7 @@ components:
         - 00002_rate_limited
         - 10001_unauthenticated
         - 10002_forbidden
+        - 10003_admin_disabled
         - 20001_validation_failed
         - 20010_idempotency_key_required
         - 20011_idempotency_key_mismatch
@@ -1404,6 +1736,10 @@ components:
         - 30015_nothing_to_undo
         - 30016_not_removable
         - 30017_speech_clip_not_found
+        - 30018_object_state_unavailable
+        - 30019_emergency_not_active
+        - 30020_emergency_already_active
+        - 30022_person_not_found
         - 40001_model_unavailable
         - 40002_model_rate_limited
         - 40003_model_timeout
@@ -1659,12 +1995,19 @@ components:
         revision:
           type: integer
           minimum: 1
+        object_revision:
+          type: integer
+          minimum: 0
+          description: Shared room-object revision; changes across sessions and survives server restarts.
         preferences:
           $ref: "#/components/schemas/Preferences"
         closed_ids:
           type: array
           items:
             type: string
+        current_space_id:
+          type: [string, "null"]
+          description: Explicitly confirmed user location; selection and destination do not set it.
         last_route_id:
           oneOf:
             - type: string
@@ -1973,6 +2316,9 @@ components:
       additionalProperties: false
       required: [start, destination]
       properties:
+        current_space_id:
+          type: [string, "null"]
+          description: User-confirmed room id, supplied only when the UI knows the user's location.
         start:
           type: string
           minLength: 1
@@ -1999,6 +2345,14 @@ components:
             type: string
             minLength: 1
             maxLength: 200
+        profile:
+          type: string
+          enum: [kit-1.1.0, synera-industrial]
+          description: Fehlt der Wert, gilt kit-1.1.0. synera-industrial ist die Gabelstaplerroute.
+        persist:
+          type: boolean
+          default: true
+          description: false liefert die Route und lässt last_route_id sowie revision unverändert.
 
     Direction:
       type: object
@@ -2067,6 +2421,10 @@ components:
         min_width_m:
           type: number
           minimum: 0
+        profile:
+          type: string
+          enum: [kit-1.1.0, synera-industrial]
+          description: Rechenprofil dieser Route. Ältere Antworten können das Feld weglassen.
         via:
           type: array
           items:
@@ -2403,6 +2761,12 @@ components:
         selected_object_id:
           type: [string, "null"]
           description: Ausgewähltes Objekt, Tür oder Verbinder. Unbekannt ergibt 404 `30013_element_not_found`.
+        current_space_id:
+          type: [string, "null"]
+          description: Ausdrücklich bestätigter aktueller Raum, unabhängig von der Kartenauswahl.
+        destination_place_id:
+          type: [string, "null"]
+          description: Geprüfter Raum oder geprüftes Objekt aus einer Rückfrage zum Ziel.
         preferences:
           oneOf:
             - $ref: "#/components/schemas/Preferences"
@@ -2455,6 +2819,9 @@ components:
         speech_clip_id:
           type: [string, "null"]
           description: Clip der Guide-Antwort für `get_speech_clip`, nur bei Eingabe per Sprache (input_mode voice), sonst null.
+        speech_text:
+          type: [string, "null"]
+          description: Kurze gesprochene Zusammenfassung; guide_message.text enthält die vollständige Antwort. Bei Texteingabe null.
         session:
           $ref: "#/components/schemas/Session"
         user_message:
@@ -3117,3 +3484,192 @@ components:
           type: integer
           minimum: 0
           description: Jüngste `seq`. Der nächste Aufruf nutzt sie als `after`.
+
+    ProfileUpdate:
+      type: object
+      additionalProperties: false
+      required: [display_name]
+      properties:
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 60
+
+    Profile:
+      type: object
+      additionalProperties: false
+      required: [schema_version, display_name]
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        display_name:
+          type: [string, "null"]
+
+    AdminTokenCreate:
+      type: object
+      additionalProperties: false
+      required: [pin, name]
+      properties:
+        pin:
+          type: string
+          minLength: 1
+          maxLength: 64
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: Name des Admins, erscheint als `marked_by`.
+
+    AdminToken:
+      type: object
+      additionalProperties: false
+      required: [schema_version, token, name, expires_at]
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        token:
+          type: string
+        name:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+
+    EmergencyStatus:
+      type: object
+      additionalProperties: false
+      required: [schema_version, building_id, active, reason, started_at]
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        building_id:
+          $ref: "#/components/schemas/BuildingId"
+        active:
+          type: boolean
+        reason:
+          type: [string, "null"]
+        started_at:
+          type: [string, "null"]
+          format: date-time
+
+    EmergencyStart:
+      type: object
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 200
+          default: Emergency
+
+    ExitConfirmation:
+      type: object
+      additionalProperties: false
+      properties:
+        note:
+          type: string
+          maxLength: 200
+
+    EmergencyStatusValue:
+      type: string
+      enum: [inside, outside, outside_manual]
+
+    EmergencyPerson:
+      type: object
+      additionalProperties: false
+      required: [id, name, kind, status, auto_status, floor_id, position, space_id, space_name, last_seen_at, stale, manual]
+      properties:
+        id:
+          type: string
+          description: P.. für simulierte Personen, D.. für echte Sitzungen. Nie die Sitzungs-ID.
+        name:
+          type: [string, "null"]
+        kind:
+          type: string
+          enum: [simulated, session]
+        status:
+          $ref: "#/components/schemas/EmergencyStatusValue"
+        auto_status:
+          type: string
+          enum: [inside, outside]
+          description: Status nach Position, ohne manuelle Markierung.
+        floor_id:
+          type: [string, "null"]
+        position:
+          oneOf:
+            - $ref: "#/components/schemas/Point"
+            - type: "null"
+        space_id:
+          type: [string, "null"]
+        space_name:
+          type: [string, "null"]
+        last_seen_at:
+          type: string
+          format: date-time
+        stale:
+          type: boolean
+          description: Letzte Position älter als 15 s. Drinnen bleibt drinnen, bis jemand markiert.
+        manual:
+          oneOf:
+            - type: "null"
+            - type: object
+              additionalProperties: false
+              required: [marked_at, marked_by, note]
+              properties:
+                marked_at:
+                  type: string
+                  format: date-time
+                marked_by:
+                  type: string
+                note:
+                  type: string
+
+    EmergencyRoster:
+      type: object
+      additionalProperties: false
+      required: [schema_version, building_id, active, reason, started_at, elapsed_s, counts, people]
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        building_id:
+          $ref: "#/components/schemas/BuildingId"
+        active:
+          type: boolean
+        reason:
+          type: [string, "null"]
+        started_at:
+          type: [string, "null"]
+          format: date-time
+        elapsed_s:
+          type: number
+          minimum: 0
+        counts:
+          type: object
+          additionalProperties: false
+          required: [inside, outside, outside_manual, stale, total]
+          properties:
+            inside:
+              type: integer
+              minimum: 0
+            outside:
+              type: integer
+              minimum: 0
+            outside_manual:
+              type: integer
+              minimum: 0
+            stale:
+              type: integer
+              minimum: 0
+              description: Davon drinnen mit veralteter Position.
+            total:
+              type: integer
+              minimum: 0
+        people:
+          type: array
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/EmergencyPerson"

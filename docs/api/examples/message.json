@@ -6,10 +6,12 @@
     "building_id": "proc-factory-dev-003",
     "building_name": "Fertigung Ost 27",
     "revision": 2,
+    "object_revision": 0,
     "preferences": {
       "step_free": false
     },
     "closed_ids": [],
+    "current_space_id": null,
     "last_route_id": "00000000-0000-0000-0000-000000000002",
     "pending_action_id": null,
     "created_at": "2026-10-24T12:00:00Z",
@@ -67,6 +69,9 @@
       "reachable": true,
       "length_m": 17.1,
       "step_free": false,
+      "travel_mode": "walking",
+      "min_width_m": 0.0,
+      "profile": "kit-1.1.0",
       "via": [],
       "closed_ids": [],
       "start_space_id": "proc-factory-dev-003-F0-S002",
@@ -134,5 +139,6 @@
   ],
   "pending_action": null,
   "usage": null,
-  "speech_clip_id": null
+  "speech_clip_id": null,
+  "speech_text": null
 }
