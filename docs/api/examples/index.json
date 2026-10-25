@@ -146,5 +146,17 @@
   {
     "file": "health.json",
     "schema": "Health"
+  },
+  {
+    "file": "position-accepted.json",
+    "schema": "PositionAccepted"
+  },
+  {
+    "file": "guidance-feed.json",
+    "schema": "GuidanceFeed"
+  },
+  {
+    "file": "transcription.json",
+    "schema": "Transcription"
   }
 ]

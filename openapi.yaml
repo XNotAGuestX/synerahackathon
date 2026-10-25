@@ -2221,7 +2221,7 @@ components:
           maxLength: 4000
         input_mode:
           type: string
-          enum: [text, transcript]
+          enum: [text, transcript, voice]
           default: text
         client_context:
           $ref: "#/components/schemas/ClientContext"
@@ -2249,10 +2249,14 @@ components:
         - routes
         - pending_action
         - usage
+        - speech_clip_id
       properties:
         schema_version:
           type: integer
           const: 1
+        speech_clip_id:
+          type: [string, "null"]
+          description: Clip der Guide-Antwort für `get_speech_clip`, nur bei Eingabe per Sprache (input_mode voice), sonst null.
         session:
           $ref: "#/components/schemas/Session"
         user_message:

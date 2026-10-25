@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "position": {
+    "floor_id": "proc-factory-dev-003-F0",
+    "x_m": -7.25,
+    "y_m": 25.650000000000002,
+    "accuracy_m": 1.5,
+    "space_id": "proc-factory-dev-003-F0-S002",
+    "measured_at": "2026-10-24T12:00:00Z",
+    "received_at": "2026-10-24T12:00:00Z",
+    "source": "simulated",
+    "tracking": "live"
+  },
+  "applied": true,
+  "guidance": {
+    "status": "idle",
+    "target_index": null,
+    "remaining_m": null,
+    "cursor": 0
+  }
+}

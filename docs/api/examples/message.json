@@ -133,5 +133,6 @@
     }
   ],
   "pending_action": null,
-  "usage": null
+  "usage": null,
+  "speech_clip_id": null
 }

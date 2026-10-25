@@ -18,7 +18,7 @@ import anthropic
 from anthropic.lib.tools import BetaBuiltinFunctionTool, ToolError
 from pydantic import BaseModel, ConfigDict
 
-from .agent import BuildingAgent, MissingCredentialsError
+from .agent import EFFORT, VOICE_PROMPT, BuildingAgent, MissingCredentialsError
 from .building_map import BuildingMap, MapError, RouteResult
 from .live import LiveState
 from .speech import ClipCache, SpeechError, SpeechProvider
@@ -136,6 +136,9 @@ Do not silently replace it. Do not attempt to confirm an action by another tool.
 show_location and show_route produce JSON map effects, not image files. A successful effect
 can be described as sent to the map. Selected UI space is selection context, not proof of the
 user's location. An explicit constraint in the user's sentence overrides turn/session defaults.
+live_position with tracking=live comes from the building's positioning system and is the user's current
+location; use its space_id as the route start. Selected UI space is still not proof of location.
+start_guidance begins spoken step-by-step guidance for the route you just computed; stop_guidance ends it.
 """
 
 
@@ -577,6 +580,27 @@ class SessionService:
             route_results=dict(session.route_results), live=session.live,  # live is shared, never copied
         )
 
+    @staticmethod
+    def live_context(work: SessionState, live: LiveState) -> dict | None:
+        """Position facts for the model. No ages or timestamps, so the cached system prompt stays stable."""
+        position = live.position_view()
+        if position is None or position["space_id"] is None or position["space_id"] not in work.map.spaces:
+            return None
+        space = work.map.spaces[position["space_id"]]
+        return {"space_id": space["id"], "room": space["name"], "floor_level": work.map.floors[space["floor_id"]]["level"],
+                "tracking": position["tracking"]}
+
+    @staticmethod
+    def guidance_context(live: LiveState) -> dict | None:
+        view = live.guidance_view()
+        if view["status"] == "idle":
+            return None
+        index = view["target_index"]
+        waypoints = view["waypoints"]
+        return {"status": view["status"], "destination_id": view["destination_space_id"],
+                "destination_name": view["destination_name"], "target_index": index, "waypoint_count": len(waypoints),
+                "next_instruction": waypoints[index]["text"] if index is not None else None}
+
     def message(self, session: SessionState, body: dict, revision: int | None) -> dict:
         with session.lock:
             self.expire(session)
@@ -592,16 +616,19 @@ class SessionService:
         if selected is not None and selected not in work.map.spaces:
             raise ApiError("30004_place_not_found", [{"field": "selected_space_id", "code": "not_found"}])
         step_free = (context.get("preferences") or work.preferences)["step_free"]
+        voice = body.get("input_mode") == "voice"
         store = RoomNoteStore(self.notes_database)
         client = None
         try:
             bridge = TurnTools(self, work, store, step_free)
+            live_context = {"live_position": self.live_context(work, session.live), "guidance": self.guidance_context(session.live)}
+            turn_context = API_PROMPT + ("" if not voice else VOICE_PROMPT)
             client = self.client_factory()
             agent = BuildingAgent(
                 work.map, self.output_directory / session.id, client=client,
                 registered_tools=bridge.tools, response_format=ApiReply,
-                turn_context=API_PROMPT + "\nCurrent turn context: " + json.dumps({**context, "step_free_default": step_free}),
-                request_timeout=self.model_timeout,
+                turn_context=turn_context + "\nCurrent turn context: " + json.dumps({**context, "step_free_default": step_free, **live_context}),
+                request_timeout=self.model_timeout, effort="low" if voice else EFFORT,
             )
             agent.messages = work.history
             reply = ApiReply.model_validate_json(agent.ask(body["text"]))
@@ -657,12 +684,21 @@ class SessionService:
                     "routes": [work.routes[key] for key in dict.fromkeys(bridge.route_ids)],
                     "pending_action": copy.deepcopy(work.actions[work.pending_action_id]) if work.pending_action_id else None,
                     "usage": project(agent.usage, "input_tokens output_tokens"),
+                    "speech_clip_id": None,
                 }
                 # Validate JSON before committing session state. Room reports are already saved
                 # per tool call; a retry cannot add votes because each chat counts once.
                 json.dumps(response, allow_nan=False)
                 for name in ("map", "revision", "updated_at", "last_route_id", "pending_action_id", "routes", "actions", "transcript", "history", "route_results"):
                     setattr(session, name, getattr(work, name))
+                if bridge.guidance_request is not None:
+                    action, route_id = bridge.guidance_request
+                    if action == "start":
+                        session.live.start(session.map, route_id, session.routes[route_id], session.route_results[route_id], spoken=voice)
+                    else:
+                        session.live.stop("user")
+                if voice:
+                    response["speech_clip_id"] = session.live.clip(reply.text)
                 return response
         except anthropic.RateLimitError as error:
             raise ApiError("40002_model_rate_limited", retry_after=1) from error
@@ -705,6 +741,8 @@ class TurnTools:
         self.asset_ids: set[str] = set()
         self.count: int | None = None
         self._route_objects: dict[int, str] = {}
+        self.guided_route_id: str | None = None  # last reachable route this turn drew
+        self.guidance_request: tuple[str, str | None] | None = None
 
         def set_closed(element: str, closed: bool) -> str:
             """Propose closing/reopening an element. No edit is applied; the UI must confirm the pending action.
@@ -755,13 +793,34 @@ class TurnTools:
                     self.effects.append({"type": "highlight_assets", "asset_ids": [item_id]})
             return as_json(route_json(work.map.last_route))
 
+        def start_guidance() -> str:
+            """Start spoken step-by-step guidance along the route computed this turn. Starts after this reply."""
+            route_id = self.guided_route_id
+            if route_id is None:
+                raise ToolError("Call find_route from the user's live position first.")
+            record = work.routes[route_id]
+            position = work_live.position_view()
+            if position and position["tracking"] == "live" and position["space_id"] not in (None, record["start_space_id"]):
+                names = [work.map.spaces[space]["name"] for space in (position["space_id"], record["start_space_id"])]
+                raise ToolError(f"The user is in {names[0]}, but the route starts in {names[1]}. Call find_route from the live position first.")
+            self.guidance_request = ("start", route_id)
+            return as_json({"guidance": "will start after this reply", "destination": work.map.spaces[record["destination_space_id"]]["name"]})
+
+        def stop_guidance() -> str:
+            """Stop the running spoken guidance. Takes effect after this reply."""
+            self.guidance_request = ("stop", None)
+            return as_json({"guidance": "will stop after this reply"})
+
+        work_live = work.live
         overrides = {function.__name__: ArgumentCheckedTool(function) for function in (set_closed, add_door, show_location, show_route)}
         originals = make_tools(work.map, service.output_directory / work.id, notes_store=store, session_id=work.id)
         self.tools = [ObservedTool(overrides.get(tool.name, tool), self.observe, step_free, self.failed) for tool in originals]
+        self.tools += [ArgumentCheckedTool(function) for function in (start_guidance, stop_guidance)]
 
     def failed(self, name: str) -> None:
         if name == "find_route":
             self.work.last_route_id = None
+            self.guided_route_id = None
             self.effects.append({"type": "clear_route"})
 
     def proposal(self, proposal: dict) -> str:
@@ -814,5 +873,6 @@ class TurnTools:
                     self._route_objects[key] = record["id"]
                 route_id = self._route_objects[key]
                 self.route_ids.append(route_id)
+                self.guided_route_id = route_id
                 self.space_ids.update(route.space_path)
                 self.effects.append({"type": "draw_route", "route_id": route_id})

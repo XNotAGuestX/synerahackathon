@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "guidance": {
+    "status": "active",
+    "route_id": "00000000-0000-0000-0000-000000000002",
+    "destination_space_id": "proc-factory-dev-003-F0-S001",
+    "destination_name": "Production zone H-A1",
+    "target_index": 0,
+    "waypoints": [
+      {
+        "index": 0,
+        "kind": "door",
+        "floor_id": "proc-factory-dev-003-F0",
+        "at": [
+          -7.25,
+          17.1
+        ],
+        "text": "Walk 9 metres to the door into Production zone H-A1."
+      },
+      {
+        "index": 1,
+        "kind": "arrival",
+        "floor_id": "proc-factory-dev-003-F0",
+        "at": [
+          -7.25,
+          8.55
+        ],
+        "text": "Production zone H-A1 is 9 metres ahead."
+      }
+    ],
+    "remaining_m": 17.1,
+    "tracking": "live"
+  },
+  "events": [
+    {
+      "seq": 1,
+      "kind": "instruction",
+      "text": "Walk 9 metres to the door into Production zone H-A1.",
+      "route_id": "00000000-0000-0000-0000-000000000002",
+      "waypoint_index": 0,
+      "speech_clip_id": "00000000-0000-0000-0000-000000000006",
+      "created_at": "2026-10-24T12:00:00Z"
+    }
+  ],
+  "cursor": 1
+}

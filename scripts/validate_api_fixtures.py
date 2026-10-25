@@ -20,12 +20,17 @@ FRONTEND_SCHEMAS = {
     "message-pending-action.json": "MessageAccepted", "message-page.json": "MessagePage",
     "action-pending.json": "Action", "action-confirmed.json": "Action", "error-validation.json": "Error",
     "error-ambiguous.json": "Error", "health.json": "Health",
+    "position-accepted.json": "PositionAccepted", "guidance-feed.json": "GuidanceFeed", "transcription.json": "Transcription",
 }
 
 
 def validate(directory: Path) -> int:
     contract = load_contract()
     entries = json.loads((directory / "index.json").read_text())
+    indexed = {entry["file"]: entry["schema"] for entry in entries}
+    for name in ("position-accepted.json", "guidance-feed.json", "transcription.json"):
+        if indexed.get(name) != FRONTEND_SCHEMAS[name]:
+            raise ValueError(f"Fixture {name} is missing from the index.")
     for entry in entries:
         path = (directory / entry["file"]).resolve()
         if not path.is_relative_to(directory.resolve()):

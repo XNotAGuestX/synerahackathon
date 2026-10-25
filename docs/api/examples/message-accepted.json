@@ -195,5 +195,6 @@
   "usage": {
     "input_tokens": null,
     "output_tokens": null
-  }
+  },
+  "speech_clip_id": null
 }

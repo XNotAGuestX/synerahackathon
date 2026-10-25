@@ -16,12 +16,16 @@ from final_agent.api_session import ApiError, SessionService, timestamp
 from scripts.generate_frontend_fixtures import generate_frontend
 
 
+def unavailable_model():
+    raise RuntimeError("Fixtures never call a model.")
+
+
 def generate(data: Path, output: Path) -> list[dict]:
     sequence = count(1)
     now = datetime(2026, 10, 24, 12, tzinfo=timezone.utc)
     with TemporaryDirectory(prefix="api-fixtures-") as temporary:
         service = SessionService(data, Path(temporary), notes_database=Path(temporary) / "notes.sqlite3",
-                                 clock=lambda: now, new_id=lambda: str(UUID(int=next(sequence))),
+                                 clock=lambda: now, client_factory=unavailable_model, new_id=lambda: str(UUID(int=next(sequence))),
                                  cursor_secret=b"deterministic-frontend-fixtures-only")
         session = service.create("proc-factory-dev-003", {"step_free": False})
         state = service.get(session["id"])
@@ -36,7 +40,7 @@ def generate(data: Path, output: Path) -> list[dict]:
                                 "resolved": {"start_space_id": route["start_space_id"], "destination_space_id": route["destination_space_id"],
                                              "space_ids": route["space_path"], "asset_ids": [], "count": None}, "missing": []}}
         accepted = {"schema_version": 1, "session": service.view(state), "user_message": user, "guide_message": guide,
-                    "routes": [route], "pending_action": None, "usage": None}
+                    "routes": [route], "pending_action": None, "usage": None, "speech_clip_id": None}
         examples = {
             "health": ("Health", {"schema_version": 1, "status": "ok", "api_version": "1"}),
             "buildings": ("BuildingPage", service.buildings("dev", None, 20)),
@@ -56,6 +60,15 @@ def generate(data: Path, output: Path) -> list[dict]:
         examples["action_confirmed"] = ("Action", service.finish_action(state, action["id"], True, None))
         examples["session_confirmed"] = ("Session", service.view(state))
         examples["plan_confirmed"] = ("FloorPlan", service.floor_plan(state, floor_id, ["spaces", "openings", "assets", "connectors"]))
+        start = route["start_space_id"]
+        floor = state.map.spaces[start]["floor_id"]
+        x_m, y_m = state.map.anchor(start)
+        position = service.put_position(state.id, {"floor_id": floor, "x_m": x_m, "y_m": y_m, "measured_at": now,
+                                                   "source": "simulated", "accuracy_m": 1.5})
+        examples["position-accepted"] = ("PositionAccepted", position)
+        examples["guidance-feed"] = ("GuidanceFeed", service.put_guidance(state.id, route["id"]))
+        service.delete_guidance(state.id)
+        examples["transcription"] = ("Transcription", {"schema_version": 1, "text": "How do I get from H-A2 to H-A1?", "language": "en"})
         for code, name in (("20001_validation_failed", "error_validation"), ("30002_session_not_found", "error_not_found"), ("40001_model_unavailable", "error_model")):
             response = error_response(ApiError(code), str(UUID(int=999)))
             examples[name] = ("Error", json.loads(response.body))

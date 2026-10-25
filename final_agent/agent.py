@@ -27,6 +27,23 @@ STRUCTURE_REQUEST = (
     "Application step, not a user message: restate your previous reply in the required response "
     "format. Keep its wording, language and facts. Do not call tools or add information."
 )
+VOICE_PROMPT = """
+
+# Voice turn
+The user is talking to you while walking through the building, and your reply `text` is read aloud.
+- Say at most about 30 words, in at most two sentences. Give details only when the user asks for them.
+- Mention an assumption or default in three words or fewer, for example "Step-free, about 40 metres."
+- Use round numbers. Never compute walking times from an assumed speed.
+- No lists, no markdown, no ids and no coordinates. Use room names the way a person would say them.
+- Ask at most one question, and put it in `text`.
+- If the transcript looks garbled or does not make sense, ask the user to repeat it.
+- Never read the app context aloud.
+
+Guidance: the app speaks every step of a route by itself once guidance has started.
+- For a new destination or constraint, route from the live position with find_route, then call start_guidance.
+- After start_guidance, say one lead-in line only: the destination and a rough distance.
+- When the user asks to stop or cancel guidance, call stop_guidance.
+"""
 DEFAULT_OUTPUT_DIRECTORY = Path("agent_output")
 EXIT_WORDS = {"exit", "quit", "bye"}
 # Part of the TypeError the SDK raises at request time when no api_key, auth_token or profile resolves.
@@ -375,8 +392,9 @@ class BuildingAgent:
         examples: RunIndex | None = None, model: str = MODEL, workspace=None, emergency: bool = False,
         *, notes_database: Path | None = None, facility_number: str | None = None,
         registered_tools: list | None = None, response_format: type | None = None,
-        turn_context: str = "", request_timeout: float | None = None,
+        turn_context: str = "", request_timeout: float | None = None, effort: str = EFFORT,
     ) -> None:
+        self.effort = effort
         self.map = building_map
         self.client = client or anthropic.Anthropic()
         self.model = model
@@ -455,7 +473,7 @@ class BuildingAgent:
             system=self.system,
             tools=self.tools,
             messages=list(self.messages),
-            output_config={"effort": EFFORT},
+            output_config={"effort": self.effort},
             **options,
         )
         final = None
@@ -491,7 +509,7 @@ class BuildingAgent:
             tools=[tool.to_dict() for tool in self.tools],
             tool_choice={"type": "none"},
             messages=[*self.messages, {"role": "user", "content": STRUCTURE_REQUEST}],
-            output_config={"effort": EFFORT},
+            output_config={"effort": self.effort},
             output_format=self.response_format,
             **options,
         )

@@ -60,6 +60,16 @@ class FakeSpeech:
         return b"ID3" + text.encode()
 
 
+class RecordingClient(ScriptedClient):
+    def __init__(self, turns):
+        super().__init__(turns)
+        self.requests = []
+
+    def tool_runner(self, **request):
+        self.requests.append(request)
+        return super().tool_runner(**request)
+
+
 def answer(text="Done.", intent="unknown", **values):
     return say(json.dumps({"text": text, "intent": intent, "summary": text,
                            "missing": [], "question": None, "options": [], **values}))
@@ -553,6 +563,55 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(len(self.speech.synthesized), 1)
         missing = self.client.get(self.path(session) + "/speech-clips/nope")
         self.assertEqual((missing.status_code, missing.json()["code"]), (404, "30014_speech_clip_not_found"))
+
+    def turn(self, session, script, text="Take me upstairs.", **body):
+        self.model = RecordingClient([script])
+        self.app.state.service.client_factory = lambda: self.model
+        response = self.post(self.path(session) + "/messages", {"text": text, **body}, schema="MessageAccepted")
+        return response.json()
+
+    GUIDE = [reply(call("find_route", start="left", destination="upstairs")), reply(call("start_guidance")), reply(answer("Going upstairs."))]
+
+    def test_voice_turn_uses_voice_prompt_low_effort_live_position_and_speech_clip(self):
+        session = self.session()
+        self.fix(session, -2, 0)
+        result = self.turn(session, [reply(answer("Hi."))], input_mode="voice")
+        request = self.model.requests[0]
+        system = request["system"][0]["text"]
+        self.assertIn("# Voice turn", system)
+        self.assertIn('"live_position": {"space_id": "left"', system)
+        self.assertEqual(request["output_config"], {"effort": "low"})
+        clip = self.client.get(self.path(session) + "/speech-clips/" + result["speech_clip_id"])
+        self.assertEqual((clip.headers["content-type"], clip.content), ("audio/mpeg", b"ID3Hi."))
+
+    def test_text_turn_has_no_voice_prompt_or_clip(self):
+        session = self.session()
+        result = self.turn(session, [reply(answer("Hi."))])
+        self.assertIsNone(result["speech_clip_id"])
+        self.assertNotIn("# Voice turn", self.model.requests[0]["system"][0]["text"])
+        self.assertEqual(self.model.requests[0]["output_config"], {"effort": "medium"})
+
+    def test_start_guidance_after_find_route_from_live_room_begins_guidance(self):
+        session = self.session()
+        self.fix(session, -2, 0)
+        self.turn(session, self.GUIDE, input_mode="voice")
+        feed = self.client.get(self.path(session) + "/guidance").json()
+        self.assertEqual((feed["guidance"]["status"], feed["events"][0]["kind"]), ("active", "instruction"))
+
+    def test_start_guidance_from_another_room_is_a_tool_error(self):
+        session = self.session()
+        self.fix(session, -2, 0)
+        script = [reply(call("find_route", start="upstairs", destination="left")), reply(call("start_guidance")), reply(answer("Sorry."))]
+        self.turn(session, script)
+        self.assertEqual([(name, error) for name, error, _ in self.model.results][-1], ("start_guidance", True))
+        self.assertEqual(self.client.get(self.path(session) + "/guidance").json()["guidance"]["status"], "idle")
+
+    def test_stop_guidance_stops_active_guidance(self):
+        session = self.session()
+        self.fix(session, -2, 0)
+        self.turn(session, self.GUIDE)
+        self.turn(session, [reply(call("stop_guidance")), reply(answer("Stopped."))], text="Stop guiding me.")
+        self.assertEqual(self.client.get(self.path(session) + "/guidance").json()["guidance"]["status"], "stopped")
 
     def test_unreachable_route_cannot_be_guided(self):
         session = self.session()

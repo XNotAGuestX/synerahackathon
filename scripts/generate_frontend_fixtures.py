@@ -548,6 +548,7 @@ def generate_frontend(data: Path, output: Path) -> dict[str, str]:
         "routes": [route],
         "pending_action": None,
         "usage": {"input_tokens": None, "output_tokens": None},
+        "speech_clip_id": None,
     }
     write_json("message-accepted.json", accepted)
     write_json(
@@ -601,6 +602,7 @@ def generate_frontend(data: Path, output: Path) -> dict[str, str]:
         "routes": [],
         "pending_action": None,
         "usage": None,
+        "speech_clip_id": None,
     }
     write_json("message-clarify.json", clarify)
 
@@ -662,6 +664,7 @@ def generate_frontend(data: Path, output: Path) -> dict[str, str]:
             "routes": [],
             "pending_action": pending,
             "usage": None,
+            "speech_clip_id": None,
         },
     )
     confirmed = {

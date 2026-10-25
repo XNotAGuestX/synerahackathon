@@ -66,7 +66,7 @@ class ClientContext(Input):
 
 class MessageCreate(Input):
     text: Annotated[str, StringConstraints(min_length=1, max_length=4000)]
-    input_mode: Literal["text", "transcript"] = "text"
+    input_mode: Literal["text", "transcript", "voice"] = "text"
     client_context: ClientContext = Field(default_factory=ClientContext)
 
 
