@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "building_id": "proc-factory-dev-003",
+  "layers": [
+    {
+      "layer": 0,
+      "objects": [
+        {
+          "object_id": "proc-factory-dev-003-A00023",
+          "on_top_of": [],
+          "height_m": 5.0,
+          "height_source": "override",
+          "elevation_m": 0.0
+        },
+        {
+          "object_id": "proc-factory-dev-003-A00027",
+          "on_top_of": [],
+          "height_m": 0.2,
+          "height_source": "override",
+          "elevation_m": 0.0
+        }
+      ]
+    }
+  ]
+}
