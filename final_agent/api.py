@@ -457,6 +457,7 @@ def create_app(
     notes_database: Path | None = None, api_token: str | None = None, cors_origins: list[str] | None = None,
     client_factory=None, clock=None, new_id=None, rate_limit: int = 0, model_timeout: float = 60,
     speech_factory=ElevenLabsSpeech.from_env, admin_pin: str | None = None, map_editing: bool | None = None,
+    voice_delay_mock: bool = False,
 ) -> FastAPI:
     options = {name: value for name, value in (("clock", clock), ("new_id", new_id)) if value is not None}
     # The object editor is frozen unless a deployment opts in; production servers stay read-only for object edits.
@@ -476,7 +477,8 @@ def create_app(
     if cors_origins is None:
         cors_origins = [origin.strip() for origin in os.environ.get("CORS_ORIGINS", ",".join(DEFAULT_ORIGINS)).split(",") if origin.strip()]
     app.add_middleware(CORSMiddleware, allow_origins=cors_origins, allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-                       allow_headers=["Content-Type", "Authorization", "X-Request-Id", "Idempotency-Key", "If-Match", "X-Admin-Token"], expose_headers=EXPOSE_HEADERS)
+                       allow_headers=["Content-Type", "Authorization", "X-Request-Id", "Idempotency-Key", "If-Match", "X-Admin-Token"],
+                       expose_headers=EXPOSE_HEADERS + (["X-Voice-Delay-Mock"] if voice_delay_mock else []))
     app.add_middleware(TraceMiddleware)
 
     @app.exception_handler(ApiError)
@@ -514,7 +516,12 @@ def create_app(
 
     @app.get(API_ROOT + "/health", operation_id="get_health")
     def get_health():
-        return {"schema_version": 1, "status": "ok", "api_version": "1"}
+        body = {"schema_version": 1, "status": "ok", "api_version": "1"}
+        if voice_delay_mock:
+            # Undocumented on purpose: only for speed in the demo video. The voice client reads this header and
+            # answers every utterance with the canned question, 0.5 s after Mute (frontend/src/features/voice/useVoice.ts).
+            return JSONResponse(body, headers={"X-Voice-Delay-Mock": "1"})
+        return body
 
     @app.get(API_ROOT + "/buildings", operation_id="list_buildings")
     def list_buildings(split: Literal["train", "dev", "test"] | None = None,
@@ -718,12 +725,15 @@ def main() -> None:
     parser.add_argument("--map-editing", action="store_true", default=None,
                         help="allow object edits (add/update/remove objects, openings, connectors, undo); "
                              "off by default, or set MAP_EDITING=1. Closures and doors are always allowed")
+    # Hidden and undocumented: just for speed in the demo video, never for real use. See get_health.
+    parser.add_argument("--voice-delay-mock", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.rate_limit < 0 or args.model_timeout <= 0:
         parser.error("--rate-limit must be non-negative and --model-timeout must be positive")
     logging.basicConfig(level=logging.INFO)
     uvicorn.run(create_app(args.data, args.output, notes_database=args.notes_db, rate_limit=args.rate_limit,
-                           model_timeout=args.model_timeout, map_editing=args.map_editing), host=args.host, port=args.port, workers=1)
+                           model_timeout=args.model_timeout, map_editing=args.map_editing, voice_delay_mock=args.voice_delay_mock),
+                host=args.host, port=args.port, workers=1)
 
 
 if __name__ == "__main__":

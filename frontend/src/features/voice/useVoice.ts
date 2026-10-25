@@ -11,14 +11,24 @@ import { encodeWav } from './wav'
 
 export type VoiceState = 'off' | 'listening' | 'hearing' | 'transcribing' | 'queued' | 'thinking' | 'speaking'
 type Run = { sessionId: string; controller: AbortController; draining: boolean }
+type Prefetched = { reply: Promise<Reply>; commit: () => Promise<Reply | null>; release: () => void }
 type Options = {
   active: boolean
   sessionId: string
   busy: boolean
   send: (text: string, signal: AbortSignal, onStart: () => void) => Promise<Reply | null>
+  prefetch?: (text: string) => Prefetched | null
 }
 const PRE_ROLL_FRAMES = 20 // 400 ms before speech detection
 const FRAME_MS = 20
+
+// Voice delay mock, switched on only by the server's undocumented --voice-delay-mock flag. It is just for speed
+// in the demo video, never for real use: whatever the user says, the turn is MOCK_QUESTION. It is sent (without
+// speech-to-text) as soon as the microphone opens, its spoken answer is fetched and decoded while the user talks,
+// and Mute reveals it, with chat, map and guidance as usual, exactly MOCK_DELAY_MS after the press.
+const MOCK_QUESTION = 'Guide me to the nearest toilet from my position.'
+const MOCK_DELAY_MS = 500
+type Speculation = Prefetched & { run: Run; clip: Promise<{ clipId: string; buffer: AudioBuffer } | null> }
 
 function concat(frames: Float32Array[]): Float32Array {
   const out = new Float32Array(frames.reduce((total, frame) => total + frame.length, 0))
@@ -27,7 +37,7 @@ function concat(frames: Float32Array[]): Float32Array {
   return out
 }
 
-export function useVoice({ active, sessionId, busy, send }: Options) {
+export function useVoice({ active, sessionId, busy, send, prefetch }: Options) {
   const [state, setState] = useState<VoiceState>('off')
   const [level, setLevel] = useState(0)
   const [muted, setMuted] = useState(false)
@@ -38,6 +48,11 @@ export function useVoice({ active, sessionId, busy, send }: Options) {
   const [captureVersion, setCaptureVersion] = useState(0)
   const sendRef = useRef(send)
   sendRef.current = send
+  const prefetchRef = useRef(prefetch)
+  prefetchRef.current = prefetch
+  const [mock, setMock] = useState(false)
+  const speculationRef = useRef<Speculation | null>(null)
+  const decodedRef = useRef(new Map<string, AudioBuffer>())
   const sessionRef = useRef(sessionId)
   sessionRef.current = sessionId
   const activeRef = useRef(active)
@@ -95,12 +110,16 @@ export function useVoice({ active, sessionId, busy, send }: Options) {
     refresh()
     const valid = () => current(run) && version === playbackVersion.current
     try {
-      const blob = await gateway.fetchSpeechClip(run.sessionId, item.clipId, abort.signal)
-      if (!valid()) return
+      let buffer = decodedRef.current.get(item.clipId)
+      decodedRef.current.delete(item.clipId)
       const context = contextRef.current
-      if (!context || context.state !== 'running') throw new Error(copy.voicePlaybackBlocked)
-      const buffer = await context.decodeAudioData(await blob.arrayBuffer())
-      if (!valid()) return
+      if (!buffer) {
+        const blob = await gateway.fetchSpeechClip(run.sessionId, item.clipId, abort.signal)
+        if (!valid()) return
+        if (!context || context.state !== 'running') throw new Error(copy.voicePlaybackBlocked)
+        buffer = await context.decodeAudioData(await blob.arrayBuffer())
+        if (!valid()) return
+      } else if (!context || context.state !== 'running') throw new Error(copy.voicePlaybackBlocked)
       const source = context.createBufferSource()
       source.buffer = buffer
       source.connect(context.destination)
@@ -145,6 +164,41 @@ export function useVoice({ active, sessionId, busy, send }: Options) {
     } catch (failure) { setError(failure instanceof Error ? failure.message : copy.speechPermissionFailed) }
   }, [pump, queue, refresh])
 
+  const speakReply = useCallback((reply: Reply) => {
+    if (!reply.speechClipId) return
+    const drawn = reply.effects.findLast((effect) => effect.type === 'draw_route')
+    const routeId = drawn?.type === 'draw_route' && typeof drawn.route_id === 'string' ? drawn.route_id : undefined
+    if (routeId) queue.retainRoute(routeId)
+    queue.enqueue({ kind: 'reply', clipId: reply.speechClipId, text: reply.speechText ?? '' })
+  }, [queue])
+
+  // Voice delay mock: Mute shows the prefetched turn as if the user's words had just been understood.
+  const reveal = useCallback((pressed: number) => {
+    const speculation = speculationRef.current
+    if (!speculation) return
+    speculationRef.current = null
+    const { run } = speculation
+    processingRef.current = 'thinking'
+    refresh()
+    void (async () => {
+      try {
+        const clip = await speculation.clip
+        await new Promise((resolve) => window.setTimeout(resolve, MOCK_DELAY_MS - (performance.now() - pressed)))
+        if (!current(run)) return
+        if (clip) decodedRef.current.set(clip.clipId, clip.buffer)
+        setTranscript(MOCK_QUESTION)
+        const reply = await speculation.commit()
+        if (!current(run)) return
+        if (!reply) { setError(copy.voiceRequestFailed); return }
+        setError(null)
+        speakReply(reply)
+      } finally {
+        speculation.release()
+        if (current(run)) { processingRef.current = null; refresh(); void pump() }
+      }
+    })()
+  }, [pump, refresh, speakReply])
+
   const drain = useCallback(async () => {
     const run = runRef.current
     if (run.draining) return
@@ -170,12 +224,7 @@ export function useVoice({ active, sessionId, busy, send }: Options) {
           if (!current(run)) return
           if (!reply) { setError(copy.voiceRequestFailed); continue }
           // A newer utterance interrupts this reply, but its written answer remains visible.
-          if (reply.speechClipId && !utterancesRef.current.length && version === playbackVersion.current) {
-            const drawn = reply.effects.findLast((effect) => effect.type === 'draw_route')
-            const routeId = drawn?.type === 'draw_route' && typeof drawn.route_id === 'string' ? drawn.route_id : undefined
-            if (routeId) queue.retainRoute(routeId)
-            queue.enqueue({ kind: 'reply', clipId: reply.speechClipId, text: reply.speechText ?? '' })
-          }
+          if (!utterancesRef.current.length && version === playbackVersion.current) speakReply(reply)
         } catch (failure) {
           if (!current(run)) return
           setError(failure instanceof ApiError && failure.code === '40004_speech_unavailable'
@@ -186,7 +235,7 @@ export function useVoice({ active, sessionId, busy, send }: Options) {
       run.draining = false
       if (current(run)) { processingRef.current = null; refresh(); void pump() }
     }
-  }, [pump, queue, refresh])
+  }, [pump, refresh, speakReply])
 
   const speakGuidance = useCallback((event: GuidanceEvent) => {
     if (!activeRef.current || !event.speech_clip_id) return
@@ -194,6 +243,19 @@ export function useVoice({ active, sessionId, busy, send }: Options) {
     queue.enqueue({ kind: event.kind, clipId: event.speech_clip_id, text: event.text, routeId: event.route_id })
     void pump()
   }, [pump, queue, stopPlayback])
+
+  // Voice delay mock: an unshown turn stays on the server; only its guidance is no longer held back.
+  const dropSpeculation = useCallback(() => {
+    speculationRef.current?.release()
+    speculationRef.current = null
+    decodedRef.current.clear()
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void gateway.voiceDelayMock().then((on) => { if (!cancelled) setMock(on) })
+    return () => { cancelled = true }
+  }, [])
 
   // Each voice session owns its requests, recordings and audio context.
   useEffect(() => {
@@ -203,6 +265,7 @@ export function useVoice({ active, sessionId, busy, send }: Options) {
     setTranscript('')
     return () => {
       runRef.current.controller.abort()
+      dropSpeculation()
       stopPlayback()
       utterancesRef.current = []
       processingRef.current = null
@@ -217,7 +280,7 @@ export function useVoice({ active, sessionId, busy, send }: Options) {
       void context?.close().catch(() => undefined)
       refresh()
     }
-  }, [active, sessionId, refresh, stopPlayback])
+  }, [active, sessionId, dropSpeculation, refresh, stopPlayback])
 
   useEffect(() => {
     const context = contextRef.current
@@ -234,6 +297,7 @@ export function useVoice({ active, sessionId, busy, send }: Options) {
       ring.length = 0
       vad.reset()
       hearingRef.current = false
+      if (mock) { refresh(); return } // the voice delay mock answers on Mute, not on what was heard
       utterancesRef.current.push(new Blob([encodeWav(audio, SAMPLE_RATE)], { type: 'audio/wav' }))
       setQueued(utterancesRef.current.length)
       refresh()
@@ -260,6 +324,16 @@ export function useVoice({ active, sessionId, busy, send }: Options) {
       capture.stop()
       if (!cancelled && current(run)) { setError(microphoneMessage(failure)); setMuted(true) }
     })
+    // Voice delay mock: the open microphone starts the canned turn, so its answer is ready before Mute.
+    const prefetched = mock && !speculationRef.current ? prefetchRef.current?.(MOCK_QUESTION) : null
+    if (prefetched) {
+      const clip = prefetched.reply.then(async (reply) => {
+        if (!reply.speechClipId) return null
+        const blob = await gateway.fetchSpeechClip(run.sessionId, reply.speechClipId, run.controller.signal)
+        return { clipId: reply.speechClipId, buffer: await context.decodeAudioData(await blob.arrayBuffer()) }
+      }).catch(() => null)
+      speculationRef.current = { ...prefetched, run, clip }
+    }
     return () => {
       cancelled = true
       finishRef.current = () => undefined
@@ -269,7 +343,7 @@ export function useVoice({ active, sessionId, busy, send }: Options) {
       setLevel(0)
       refresh()
     }
-  }, [active, muted, ready, captureVersion, sessionId, drain, refresh, stopPlayback])
+  }, [active, muted, ready, captureVersion, sessionId, mock, drain, refresh, stopPlayback])
 
   useEffect(() => { if (!busy) void pump() }, [busy, pump])
   useEffect(() => {
@@ -279,6 +353,7 @@ export function useVoice({ active, sessionId, busy, send }: Options) {
       runRef.current = { sessionId: sessionRef.current, controller: new AbortController(), draining: false }
       utterancesRef.current = []
       processingRef.current = null
+      dropSpeculation()
       stopPlayback()
       readyRef.current = false
       setReady(false)
@@ -289,9 +364,10 @@ export function useVoice({ active, sessionId, busy, send }: Options) {
     }
     document.addEventListener('visibilitychange', pause)
     return () => document.removeEventListener('visibilitychange', pause)
-  }, [refresh, stopPlayback])
+  }, [dropSpeculation, refresh, stopPlayback])
 
-  return { state, level, muted, setMuted, ready, error, transcript, queued, enable,
+  return { state, level, muted, ready, error, transcript, queued, enable,
+    setMuted: (next: boolean) => { if (next) reveal(performance.now()); setMuted(next) },
     finishSpeaking: () => finishRef.current(), speakGuidance,
     interruptPlayback: () => { stopPlayback(); refresh() } }
 }

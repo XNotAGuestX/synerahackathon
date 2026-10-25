@@ -14,7 +14,8 @@ export type GuidanceFeedState = {
 }
 
 // Long-polls the guidance feed. onEvent fires once per new event, in order.
-export function useGuidanceFeed(sessionId: string, onEvent?: (event: GuidanceEvent) => void): GuidanceFeedState {
+// While held, nothing is polled; events from that time arrive together on release.
+export function useGuidanceFeed(sessionId: string, onEvent?: (event: GuidanceEvent) => void, held = false): GuidanceFeedState {
   const [guidance, setGuidance] = useState<Guidance | null>(null)
   const [events, setEvents] = useState<GuidanceEvent[]>([])
   const [nonce, setNonce] = useState(0)
@@ -29,7 +30,7 @@ export function useGuidanceFeed(sessionId: string, onEvent?: (event: GuidanceEve
   }, [sessionId])
 
   useEffect(() => {
-    if (!sessionId || sessionId.startsWith('local-')) return
+    if (!sessionId || sessionId.startsWith('local-') || held) return
     const abort = new AbortController()
     let failures = 0
     const run = async () => {
@@ -56,7 +57,7 @@ export function useGuidanceFeed(sessionId: string, onEvent?: (event: GuidanceEve
     }
     void run()
     return () => abort.abort()
-  }, [sessionId, nonce])
+  }, [sessionId, nonce, held])
 
   const refresh = useCallback(() => setNonce((value) => value + 1), [])
   return { guidance, events, latestInstruction: events.at(-1) ?? null, refresh }

@@ -90,6 +90,7 @@ export interface BuildingGateway {
   stopGuidance(sessionId: string): Promise<void>
   transcribe(sessionId: string, wav: Blob, signal?: AbortSignal): Promise<{ text: string }>
   fetchSpeechClip(sessionId: string, clipId: string, signal?: AbortSignal): Promise<Blob>
+  voiceDelayMock(): Promise<boolean>
   putProfile(sessionId: string, displayName: string): Promise<void>
   createAdminToken(pin: string, name: string): Promise<AdminToken>
   getEmergency(buildingId: string): Promise<EmergencyStatus>
@@ -244,6 +245,11 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
       return { text: result.text ?? '' }
     },
     async fetchSpeechClip(sessionId, clipId, signal) { return request<Blob>(config, `/sessions/${sessionId}/speech-clips/${clipId}`, undefined, { responseType: 'blob', signal }) },
+    // Undocumented server flag --voice-delay-mock, only for speed in the demo video. Any failure means "off".
+    async voiceDelayMock() {
+      try { return (await fetch(`${config.baseUrl.replace(/\/$/, '')}/health`)).headers.get('X-Voice-Delay-Mock') === '1' }
+      catch { return false }
+    },
     async putProfile(sessionId, displayName) { await request<unknown>(config, `/sessions/${sessionId}/profile`, { method: 'PUT', body: JSON.stringify({ display_name: displayName }) }) },
     async createAdminToken(pin, name) { return request<AdminToken>(config, '/admin-tokens', json({ pin, name }), requestId()) },
     async getEmergency(buildingId) { return request<EmergencyStatus>(config, `/buildings/${encodeURIComponent(buildingId)}/emergency`) },
