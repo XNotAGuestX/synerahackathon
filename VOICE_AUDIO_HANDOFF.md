@@ -2,9 +2,8 @@
 
 **Prepared: 25 October 2026. Status: open. Voice works end to end in headless Chrome with a
 fake microphone, but in the user's real browser a spoken request produces no output and no
-visible progress.** Code: branch `worktree-voice-guidance-fix` (worktree
-`.claude/worktrees/voice-guidance-fix`). Local `main` is at `a31b659`; the branch is one
-commit ahead (the fallback below). Nothing here is pushed to `origin/main`.
+visible progress.** Everything below is on local `main` (merge `9eacd04`, which includes
+the empty-transcript fallback). Nothing here is pushed to `origin/main`.
 
 ## Symptom
 
@@ -30,7 +29,7 @@ never reached the agent, and the WAV upload fallback never ran either.
 | `4caf342` | `POST /sessions/{id}/transcription-tokens`: ElevenLabs single-use token plus realtime URL (`scribe_v2_realtime`, `pcm_16000`, `language_code=en`, `commit_strategy=manual`). OpenAPI, DESIGN, tests updated. |
 | `c43aa10` | Frontend streams microphone audio while the user talks (`frontend/src/features/voice/realtime.ts`, `useVoice.ts`): socket opens on VAD start, pre-roll and 20 ms PCM frames are sent, commit on VAD end. Socket error or 4 s timeout falls back to `POST /transcriptions`. `API_PROXY` env var in `vite.config.ts`. |
 | `a31b659` | Map always draws the full route line plus step dots (the step player had cut it to a stub at step 0). |
-| branch only | **Fallback for empty live results:** an empty or failed live transcript is retried as a WAV upload, and an empty final transcript shows "Didn't catch that. Please say it again." instead of silently dropping the utterance (`useVoice.ts`, `i18n/en.ts`). Typecheck and `npm run test:voice` pass; not yet tested in the user's browser. |
+| `be780b8` | **Fallback for empty live results:** an empty or failed live transcript is retried as a WAV upload, and an empty final transcript shows "Didn't catch that. Please say it again." instead of silently dropping the utterance (`useVoice.ts`, `i18n/en.ts`). Typecheck and `npm run test:voice` pass; merged into `main`, not yet tested in the user's browser. |
 
 ## What was verified
 
@@ -78,22 +77,40 @@ never reached the agent, and the WAV upload fallback never ran either.
 
 ## Possible fixes
 
-1. **Merge the branch fallback** (empty live result → upload; "Didn't catch that" note). Small and safe.
-2. **Kill switch for streaming**: e.g. `localStorage['wayfinder-stt'] = 'batch'` or `?stt=batch`
+1. **First idea: do not stream from the browser directly to ElevenLabs; forward through our server.**
+   Today `realtime.ts` opens `wss://api.elevenlabs.io/...` from the browser with a single-use token.
+   That path depends on the user's browser and network reaching ElevenLabs over WebSocket
+   (extensions, firewalls, proxies, Safari), and its failures are invisible to our backend log.
+   Instead, let the browser send audio only to our own origin and let the backend talk to ElevenLabs:
+   - **Simplest:** drop live streaming and always upload the WAV after the utterance
+     (`POST /transcriptions`, already implemented and proven in the user's earlier sessions).
+     Costs about 0.3 s per utterance (0.45–0.5 s vs 0.2 s for the 1.7 s test phrase).
+   - **Streaming via the server:** add a WebSocket endpoint such as
+     `/api/v1/sessions/{id}/transcriptions/stream` in `final_agent/api.py`. The browser sends the
+     same 20 ms PCM frames there (same origin, goes through the Vite `/api` proxy, needs `ws: true`
+     in the proxy config); the backend opens the ElevenLabs realtime socket with the API key
+     (`xi-api-key` header, no token endpoint needed), relays `input_audio_chunk`/commit, and returns
+     the committed text. Needs a WebSocket client in Python (`websockets`, not installed yet).
+     Every step is then visible in our log, and errors map to `40004_speech_unavailable`.
+   - **Chunked HTTP alternative:** upload audio while the user talks in 0.5–1 s chunks to an HTTP
+     endpoint that feeds the server-side ElevenLabs socket; the final request commits and returns the text.
+   Either way, keep the WAV upload as the fallback and remove `POST /transcription-tokens` if unused.
+2. **Branch fallback** (empty live result → upload; "Didn't catch that" note). Done, merged in `9eacd04`; keep it whichever transport is used.
+3. **Kill switch for streaming**: e.g. `localStorage['wayfinder-stt'] = 'batch'` or `?stt=batch`
    to skip `openTranscriptStream` and use only `POST /transcriptions`. Lets the user A/B in one reload.
-3. **Show progress from the first moment:** put the transcript (and `partial_transcript` while
+4. **Show progress from the first moment:** put the transcript (and `partial_transcript` while
    speaking) into the composer or as the user bubble, and show the guide panel's "Working…"
    state while `voice.state` is `transcribing` or `thinking`, not only while `loading`.
-4. **Never drop an utterance silently:** queue voice turns in `sendText` while `loading`,
+5. **Never drop an utterance silently:** queue voice turns in `sendText` while `loading`,
    or surface "Still working on your last request" instead of returning `null`.
-5. **VAD end:** shorter `maxMs` (8–10 s), or adapt the noise floor during speech so a noisy room
+6. **VAD end:** shorter `maxMs` (8–10 s), or adapt the noise floor during speech so a noisy room
    still ends the utterance. Optional: use the realtime socket's own VAD
    (`commit_strategy=vad`) and commit on its `committed_transcript`.
-6. **Latency:** voice turns take 6–12 s at Haiku high effort. Options are `medium` effort, or
+7. **Latency:** voice turns take 6–12 s at Haiku high effort. Options are `medium` effort, or
    speaking the server lead-in as soon as `find_route` succeeds instead of after the model's final reply.
-7. **Investigate the 503** on overlapping voice turns (likely `30012_revision_conflict` or a
+8. **Investigate the 503** on overlapping voice turns (likely `30012_revision_conflict` or a
    model error mapped to `40001`); overlapping turns should be serialised client-side.
-8. Cosmetic: chat text can end with "Answer: 22" (benchmark answer format leaking into
+9. Cosmetic: chat text can end with "Answer: 22" (benchmark answer format leaking into
    HTTP replies). Not spoken, but visible in the guide panel.
 
 ## How to test without a microphone
@@ -122,5 +139,5 @@ Backend repro without a browser: create a session (`Idempotency-Key` header requ
 
 ## Running servers (at handoff)
 
-- 5173 frontend and 8000 backend: main checkout, restarted on `a31b659` (the branch fallback is not in them).
+- 5173 frontend and 8000 backend: main checkout. The frontend hot-reloads `main`; the 8000 backend was last restarted on `a31b659` (backend code unchanged since).
 - 5174 frontend (`API_PROXY=http://127.0.0.1:8011`) and 8011 backend: this worktree. Stop them when done.
