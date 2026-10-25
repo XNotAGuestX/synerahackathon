@@ -50,8 +50,11 @@ export interface BuildingGateway {
   startGuidance(sessionId: string, routeId: string): Promise<Guidance | null>
   stopGuidance(sessionId: string): Promise<void>
   transcribe(sessionId: string, wav: Blob): Promise<{ text: string }>
+  createTranscriptionToken(sessionId: string): Promise<TranscriptionToken>
   fetchSpeechClip(sessionId: string, clipId: string): Promise<Blob>
 }
+
+export type TranscriptionToken = { token: string; url: string; sample_rate: number }
 
 export type RequestOptions = { idempotencyKey?: string; signal?: AbortSignal; responseType?: 'json' | 'blob' }
 
@@ -176,6 +179,9 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
     async transcribe(sessionId, wav) {
       const result = await request<{ text?: string }>(config, `/sessions/${sessionId}/transcriptions`, { method: 'POST', body: wav, headers: { 'Content-Type': 'audio/wav' } }, requestId())
       return { text: result.text ?? '' }
+    },
+    async createTranscriptionToken(sessionId) {
+      return request<TranscriptionToken>(config, `/sessions/${sessionId}/transcription-tokens`, { method: 'POST' }, requestId())
     },
     async fetchSpeechClip(sessionId, clipId) { return request<Blob>(config, `/sessions/${sessionId}/speech-clips/${clipId}`, undefined, { responseType: 'blob' }) },
   }

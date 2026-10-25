@@ -3,7 +3,10 @@ import { ApiError } from '../../api/errors'
 import { gateway } from '../../api/gateway'
 import type { GuidanceEvent, Reply } from '../../domain/types'
 import { copy } from '../../i18n/en'
+import type { TranscriptionToken } from '../../api/gateway'
 import { createCapture, microphoneMessage, SAMPLE_RATE } from './capture'
+import { openTranscriptStream } from './realtime'
+import type { TranscriptStream } from './realtime'
 import { createSpeechQueue } from './speech-queue'
 import type { SpeechItem } from './speech-queue'
 import { createVad, frameRms } from './vad'
@@ -13,6 +16,10 @@ export type VoiceState = 'off' | 'listening' | 'hearing' | 'transcribing' | 'thi
 
 const PRE_ROLL_FRAMES = 20 // 400 ms of 20 ms frames
 const FRAME_MS = 20
+const TOKEN_MAX_AGE_MS = 10 * 60 * 1000 // provider tokens expire after 15 minutes
+
+// text is the streamed transcript, committed as soon as the user stops talking.
+type Utterance = { wav: Blob; text: Promise<string> | null }
 
 type Options = {
   active: boolean
@@ -47,7 +54,23 @@ export function useVoice({ active, sessionId, send }: Options) {
   const generationRef = useRef(0)
   const hearingRef = useRef(false)
   const processingRef = useRef<'transcribing' | 'thinking' | null>(null)
-  const utterancesRef = useRef<Blob[]>([])
+  const utterancesRef = useRef<Utterance[]>([])
+  const streamRef = useRef<TranscriptStream | null>(null)
+  const tokenRef = useRef<{ sessionId: string; at: number; token: Promise<TranscriptionToken> } | null>(null)
+
+  // One token is fetched ahead, so a new utterance can start streaming at once.
+  const prefetchToken = useCallback(() => {
+    const token = gateway.createTranscriptionToken(sessionRef.current)
+    token.catch(() => undefined)
+    tokenRef.current = { sessionId: sessionRef.current, at: Date.now(), token }
+  }, [])
+  const takeToken = useCallback((): Promise<TranscriptionToken> => {
+    const cached = tokenRef.current
+    const fresh = cached && cached.sessionId === sessionRef.current && Date.now() - cached.at < TOKEN_MAX_AGE_MS
+    const token = fresh ? cached.token : gateway.createTranscriptionToken(sessionRef.current)
+    prefetchToken()
+    return token
+  }, [prefetchToken])
 
   const refresh = useCallback(() => {
     if (!activeRef.current) setState('off')
@@ -112,12 +135,14 @@ export function useVoice({ active, sessionId, send }: Options) {
   const drain = useCallback(async () => {
     if (processingRef.current) return
     while (utterancesRef.current.length > 0 && activeRef.current) {
-      const wav = utterancesRef.current.shift() as Blob
+      const { wav, text: streamed } = utterancesRef.current.shift() as Utterance
       processingRef.current = 'transcribing'
       refresh()
       let text = ''
       try {
-        text = (await gateway.transcribe(sessionRef.current, wav)).text.trim()
+        // The stream already heard the whole utterance; uploading the WAV is only the fallback.
+        const upload = async () => (await gateway.transcribe(sessionRef.current, wav)).text.trim()
+        text = streamed ? await streamed.catch(upload) : await upload()
       } catch (failure) {
         setError(failure instanceof ApiError && failure.code === '40004_speech_unavailable' ? copy.voiceUnavailable : failure instanceof Error ? failure.message : copy.voiceUnavailable)
         continue
@@ -147,33 +172,42 @@ export function useVoice({ active, sessionId, send }: Options) {
       if (event === 'start') {
         if (playingRef.current) stopPlayback()
         utterance = [...ring]
+        streamRef.current?.close()
+        streamRef.current = openTranscriptStream(takeToken())
+        for (const early of ring) streamRef.current.push(early)
         hearingRef.current = true
         refresh()
       }
-      if (utterance) utterance.push(frame)
+      if (utterance) { utterance.push(frame); streamRef.current?.push(frame) }
       else { ring.push(frame); if (ring.length > PRE_ROLL_FRAMES) ring.shift() }
       if (event === 'end' && utterance) {
         const wav = new Blob([encodeWav(concat(utterance), SAMPLE_RATE)], { type: 'audio/wav' })
         utterance = null
         ring.length = 0
         hearingRef.current = false
-        utterancesRef.current.push(wav)
+        const streamed = streamRef.current?.finish() ?? null
+        streamed?.catch(() => undefined)
+        streamRef.current = null
+        utterancesRef.current.push({ wav, text: streamed })
         void drain()
         refresh()
       }
     })
     let cancelled = false
     setError(null)
+    prefetchToken()
     capture.start().then(() => { if (cancelled) capture.stop() }, (failure: unknown) => { if (!cancelled) setError(microphoneMessage(failure)) })
     return () => {
       cancelled = true
       capture.stop()
+      streamRef.current?.close()
+      streamRef.current = null
       vad.reset()
       hearingRef.current = false
       setLevel(0)
       refresh()
     }
-  }, [active, muted, queue, drain, refresh, stopPlayback])
+  }, [active, muted, queue, drain, refresh, stopPlayback, prefetchToken, takeToken])
 
   useEffect(() => {
     if (active) { refresh(); return }
