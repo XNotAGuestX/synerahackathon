@@ -256,6 +256,9 @@ Keep the visible reply to one to three short sentences; do not list raw ids or a
 # Voice rules stay in the fixed system prompt; the turn context says when they apply. Changing the
 # system prompt between turns would invalidate the thinking blocks already in the history.
 VOICE_RULES = '\n\nThe rules below apply only when the turn context has "input_mode": "voice".' + VOICE_PROMPT
+# Undocumented --voice-delay-mock, just for speed in the demo video: this spoken question skips the model
+# (a voice turn takes 15-25 s there). finish_navigation still routes to the nearest toilet and guidance starts.
+VOICE_DELAY_MOCK_QUESTION = "Guide me to the nearest toilet from my position."
 
 
 class SessionService:
@@ -264,8 +267,10 @@ class SessionService:
         client_factory: Callable | None = None, clock: Callable = utc_now, new_id: Callable = identifier,
         model_timeout: float = 60, cursor_secret: bytes | None = None,
         speech: SpeechProvider | None = None, admin_pin: str = "", map_editing: bool = True,
+        voice_delay_mock: bool = False,
     ) -> None:
         self.speech, self.clips = speech, ClipCache()
+        self.voice_delay_mock = voice_delay_mock
         self.admin_pin = admin_pin
         # Emergency mode (FR-17): in memory only, so ending the alarm or a restart deletes every position.
         self.emergencies: dict[str, EmergencyMode] = {}
@@ -1252,7 +1257,12 @@ class SessionService:
             turn_context = "Current turn context: " + json.dumps({**context, "input_mode": body.get("input_mode", "text"),
                 "current_space_id": work.current_space_id, "pending_navigation": work.pending_navigation,
                 "step_free_default": step_free, "travel_mode_default": travel_mode, **live_context})
-            reply = (VoiceReply if voice else ApiReply).model_validate_json(agent.ask(body["text"], turn_context))
+            mocked = voice and self.voice_delay_mock and body["text"].strip() == VOICE_DELAY_MOCK_QUESTION
+            if mocked:
+                reply = VoiceReply(text="", intent="route", summary="", missing=[], question=None, options=[],
+                                   navigation=NavigationRequest(asset_type="toilet"), speech_text="Finding the nearest toilet.")
+            else:
+                reply = (VoiceReply if voice else ApiReply).model_validate_json(agent.ask(body["text"], turn_context))
             spoken = reply.speech_text.strip() if isinstance(reply, VoiceReply) else None
             if voice and not spoken:
                 raise ValueError("Voice reply contained no spoken summary.")
@@ -1262,6 +1272,8 @@ class SessionService:
             if voice and navigated.text != reply.text:
                 spoken = navigated.text  # The application replaced the model's answer, e.g. with a start question.
             reply = navigated
+            if mocked:  # later model turns still see this exchange
+                work.history.extend([{"role": "user", "content": body["text"]}, {"role": "assistant", "content": reply.text}])
             acknowledgement = bridge.object_edit_acknowledgement()
             if acknowledgement is not None and not reply.has_other_answer:
                 # Tool evidence owns edit status. Old room-report context cannot add a vote requirement.

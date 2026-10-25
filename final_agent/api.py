@@ -465,7 +465,7 @@ def create_app(
         map_editing = os.environ.get("MAP_EDITING", "").strip().lower() in {"1", "true", "yes", "on"}
     service = SessionService(data_directory, output_directory, notes_database=notes_database,
                              client_factory=client_factory, model_timeout=model_timeout,
-                             speech=speech_factory(), map_editing=map_editing,
+                             speech=speech_factory(), map_editing=map_editing, voice_delay_mock=voice_delay_mock,
                              admin_pin=os.environ.get("EMERGENCY_ADMIN_PIN", "") if admin_pin is None else admin_pin,
                              **options)
     contract = load_contract()
