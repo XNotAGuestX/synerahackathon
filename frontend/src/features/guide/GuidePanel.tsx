@@ -5,6 +5,7 @@ import type { Presentation } from '../../domain/presentation'
 import type { AskOption, FloorSummary } from '../../domain/types'
 import { copy } from '../../i18n/en'
 import type { VoiceState } from '../voice/useVoice'
+import { RouteShare } from './RouteShare'
 
 export type VoicePanelState = {
   state: VoiceState
@@ -92,6 +93,7 @@ type GuidePanelProps = {
   inputRef: RefObject<HTMLInputElement | null>
   label: (id: string | null) => string
   floors: FloorSummary[]
+  shareUrl: string | null
 }
 
 export function GuidePanel({
@@ -118,6 +120,7 @@ export function GuidePanel({
   inputRef,
   label,
   floors,
+  shareUrl,
 }: GuidePanelProps) {
   const assumptions = presentation.understood ? assumptionLines(presentation.understood, label) : null
   const route = presentation.route
@@ -294,6 +297,7 @@ export function GuidePanel({
             </ol>
           </details>
         )}
+        {shareUrl && <RouteShare key={shareUrl} url={shareUrl} />}
         {!transcript && routePreview && (
           <details className="fold">
             <summary>

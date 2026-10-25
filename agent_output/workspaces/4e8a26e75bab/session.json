@@ -1,0 +1,10 @@
+{
+ "notes_database": "/Users/felix/tum/artemis/synerahackathon/agent_output/room_notes.sqlite3",
+ "report_session_id": "f87c6310695144cea335c359ce4b350c",
+ "facility_numbers": {},
+ "current_location": null,
+ "preferences": {},
+ "draft": null,
+ "pending_plan": null,
+ "local_state": {}
+}

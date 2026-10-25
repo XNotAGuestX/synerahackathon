@@ -9,7 +9,8 @@ export type BuildingSummary = { id: string; name: string; floors: number; has_li
 export type Session = { id: string; building_id: string; building_name: string; revision: number; object_revision?: number; preferences: { step_free: boolean }; closed_ids?: string[]; last_route_id?: string | null; pending_action_id?: string | null }
 export type Place = { id: string; kind: string; name: string; floor_id: string; floor_level: number; space_id: string | null; position: [number, number] | null }
 type CursorPage<T> = { items: T[]; next_cursor?: string | null }
-export type RouteRequest = { start_space_id: string; destination_space_id: string; step_free?: boolean; via?: string[] }
+export type RouteRequest = { start_space_id: string; destination_space_id: string; step_free?: boolean; via?: string[]; travel_mode?: 'walking' | 'forklift'; min_width_m?: number }
+type ClosureProposal = { kind: 'set_closed'; element_ref: string; closed: boolean }
 export type AdminToken = { token: string; name: string; expires_at: string }
 export type EmergencyStatus = { building_id: string; active: boolean; reason: string | null; started_at: string | null }
 export type EmergencyPersonStatus = 'inside' | 'outside' | 'outside_manual'
@@ -53,7 +54,7 @@ function requestId(): string {
 export interface BuildingGateway {
   readonly mode: 'http'
   listBuildings(): Promise<BuildingSummary[]>
-  createSession(buildingId: string): Promise<Session>
+  createSession(buildingId: string, preferences?: { step_free: boolean }): Promise<Session>
   getSession(sessionId: string): Promise<Session>
   listFloors(sessionId: string): Promise<FloorSummary[]>
   getFloorPlan(sessionId: string, floorId: string): Promise<FloorPlan>
@@ -63,7 +64,7 @@ export interface BuildingGateway {
   updatePreferences(sessionId: string, preferences: { step_free: boolean }): Promise<Session>
   sendMessage(sessionId: string, text: string, inputMode?: InputMode, clientContext?: ClientContext): Promise<Reply>
   listObjectTypes(): Promise<ObjectCatalog>
-  createAction(sessionId: string, proposal: EditProposal, revision?: number): Promise<ActionResult>
+  createAction(sessionId: string, proposal: EditProposal | ClosureProposal, revision?: number): Promise<ActionResult>
   confirmAction(sessionId: string, actionId: string): Promise<ActionResult>
   cancelAction(sessionId: string, actionId: string): Promise<ActionResult>
   getAction(sessionId: string, actionId: string): Promise<ActionResult>
@@ -160,7 +161,7 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
       } while (cursor)
       return items
     },
-    async createSession(buildingId) { return request<Session>(config, '/sessions', json({ building_id: buildingId }), requestId()) },
+    async createSession(buildingId, preferences) { return request<Session>(config, '/sessions', json({ building_id: buildingId, ...(preferences ? { preferences } : {}) }), requestId()) },
     async getSession(sessionId) { return request<Session>(config, `/sessions/${sessionId}`) },
     async listFloors(sessionId) { const result = await request<{ floors: FloorSummary[] }>(config, `/sessions/${sessionId}/floors`); return result.floors },
     async getFloorPlan(sessionId, floorId) { return request<FloorPlan>(config, `/sessions/${sessionId}/floors/${floorId}/plan`) },
@@ -181,6 +182,8 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
         destination: input.destination_space_id,
         step_free: input.step_free,
         via: input.via ?? [],
+        travel_mode: input.travel_mode,
+        min_width_m: input.min_width_m,
       }), requestId())
     },
     async getRoute(sessionId, routeId) { return request<Route>(config, `/sessions/${sessionId}/routes/${routeId}`) },

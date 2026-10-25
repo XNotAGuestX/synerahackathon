@@ -13,6 +13,14 @@ print the money spent so far after every question (an estimate at list prices).
 - `--output DIR`: where route images and edits go (default `agent_output`)
 - `--model NAME`: `opus`, `sonnet` or `haiku` (default)
 
+**Share a route (app):** generate a route, click **Share route**, and send the copied
+link. It opens the building, map and directions in a separate session, preserving
+ordered stops, step-free/width/travel-mode constraints and closures. If clipboard
+access is unavailable, copy from the displayed link field. The recipient needs
+access to the same running app URL. Links recompute against current building data;
+session-only structural edits and browser-only imported plans are not included.
+No link database or model call is needed.
+
 **Emergency mode (app):** start the API with `EMERGENCY_ADMIN_PIN=<pin>`. In the app, tap
 Emergency, enter your name and the admin password, and activate. Every phone then shows the people
 still inside as red dots with names on the plan, and anyone can open the live list. Three simulated

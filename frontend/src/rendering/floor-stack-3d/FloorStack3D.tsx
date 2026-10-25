@@ -5,7 +5,7 @@ import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRe
 import type { Asset, FloorPlan, Point, Route, Selection, Space } from '../../domain/types'
 import { copy } from '../../i18n/en'
 import { MapTooltip, assetTip, spaceTip } from '../MapTooltip'
-import { perimeterSegments } from './perimeter'
+import { wallSegments, type PerimeterSegment } from './perimeter'
 import { addObjectModels, objectPlacements, updateObjectModels } from './object-models'
 
 type FloorStack3DProps = {
@@ -158,14 +158,12 @@ function approach(current: number, goal: number, rate: number): number {
   return current + (goal - current) * Math.min(1, rate)
 }
 
-function wallGeometry(polygons: Point[][], height: number, toWorld: (point: Point) => [number, number]): THREE.BufferGeometry {
+function wallGeometry(segments: PerimeterSegment[], height: number, toWorld: (point: Point) => [number, number]): THREE.BufferGeometry {
   const positions: number[] = []
-  for (const polygon of polygons) {
-    for (let index = 0; index < polygon.length; index += 1) {
-      const [ax, az] = toWorld(polygon[index])
-      const [bx, bz] = toWorld(polygon[(index + 1) % polygon.length])
-      positions.push(ax, 0, az, bx, 0, bz, bx, height, bz, ax, 0, az, bx, height, bz, ax, height, az)
-    }
+  for (const { a, b } of segments) {
+    const [ax, az] = toWorld(a)
+    const [bx, bz] = toWorld(b)
+    positions.push(ax, 0, az, bx, 0, bz, bx, height, bz, ax, 0, az, bx, height, bz, ax, height, az)
   }
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
@@ -173,14 +171,12 @@ function wallGeometry(polygons: Point[][], height: number, toWorld: (point: Poin
   return geometry
 }
 
-function outlineGeometry(polygons: Point[][], height: number, toWorld: (point: Point) => [number, number]): THREE.BufferGeometry {
+function outlineGeometry(segments: PerimeterSegment[], height: number, toWorld: (point: Point) => [number, number]): THREE.BufferGeometry {
   const positions: number[] = []
-  for (const polygon of polygons) {
-    for (let index = 0; index < polygon.length; index += 1) {
-      const [ax, az] = toWorld(polygon[index])
-      const [bx, bz] = toWorld(polygon[(index + 1) % polygon.length])
-      positions.push(ax, height, az, bx, height, bz)
-    }
+  for (const { a, b } of segments) {
+    const [ax, az] = toWorld(a)
+    const [bx, bz] = toWorld(b)
+    positions.push(ax, height, az, bx, height, bz)
   }
   return new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
 }
@@ -444,16 +440,19 @@ export function FloorStack3D({ plans: incomingPlans, previewPlans = null, route:
         group.add(mesh)
         polygons.push(space.polygon)
       }
+      // Exterior prisms already have an inner face on the room boundary. Drawing
+      // a room wall there too makes those coplanar surfaces fight in the depth buffer.
+      const { interior, exterior } = wallSegments(polygons, Math.max(span / 240, 0.25), Math.max(span * 0.006, 0.6))
       const wall = fader(new THREE.MeshLambertMaterial({ transparent: true, side: THREE.DoubleSide, depthWrite: false }))
       const wallTop = fader(new THREE.LineBasicMaterial({ transparent: true }))
-      group.add(new THREE.Mesh(wallGeometry(polygons, wallHeight, toWorld), wall.material))
-      group.add(new THREE.LineSegments(outlineGeometry(polygons, wallHeight, toWorld), wallTop.material))
-      group.add(new THREE.LineSegments(outlineGeometry(polygons, 0.03, toWorld), wallTop.material))
+      group.add(new THREE.Mesh(wallGeometry(interior, wallHeight, toWorld), wall.material))
+      group.add(new THREE.LineSegments(outlineGeometry(interior, wallHeight, toWorld), wallTop.material))
+      group.add(new THREE.LineSegments(outlineGeometry(interior, 0.03, toWorld), wallTop.material))
 
       // Storey-high exterior walls around the floor's outline, bucketed into eight facings.
       const exteriorHeight = Math.min(Math.max(Math.min(plan.floor.height_m || 3, 4.5), span * 0.03), gap * 0.6)
       const buckets = new Map<number, number[]>()
-      for (const segment of perimeterSegments(polygons, Math.max(span / 240, 0.25), Math.max(span * 0.006, 0.6))) {
+      for (const segment of exterior) {
         const normal: [number, number] = [segment.normal[0], -segment.normal[1]]
         const key = (Math.round(Math.atan2(normal[1], normal[0]) / (Math.PI / 4)) + 8) % 8
         const positions = buckets.get(key) ?? []

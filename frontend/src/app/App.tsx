@@ -12,6 +12,7 @@ import type { DiscoveryPlace } from '../domain/discovery'
 import { editedFloors } from '../domain/editor'
 import { insideByFloor, markersOnFloor } from '../domain/emergency'
 import { buildPresentation, formatMetres } from '../domain/presentation'
+import { createRouteLink, readRouteLink, sharedRouteReply } from '../domain/route-link'
 import type { Decision } from '../domain/presentation'
 import type { AskOption, ClientContext, FloorPlan, FloorSummary, GuidanceEvent, Point, Reply, ReplyId, Route, Selection, ViewEffect } from '../domain/types'
 import { DebugPanel } from '../features/debug/DebugPanel'
@@ -43,6 +44,8 @@ function initialThemeMode(): ThemeMode {
 }
 
 export function App() {
+  const [routeLink, setRouteLink] = useState(() => readRouteLink(window.location.hash))
+  const pendingSharedRoute = useRef(routeLink.route)
   const inputRef = useRef<HTMLInputElement>(null)
   const editButtonRef = useRef<HTMLButtonElement>(null)
   const announcedPoint = useRef<Point | null>(null)
@@ -71,7 +74,7 @@ export function App() {
   const [missed, setMissed] = useState(false)
   const [sessionId, setSessionId] = useState('')
   const [buildings, setBuildings] = useState<BuildingSummary[]>([])
-  const [buildingId, setBuildingId] = useState(() => window.localStorage.getItem('wayfinder-building') ?? 'proc-factory-dev-003')
+  const [buildingId, setBuildingId] = useState(() => routeLink.route?.building_id ?? window.localStorage.getItem('wayfinder-building') ?? 'proc-factory-dev-003')
   const [loading, setLoading] = useState(false)
   const [queuedMessages, setQueuedMessages] = useState(0)
   const [loadError, setLoadError] = useState<UiError | null>(null)
@@ -125,7 +128,19 @@ export function App() {
   }, [themeMode])
 
   useEffect(() => {
+    const changed = () => {
+      const next = readRouteLink(window.location.hash)
+      pendingSharedRoute.current = next.route
+      setRouteLink(next)
+      if (next.route) setBuildingId(next.route.building_id)
+    }
+    window.addEventListener('hashchange', changed)
+    return () => window.removeEventListener('hashchange', changed)
+  }, [])
+
+  useEffect(() => {
     let cancelled = false
+    const sharedRoute = pendingSharedRoute.current?.building_id === buildingId ? pendingSharedRoute.current : null
     setBooting(true)
     window.localStorage.setItem('wayfinder-building', buildingId)
     setSessionId('')
@@ -140,7 +155,7 @@ export function App() {
     setReplyId('miss')
     setPlans(new Map())
     setFloors([])
-    setLoadError(null)
+    setLoadError(routeLink.error ? { message: routeLink.error, code: null, traceId: null, requestId: null } : null)
     const openSession = async (): Promise<Session> => {
       const imported = importedPlans.get(buildingId)
       if (imported) {
@@ -157,6 +172,8 @@ export function App() {
       }
       const items = await gateway.listBuildings().catch(() => [])
       if (!cancelled && items.length) setBuildings((current) => [...items, ...current.filter((item) => item.id.startsWith('imported:') && !items.some((next) => next.id === item.id))])
+      // A link opens its own session, so copied closures never alter another conversation.
+      if (sharedRoute) return gateway.createSession(buildingId, { step_free: sharedRoute.step_free })
       const recovered = readRecovery(buildingId)
       if (recovered) {
         try { return await gateway.getSession(recovered.id) } catch { /* create a new session below */ }
@@ -178,6 +195,17 @@ export function App() {
         setBooting(false)
         return
       }
+      let openedRoute: Route | null = null
+      if (sharedRoute) {
+        for (const element of sharedRoute.closed_ids) {
+          if (cancelled) return
+          const action = await gateway.createAction(session.id, { kind: 'set_closed', element_ref: element, closed: true })
+          await gateway.confirmAction(session.id, action.id)
+        }
+        if (cancelled) return
+        openedRoute = await gateway.createRoute(session.id, sharedRoute)
+        session = await gateway.getSession(session.id)
+      }
       const nextFloors = await gateway.listFloors(session.id)
       const nextPlans = await Promise.all(nextFloors.map(async (floor) => [floor.id, await gateway.getFloorPlan(session.id, floor.id)] as const))
       if (cancelled) return
@@ -190,6 +218,18 @@ export function App() {
       setPlans(new Map(nextPlans))
       setFloorId(nextFloors.find((floor) => floor.level === 0)?.id ?? nextFloors[0]?.id ?? '')
       writeRecovery({ id: session.id, buildingId: session.building_id, revision: session.revision, stepFree: session.preferences.step_free, lastRouteId: session.last_route_id ?? null, pendingActionId: session.pending_action_id ?? null })
+      if (openedRoute) {
+        pendingSharedRoute.current = null
+        setLiveReply(sharedRouteReply(openedRoute, nextPlans.map(([, plan]) => plan)))
+        setReplyId(openedRoute.reachable ? 'accepted' : 'unreachable')
+        setDecision(null)
+        setAppliedClosed(null)
+        setConfirmedNote(null)
+        setSampleId(null)
+        setDirectionIndex(0)
+        setFloorPinned(false)
+        setHereId(openedRoute.start_space_id)
+      }
       if (session.pending_action_id && !session.id.startsWith('local-')) {
         try {
           const action = await gateway.getAction(session.id, session.pending_action_id)
@@ -214,11 +254,12 @@ export function App() {
       if (!cancelled) {
         const ui = toUiError(error)
         if (ui.code === '30001_building_not_found') ui.message = copy.otherBuilding
+        if (sharedRoute) ui.message = `Could not open shared route: ${ui.message}`
         setLoadError(ui)
       }
     }).finally(() => { if (!cancelled) setBooting(false) })
     return () => { cancelled = true }
-  }, [buildingId, importedPlans])
+  }, [buildingId, importedPlans, routeLink])
 
   sessionRef.current = sessionId
 
@@ -298,6 +339,8 @@ export function App() {
     return () => { cancelled = true }
   }, [sessionId, guidedRouteId])
   const mapRoute = presentation.route ?? (guidedRouteId && guidedRoute?.id === guidedRouteId ? guidedRoute : null)
+  const shareUrl = mapRoute && !sampleId && !booting && sessionId && !sessionId.startsWith('local-')
+    ? createRouteLink(window.location.href, buildingId, mapRoute) : null
   const onWalkerMove = (moveFloorId: string, point: Point, source: 'walk' | 'jump') => {
     if (source === 'jump') jumpSeqRef.current += 1
     walkerRef.current = { floorId: moveFloorId, point, jumpSeq: jumpSeqRef.current }
@@ -706,7 +749,7 @@ export function App() {
           <button type="button" role="tab" aria-selected={activePanel === 'guide'} className={activePanel === 'guide' ? 'active' : undefined} onClick={() => { setActivePanel('guide') }}>Your Guide</button>
           {debugEnabled && <button type="button" role="tab" aria-selected={activePanel === 'debug'} className={activePanel === 'debug' ? 'active' : undefined} onClick={() => { setActivePanel('debug') }}>Debug</button>}
         </div>}
-        {!mapFocusActive || activePanel === 'guide' ? <GuidePanel query={query} presentation={presentation} loading={loading} queuedMessages={queuedMessages} directionIndex={directionIndex} onQuery={setQuery} onSubmit={submit} onChoose={(option) => { void chooseOption(option) }} onConfirm={confirm} onCancel={cancel} onReplay={() => { setDirectionIndex(0); setPlaying(true) }} onAskText={(text) => { void sendText(text) }} onReopen={() => { const ids = appliedClosed ?? presentation.closedIds; const named = ids[0] ? placeName(ids[0]) : ''; void sendText(named && named !== ids[0] ? `Reopen ${named}` : ids[0] ? `Reopen ${ids[0]}` : copy.reopen) }} onShowFloor={(nextFloor) => { setFloorId(nextFloor); setFloorPinned(true) }} hereName={hereId ? placeName(hereId) : null} inputMode={inputMode} onInputMode={changeInputMode} voice={voice} guidanceActive={guidanceActive} onStopGuidance={() => { void stopGuidance() }} inputRef={inputRef} label={placeName} floors={floors} /> : <DebugPanel selection={selection} presentation={presentation} effects={visibleEffects} facts={plan && selection ? selectionFacts(plan, selection) : null} markerArmed={markerArmed} onArmMarker={() => setMarkerArmed((armed) => !armed)} onLoad={loadReply} onLeavePreview={() => setSampleId(null)} />}
+        {!mapFocusActive || activePanel === 'guide' ? <GuidePanel query={query} presentation={presentation} loading={loading} queuedMessages={queuedMessages} directionIndex={directionIndex} onQuery={setQuery} onSubmit={submit} onChoose={(option) => { void chooseOption(option) }} onConfirm={confirm} onCancel={cancel} onReplay={() => { setDirectionIndex(0); setPlaying(true) }} onAskText={(text) => { void sendText(text) }} onReopen={() => { const ids = appliedClosed ?? presentation.closedIds; const named = ids[0] ? placeName(ids[0]) : ''; void sendText(named && named !== ids[0] ? `Reopen ${named}` : ids[0] ? `Reopen ${ids[0]}` : copy.reopen) }} onShowFloor={(nextFloor) => { setFloorId(nextFloor); setFloorPinned(true) }} hereName={hereId ? placeName(hereId) : null} inputMode={inputMode} onInputMode={changeInputMode} voice={voice} guidanceActive={guidanceActive} onStopGuidance={() => { void stopGuidance() }} inputRef={inputRef} label={placeName} floors={floors} shareUrl={shareUrl} /> : <DebugPanel selection={selection} presentation={presentation} effects={visibleEffects} facts={plan && selection ? selectionFacts(plan, selection) : null} markerArmed={markerArmed} onArmMarker={() => setMarkerArmed((armed) => !armed)} onLoad={loadReply} onLeavePreview={() => setSampleId(null)} />}
         </>}
       </div>
     </section>
