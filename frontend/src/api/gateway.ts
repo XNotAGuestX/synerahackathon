@@ -125,7 +125,7 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
       const items: BuildingSummary[] = []
       let cursor: string | null = null
       do {
-        const path: string = `/buildings?split=dev&limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`
+        const path: string = `/buildings?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`
         const result: CursorPage<BuildingSummary & { level_count?: number }> = await request(config, path)
         items.push(...result.items.map(mapBuilding))
         cursor = result.next_cursor ?? null
