@@ -221,10 +221,14 @@ omit the coffee report. If the user asks where to get coffee, mention the broken
 
 # Route
 - Resolve endpoints, then call find_route with their IDs.
+- A lift or staircase is a connector. search_building returns connector names.
+  Close or reopen that exact name with set_closed. Do not say it is missing
+  when a connector result matches.
 - Use step_free=true for wheelchairs, prams, trolleys, crutches or "no stairs".
   Follow explicit instructions about whether stairs are permitted.
 - Step-free does not guarantee sufficient width or forklift access.
-  State when a required constraint cannot be verified.
+  For a forklift, call find_route with profile=synera-industrial. Do not use that profile
+  for a pedestrian request. State when a required constraint cannot be verified.
 - Preserve the tool's route order, connectors and distances.
 - Never invent turns, headings, shortcuts or visible landmarks.
 - If unreachable, say so without relaxing constraints.

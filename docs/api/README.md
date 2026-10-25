@@ -25,6 +25,14 @@ Anthropic-Zugangsdaten. Nur `POST .../messages` nutzt den konfigurierten Agenten
 Für `.env`-Dateien explizit `uv run --env-file .env python -m final_agent.api`
 verwenden; `.env.example` enthält die unterstützten Umgebungsvariablen.
 
+Der Objekteditor ist standardmäßig eingefroren: Vorschläge und Bestätigungen für
+`add_object`, `update_object`, `remove_object`, `add_opening`, `add_connector` und
+`undo_edit` enden mit `403 10002_forbidden`, und der Agent bekommt diese Werkzeuge
+nicht angeboten. Sperrungen (`set_closed`) und Türen (`add_door`) bleiben erlaubt.
+Für die Entwicklung `uv run python -m final_agent.api --map-editing` oder
+`MAP_EDITING=1` setzen. Der Produktions-Build des Frontends (`npm run build`) enthält
+weder den Karteneditor noch die Debug-Ansicht; beide gibt es nur unter `npm run dev`.
+
 Die Oberfläche führt einen Chatverlauf mit sofort geleertem Eingabefeld, Sendestatus
 und Retry. Ein Retry wiederholt dieselbe Anfrage mit demselben Idempotency-Key.
 `GET .../messages` lädt den Verlauf nach einem Reload; Session und `last_route_id`

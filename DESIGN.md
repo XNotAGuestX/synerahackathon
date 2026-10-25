@@ -179,7 +179,7 @@ Normative Details stehen in OpenAPI. Hier steht die Semantik.
 | 500 | `00001_internal` | Unerwarteter Fehler |
 | 429 | `00002_rate_limited` | Gateway- oder App-Limit. Mit `Retry-After`. |
 | 401 | `10001_unauthenticated` | `API_TOKEN` ist gesetzt, Token fehlt oder stimmt nicht. |
-| 403 | `10002_forbidden` | Authentifiziert, aber ohne Recht. v1 kann das ungenutzt lassen. |
+| 403 | `10002_forbidden` | Authentifiziert, aber ohne Recht. Auch bei eingefrorenem Objekteditor: `POST .../actions` und Bestätigungen für `add_object`, `update_object`, `remove_object`, `add_opening`, `add_connector`, `undo_edit` ohne `MAP_EDITING=1` bzw. `--map-editing`; Detail `{"field": "kind", "code": "map_editing_disabled"}`. |
 | 400 | `20001_validation_failed` | Feldweise `details` |
 | 400 | `20010_idempotency_key_required` | POST ohne Schlüssel |
 | 409 | `20011_idempotency_key_mismatch` | Gleicher Schlüssel, anderer Body |

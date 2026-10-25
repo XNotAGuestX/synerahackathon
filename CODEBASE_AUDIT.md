@@ -1,6 +1,8 @@
 # Codebase audit — 24 October 2026
 
-**Implementation handoffs, prepared 25 October 2026:** [Level 3 — floors, buildings and walkways](LEVEL_3_HANDOFF.md) and [Level 4 — building creation and correction from plans](LEVEL_4_HANDOFF.md). These are implementation briefs based on this audit, not claims that the missing features are complete. The audit evidence below retains its original verification date.
+**Superseded for planning on 25 October 2026.** This file is a historical snapshot. Level 3 walkways and Level 4 plan import were implemented after it was written. The current compliance judgment is in the [README](README.md). Today's remaining work is [docs/TODOLIST-2026-10-25.md](docs/TODOLIST-2026-10-25.md). Do not treat the "missing walkway" and "missing plan ingestion" rows below as the current backlog.
+
+**Implementation handoffs, prepared 25 October 2026:** [Level 3 — floors, buildings and walkways](LEVEL_3_HANDOFF.md) and [Level 4 — building creation and correction from plans](LEVEL_4_HANDOFF.md) were briefs for work that has since landed in the CLI. Their acceptance evidence is [examples/level34/README.md](examples/level34/README.md). The audit evidence below retains its original verification date.
 
 **Follow-up source inspection — 25 October 2026:** the primary branch has advanced to `8151c17`. Subsequent work added CLI model selection, aggregate benchmark token usage and model-specific configured cost estimates with running totals. Those changes supersede the model-selection/aggregate-usage gaps in the configuration rows below; per-question latency and external price accuracy were not verified. The original audit snapshot and test results remain historical; no implementation tests were rerun for this documentation handoff.
 

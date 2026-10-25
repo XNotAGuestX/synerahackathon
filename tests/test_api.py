@@ -141,6 +141,8 @@ class ApiTests(unittest.TestCase):
 
     def make_app(self, **options):
         options.setdefault("speech_factory", lambda: self.speech)
+        # The suite exercises the object editor; the frozen default has its own test.
+        options.setdefault("map_editing", True)
         return create_app(self.data, self.root / "output", notes_database=self.root / "notes.sqlite3",
                           client_factory=lambda: self.model, clock=lambda: self.now, api_token="", **options)
 
@@ -532,6 +534,51 @@ class ApiTests(unittest.TestCase):
         confirmed = self.post(path + "/actions/" + action["id"] + "/confirmations", status=200, schema="Action").json()
         self.assertEqual(confirmed["result"]["kind"], proposal["kind"])
         return action, confirmed["result"]
+
+    def tool_names_offered(self, app):
+        """Names of the tools the agent sends to the model on the first request of a turn."""
+        requests = []
+
+        def transport(request):
+            requests.append(json.loads(request.content))
+            text = answer("Done.", "close").text
+            return httpx2.Response(200, json={
+                "id": "msg_test", "type": "message", "role": "assistant", "model": "claude-sonnet-5-5",
+                "content": [{"type": "text", "text": text}], "stop_reason": "end_turn",
+                "stop_sequence": None, "usage": {"input_tokens": 10, "output_tokens": 5},
+            })
+
+        app.state.service.client_factory = lambda: anthropic.Anthropic(
+            api_key="test-only", max_retries=0, http_client=httpx2.Client(transport=httpx2.MockTransport(transport)),
+        )
+        client = TestClient(app)
+        self.addCleanup(client.close)
+        session = client.post(self.base + "/sessions", json={"building_id": "test"}, headers={"Idempotency-Key": str(uuid4())}).json()
+        client.post(self.path(session) + "/messages", json={"text": "Add a desk."}, headers={"Idempotency-Key": str(uuid4())})
+        return {tool["name"] for tool in requests[0]["tools"]}
+
+    def test_object_editor_is_frozen_unless_enabled(self):
+        with mock.patch.dict("os.environ", {"MAP_EDITING": ""}):
+            frozen = self.make_app(map_editing=None)
+        client = TestClient(frozen)
+        self.addCleanup(client.close)
+        session = client.post(self.base + "/sessions", json={"building_id": "test"}, headers={"Idempotency-Key": str(uuid4())}).json()
+        path = self.path(session)
+        for proposal in ({"kind": "add_object", "type": "desk", "space": "right"}, {"kind": "undo_edit"}):
+            response = client.post(path + "/actions", json=proposal, headers={"Idempotency-Key": str(uuid4())})
+            self.assertEqual(response.status_code, 403, response.text)
+            self.validate(response, "Error")
+            self.assertEqual(response.json()["code"], "10002_forbidden")
+            self.assertEqual(response.json()["details"], [{"field": "kind", "code": "map_editing_disabled"}])
+        # Closures and doors are not object edits and stay available.
+        closure = client.post(path + "/actions", json={"kind": "set_closed", "element_ref": "lift", "closed": True}, headers={"Idempotency-Key": str(uuid4())})
+        self.assertEqual(closure.status_code, 201, closure.text)
+        # The agent is not offered the edit tools while frozen.
+        offered = self.tool_names_offered(self.make_app(map_editing=False))
+        self.assertIn("set_closed", offered)
+        self.assertFalse(offered & {"add_object", "update_object", "remove_object", "add_opening", "add_connector", "undo_last_edit"})
+        with mock.patch.dict("os.environ", {"MAP_EDITING": "1"}):
+            self.assertTrue(self.make_app(map_editing=None).state.service.map_editing)
 
     def plan(self, session, floor_id="F0"):
         return self.validate(self.client.get(self.path(session) + f"/floors/{floor_id}/plan"), "FloorPlan")

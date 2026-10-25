@@ -12,7 +12,7 @@ from matplotlib.patches import Arc
 OUTPUT = Path(__file__).with_name("new-plan.png")
 
 
-def main() -> None:
+def draw(output: Path, level: int = 0, elevation_m: float = 0.0) -> None:
     fig, ax = plt.subplots(figsize=(12, 8.5), dpi=100)
     ax.set_xlim(0, 1200)
     ax.set_ylim(850, 0)
@@ -24,7 +24,7 @@ def main() -> None:
     top, bottom = 230, 550
     wall, thin = 9, 3
 
-    ax.text(600, 82, "LEVEL 0   ·   Floor 0   ·   elevation 0 m", ha="center", va="center",
+    ax.text(600, 82, f"LEVEL {level}   ·   Floor {level}   ·   elevation {elevation_m:g} m", ha="center", va="center",
             fontsize=22, weight="bold", color="#182433")
     ax.text(600, 125, "All doors step-free; width 1.2 m", ha="center", va="center",
             fontsize=17, color="#182433")
@@ -75,8 +75,12 @@ def main() -> None:
 
     ax.text(600, 780, "Source: generated for this demo · CC0 1.0", ha="center", va="center",
             fontsize=12, color="#526272")
-    fig.savefig(OUTPUT, dpi=100, facecolor="white")
+    fig.savefig(output, dpi=100, facecolor="white")
     plt.close(fig)
+
+
+def main() -> None:
+    draw(OUTPUT)
 
 
 if __name__ == "__main__":

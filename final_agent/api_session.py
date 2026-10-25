@@ -43,6 +43,7 @@ ERRORS = {
     "00001_internal": (500, "An internal error occurred."),
     "00002_rate_limited": (429, "Request rate limit exceeded."),
     "10001_unauthenticated": (401, "Authentication is required."),
+    "10002_forbidden": (403, "This operation is not allowed on this server."),
     "20001_validation_failed": (400, "Request validation failed."),
     "20010_idempotency_key_required": (400, "Idempotency-Key is required."),
     "20011_idempotency_key_mismatch": (409, "Idempotency key does not match the request."),
@@ -224,9 +225,11 @@ class SessionService:
         self, data_directory: Path, output_directory: Path, *, notes_database: Path | None = None,
         client_factory: Callable | None = None, clock: Callable = utc_now, new_id: Callable = identifier,
         model_timeout: float = 60, cursor_secret: bytes | None = None,
-        speech: SpeechProvider | None = None,
+        speech: SpeechProvider | None = None, map_editing: bool = True,
     ) -> None:
         self.speech, self.clips = speech, ClipCache()
+        # False freezes the object editor (object_edits.EDIT_KINDS) for the API and the agent; closures and doors stay.
+        self.map_editing = map_editing
         self.first_instruction_wait_s = 2.5
         self.data_directory = Path(data_directory).resolve()
         self.output_directory = Path(output_directory)
@@ -604,10 +607,15 @@ class SessionService:
         pair = {proposal["first_space"], proposal["second_space"]}
         return next((door for _, door in sorted(building_map.openings.items()) if door["kind"] == "door" and set(door["space_ids"]) == pair), None)
 
+    def require_editing(self, proposal: dict) -> None:
+        if not self.map_editing and proposal.get("kind") in object_edits.EDIT_KINDS:
+            raise ApiError("10002_forbidden", [{"field": "kind", "code": "map_editing_disabled"}])
+
     def propose(self, session: SessionState, proposal: dict, revision: int | None) -> dict:
         with session.lock:
             self.expire(session)
             self.match(session, revision)
+            self.require_editing(proposal)
             if session.pending_action_id is not None:
                 raise ApiError("30010_action_conflict")
             if proposal["kind"] in object_edits.EDIT_KINDS:
@@ -659,6 +667,7 @@ class SessionService:
             self.match(session, revision)
             if confirm:
                 proposal = action["proposal"]
+                self.require_editing(proposal)
                 if proposal["kind"] == "set_closed":
                     proposal = self.validate_proposal(session, proposal)
                     with session.map.transaction():
@@ -1274,7 +1283,9 @@ class TurnTools:
             undo_last_edit, show_location, show_route,
         )}
         originals = make_tools(work.map, service.output_directory / work.id, notes_store=store, session_id=work.id)
-        self.tools = [ObservedTool(overrides.get(tool.name, tool), self.observe, step_free, self.failed) for tool in originals]
+        # With the editor frozen the agent is not offered the object-edit tools, so it never promises such an edit.
+        frozen = set() if getattr(service, "map_editing", True) else {"add_object", "update_object", "remove_object", "add_opening", "add_connector", "undo_last_edit"}
+        self.tools = [ObservedTool(overrides.get(tool.name, tool), self.observe, step_free, self.failed) for tool in originals if tool.name not in frozen]
         self.tools += [ArgumentCheckedTool(function) for function in (start_guidance, stop_guidance)]
 
     def guidance_problem(self) -> str | None:

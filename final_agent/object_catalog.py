@@ -1,7 +1,6 @@
 """Shared visual defaults. Only committed imports or an explicit sync register new types."""
 
 from contextlib import contextmanager
-import fcntl
 import hashlib
 import json
 import math
@@ -49,16 +48,42 @@ def object_height(asset: dict, catalog: dict | None = None) -> float:
     return entry["height_m"] if entry else estimate_object_height(asset, catalog)[0]
 
 
+def _lock_fd(fd: int) -> None:
+    # fcntl is Unix-only. Windows locks a byte range, so the lock file needs one byte.
+    if os.name == "nt":
+        import msvcrt
+        if os.lseek(fd, 0, os.SEEK_END) == 0:
+            os.write(fd, b"\0")
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+        return
+    import fcntl
+    fcntl.flock(fd, fcntl.LOCK_EX)
+
+
+def _unlock_fd(fd: int) -> None:
+    if os.name == "nt":
+        import msvcrt
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        return
+    import fcntl
+    fcntl.flock(fd, fcntl.LOCK_UN)
+
+
 @contextmanager
 def _catalog_lock(path: Path):
     # A stable lock outside the source tree survives os.replace and serializes processes.
     key = hashlib.sha256(str(path.resolve()).encode()).hexdigest()[:24]
-    with (Path(tempfile.gettempdir()) / f"building-object-catalog-{key}.lock").open("a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+    fd = os.open(Path(tempfile.gettempdir()) / f"building-object-catalog-{key}.lock", os.O_CREAT | os.O_RDWR)
+    try:
+        _lock_fd(fd)
         try:
             yield
         finally:
-            fcntl.flock(lock, fcntl.LOCK_UN)
+            _unlock_fd(fd)
+    finally:
+        os.close(fd)
 
 
 def register_asset_types(assets: list[dict], path: Path = CATALOG_PATH) -> list[str]:

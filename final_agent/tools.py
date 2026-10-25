@@ -180,7 +180,7 @@ def make_tools(
             query: Substrings that must all appear in a name, room number, id or type, e.g. "3d printer", "2.03",
                 "lecture hall". May be empty if a filter is given.
             floor_level: Only this floor (0 = ground floor, -1 = basement). Omit to search all floors.
-            kind: "all" (default), "space" (rooms, halls, corridors, stairs, ...) or "asset" (things in rooms).
+            kind: "all" (default), "space", "asset", or "connector" (stairs and lifts, including "Office lift").
             room_type: Exact room subtype of a space, e.g. "office", "lobby", "warehouse_zone". Returns spaces only.
             asset_type: Exact asset type, e.g. "chair", "desk", "printer". Returns assets only.
             space_type: Exact broad space type: room, hall, corridor, stair, lift or outdoor. Returns spaces only.
@@ -463,7 +463,7 @@ def make_tools(
     @register
     def find_route(
         start: str, destination: str, step_free: bool = False, via: list[str] | None = None,
-        min_width_m: float = 0.0, entrance: str | None = None,
+        min_width_m: float = 0.0, entrance: str | None = None, profile: str = "kit-1.1.0",
     ) -> str:
         """Find a shortest route under the kit-1.1.0 model, with directions and equivalent walking metres.
 
@@ -472,8 +472,9 @@ def make_tools(
         uses room outlines with wall clearance; stairs cost 2 m per metre climbed, lifts 15 m plus 1 m per
         metre of height. Equipment is not an obstacle; there is no outside shortcut. The inherited kit
         fallback for disconnected in-room geometry estimates length as 1.5 times straight-line distance;
-        it does not prove a drawable walk. Step-free/width constraints do not establish forklift access
-        or enforce destination-only production bays.
+        it does not prove a drawable walk. profile=synera-industrial keeps those lengths, requires
+        openings of at least 3 m, and refuses to cross production, assembly or additive bays.
+        Those bays can still be the start or the delivery stop. The default profile is kit-1.1.0.
 
         Respects current closures and replaces the active route for show_route. A failed request clears
         the previous active route; unreachable is an error, never a reason to relax constraints. This
@@ -487,9 +488,10 @@ def make_tools(
             min_width_m: Only use doors at least this wide in metres (e.g. a 1.1 m wide trolley). 0 = any.
             entrance: Optional entrance opening id the person came in through; it must open into the start
                 room and itself satisfy step_free and min_width_m. Validates entry without adding distance.
+            profile: kit-1.1.0 for ordinary walking, or synera-industrial for a forklift.
         """
         try:
-            result = building_map.route(start, destination, step_free, via, min_width_m, entrance)
+            result = building_map.route(start, destination, step_free, via, min_width_m, entrance, profile)
         except MapError as error:
             raise ToolError(str(error)) from error
         return as_json(route_with_notes(result))

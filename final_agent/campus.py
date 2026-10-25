@@ -12,7 +12,7 @@ from pathlib import Path
 
 import networkx as nx
 
-from .building_map import DOOR_PREFIX, BuildingMap, MapError, door_landing, outline, walking_path
+from .building_map import DOOR_PREFIX, BuildingMap, MapError, door_landing, outline, require_navigation_records, walking_path
 from .storage import JsonBuildingStore
 
 
@@ -43,6 +43,7 @@ class Campus:
     def _register(self, building_id: str, name: str, path: str | Path, revision: int = 1):
         source = Path(path).resolve()
         data = JsonBuildingStore.load(source)
+        require_navigation_records(data)
         building = data.get("building", data)
         if building.get("id") != building_id:
             raise MapError(f"Building id {building_id!r} does not match source id {building.get('id')!r}.")
