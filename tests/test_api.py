@@ -248,6 +248,21 @@ class ApiTests(unittest.TestCase):
         self.assertTrue(explicit["step_free"])
         self.assertEqual(self.client.get(path + "/routes/" + route["id"]).json(), route)
 
+    def test_forklift_comparison_does_not_replace_the_walking_route(self):
+        session = self.session()
+        path = self.path(session)
+        walking = self.post(path + "/routes", {"start": "printer", "destination": "upstairs"}, schema="Route").json()
+        self.assertEqual(walking["profile"], "kit-1.1.0")
+        before = self.client.get(path).json()
+        compared = self.post(path + "/routes", {
+            "start": "printer", "destination": "upstairs", "profile": "synera-industrial", "persist": False,
+        }, schema="Route").json()
+        self.assertEqual(compared["profile"], "synera-industrial")
+        after = self.client.get(path).json()
+        self.assertEqual(after["last_route_id"], walking["id"])
+        self.assertEqual(after["revision"], before["revision"])
+        self.assertEqual(self.client.get(path + "/routes/" + compared["id"]).status_code, 404)
+
     def test_session_isolation_closures_and_source_preservation(self):
         first, other = self.session(), self.session()
         path = self.path(first)

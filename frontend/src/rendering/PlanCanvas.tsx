@@ -3,9 +3,10 @@ import type { PointerEvent as ReactPointerEvent } from 'react'
 import type { Asset, FloorPlan, Opening, Point, Route, Selection } from '../domain/types'
 import type { Connector } from '../domain/types'
 import { interiorPoint, spaceAt } from '../domain/editor'
+import { openingAccessNote, spaceAccessNote } from '../domain/route-compare'
 import { connectorNoteFromPlan, escapeSpaceIds, landmarkIds, wayfindingRole } from '../domain/live'
 import type { PreviewObjects } from '../domain/presentation'
-import { MapTooltip, assetTip, openingTip, spaceTip } from './MapTooltip'
+import { MapTooltip, assetTip, spaceTip } from './MapTooltip'
 import { WalkPad } from './WalkPad'
 
 export type GhostAsset = { asset: Asset; layer: number }
@@ -36,6 +37,11 @@ type PlanCanvasProps = {
   /** Shown instead of the plan while it is missing, e.g. during loading. */
   emptyText?: string
   route: Route | null
+  previousRoute?: Route | null
+  /** Second tape from profile=synera-industrial. The walking route stays the one being followed. */
+  forkliftRoute?: Route | null
+  /** Door and bay notes that explain why the forklift tape differs. */
+  forkliftCompare?: boolean
   spaceReasons: Map<string, string>
   assetIds: Set<string>
   closedIds: string[]
@@ -151,6 +157,9 @@ function InteractivePlan({
   plan,
   floorName,
   route,
+  previousRoute = null,
+  forkliftRoute = null,
+  forkliftCompare = false,
   spaceReasons,
   assetIds,
   closedIds,
@@ -316,7 +325,8 @@ function InteractivePlan({
   const updateHover = (event: React.MouseEvent<SVGElement>, selection: Selection) => { const rect = event.currentTarget.ownerSVGElement?.getBoundingClientRect(); if (rect) setHoverPosition({ x: event.clientX - rect.left + 14, y: event.clientY - rect.top + 14 }); setHovered(selection) }
 
   const selectSpace = (space: FloorPlan['spaces'][number]) => {
-    onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNoteFromPlan(plan, space.id) })
+    const note = spaceAccessNote(space.room_type, connectorNoteFromPlan(plan, space.id), forkliftCompare)
+    onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note })
     if (!allowSelect()) return
     onSelect({
       kind: 'space',
@@ -324,7 +334,7 @@ function InteractivePlan({
       name: space.name,
       floorId: plan.floor.id,
       floorName: plan.floor.name,
-      note: connectorNoteFromPlan(plan, space.id),
+      note,
     })
   }
 
@@ -506,36 +516,33 @@ function InteractivePlan({
               </g>
             )
           })}
-          {plan.openings.map((opening) => (
+          {plan.openings.map((opening) => {
+            const access = openingAccessNote(opening, forkliftCompare)
+            const openingSelection = { kind: 'opening' as const, id: opening.id, name: `${opening.kind}, ${opening.width_m} m`, floorId: plan.floor.id, floorName: plan.floor.name, note: access }
+            return (
             <circle
               key={opening.id}
               cx={opening.position[0]}
               cy={opening.position[1]}
               r={opening.kind === 'entrance' ? 0.72 : 0.42}
-              className={['opening', opening.kind, selectionId === opening.id ? 'picked' : '', opening.step_free ? '' : 'stepped'].filter(Boolean).join(' ')}
+              className={['opening', opening.kind, selectionId === opening.id ? 'picked' : '', opening.step_free ? '' : 'stepped', closedIds.includes(opening.id) ? 'closed' : '', forkliftCompare && opening.width_m < 3 ? 'forklift-narrow' : ''].filter(Boolean).join(' ')}
               role="button"
               tabIndex={-1}
-              onMouseEnter={(event) => updateHover(event, openingTip(plan, opening))}
+              onMouseEnter={(event) => updateHover(event, openingSelection)}
               onMouseLeave={() => setHovered(null)}
-              aria-label={`${opening.kind}, ${opening.width_m} m`}
+              aria-label={`${opening.kind}, ${opening.width_m} m. ${access}`}
               onClick={(event) => {
                 if (pointerMode) return
                 event.stopPropagation()
-                onFocusSelection({ kind: 'opening', id: opening.id, name: `${opening.kind}, ${opening.width_m} m`, floorId: plan.floor.id, floorName: plan.floor.name, note: opening.step_free ? 'Step-free' : 'Has a step' })
+                onFocusSelection(openingSelection)
                 if (!allowSelect()) return
-                onSelect({
-                  kind: 'opening',
-                  id: opening.id,
-                  name: `${opening.kind}, ${opening.width_m} m`,
-                  floorId: plan.floor.id,
-                  floorName: plan.floor.name,
-                  note: opening.step_free ? 'Step-free' : 'Has a step',
-                })
+                onSelect(openingSelection)
               }}
             >
-              <title>{`${opening.kind}, ${opening.width_m} m`}</title>
+              <title>{`${opening.kind}, ${opening.width_m} m. ${access}`}</title>
             </circle>
-          ))}
+            )
+          })}
           {showAssets && orderedAssets.map((asset) => {
             const landmark = landmarkIds(plan, stepPoint).includes(asset.id)
             const highlighted = assetIds.has(asset.id) || landmark
@@ -624,6 +631,17 @@ function InteractivePlan({
             </g>
           )}
           {wallPoint && <circle className="wall-cursor" cx={wallPoint[0]} cy={wallPoint[1]} r={0.45} aria-hidden="true" />}
+          {forkliftRoute?.reachable && forkliftRoute.legs.filter((leg) => leg.floor_id === plan.floor.id).map((leg, index) => (
+            <polyline key={`forklift-route-${index}`} points={leg.points.map(([x, y]) => `${x},${y}`).join(' ')} className="route-forklift" />
+          ))}
+          {previousRoute?.reachable && previousRoute.legs.filter((leg) => leg.floor_id === plan.floor.id).map((leg, index) => (
+            <polyline key={`previous-route-${index}`} points={leg.points.map(([x, y]) => `${x},${y}`).join(' ')} className="route-previous" />
+          ))}
+          {route?.reachable && previousRoute?.reachable && route.legs.filter((leg) => leg.floor_id === plan.floor.id).map((leg, index) => {
+            const oldLeg = previousRoute.legs.find((candidate) => candidate.floor_id === leg.floor_id)
+            const point = leg.points.find((candidate) => !oldLeg?.points.some((oldPoint) => Math.hypot(candidate[0] - oldPoint[0], candidate[1] - oldPoint[1]) < 1.5))
+            return point ? <circle key={`route-change-${index}`} className="route-change-node" cx={point[0]} cy={point[1]} r={0.7}><title>Route changed here</title></circle> : null
+          })}
           {legs.map(({ leg, index }) => {
             const previous = route?.legs[index - 1]
             const next = route?.legs[index + 1]
@@ -699,6 +717,9 @@ function InteractivePlan({
             <span><i className="legend-sample sample-equipment" /><b>Equipment</b></span>
             <span><i className="legend-sample sample-opening" /><b>Door / connector</b></span>
             <span><i className="legend-sample sample-route" /><b>Current route</b></span>
+            {forkliftCompare && <span><i className="legend-sample sample-forklift" /><b>Forklift route</b></span>}
+            <span><i className="legend-sample sample-previous-route" /><b>Previous route</b></span>
+            <span><i className="legend-sample sample-change" /><b>Reroute point</b></span>
             <span><i className="legend-sample sample-closed" /><b>Closed / blocked</b></span>
           </div>
         )}

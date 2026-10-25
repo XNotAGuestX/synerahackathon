@@ -51,7 +51,7 @@ Eine brechende Änderung braucht eine neue ADR und `/api/v2`. Der Server sendet 
 - FR-2: Sitzung anlegen, Stufenfrei-Präferenz ersetzen, Sitzung löschen.
 - FR-3: Zeichenbare Geometrie pro Etage lesen, inklusive bestätigter neuer Türen. `closed_ids` entspricht der Sitzung derselben `revision`.
 - FR-4: Räume und Geräte nach Wörtern suchen.
-- FR-5: Route berechnen und die Polylinie pro Etage liefern. Unerreichbar bleibt eine Route mit `reachable: false`.
+- FR-5: Route berechnen und die Polylinie pro Etage liefern. Unerreichbar bleibt eine Route mit `reachable: false`. Optionales `profile` ist `kit-1.1.0` oder `synera-industrial`. `persist: false` liefert nur den Vergleich und ändert `last_route_id` und `revision` nicht.
 - FR-6: Einen Satz senden und Antworttext, `understood`, `effects` und die zitierten Routen erhalten.
 - FR-7: Schließen, Wiederöffnen oder eine Tür vorschlagen. Erst die Bestätigung ändert die Sitzung.
 - FR-8: Den Dialog seitenweise lesen. Nach einem Reload stellen `last_route_id` und `pending_action_id` die Karte wieder her.

@@ -62,6 +62,9 @@ class RouteCreate(Input):
     step_free: bool | None = None
     via: list[Reference] = Field(default_factory=list, max_length=8)
     current_space_id: str | None = None
+    profile: Literal["kit-1.1.0", "synera-industrial"] | None = None
+    # False returns a snapshot for comparison and leaves the session route untouched.
+    persist: bool = True
 
 
 class ClientContext(Input):

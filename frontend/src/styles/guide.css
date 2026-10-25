@@ -294,6 +294,24 @@
 .chat-route-card.is-unreachable { border-top-color: color-mix(in srgb, var(--color-danger) 48%, var(--color-border)); }
 .chat-route-card > strong { font: var(--font-weight-semibold) var(--font-size-title) var(--font-family-title); }
 .chat-route-card > span { color: var(--color-text-secondary); font-size: var(--font-size-caption); }
+.route-task-summary { flex-basis: 100%; display: grid; gap: var(--space-3); padding: var(--space-3); border: 1px solid color-mix(in srgb, var(--color-primary) 28%, var(--color-border)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface)); }
+.route-task-summary[data-route-status='blocked'] { border-color: color-mix(in srgb, var(--color-danger) 42%, var(--color-border)); background: color-mix(in srgb, var(--color-danger) 6%, var(--color-surface)); }
+.route-task-heading { display: flex; align-items: center; gap: var(--space-2); font-size: var(--font-size-label); }
+.route-status-mark { display: grid; place-items: center; width: 1.2rem; height: 1.2rem; border-radius: 50%; background: var(--color-primary); color: var(--color-on-primary); font-size: var(--font-size-caption); }
+[data-route-status='blocked'] .route-status-mark { background: var(--color-danger); }
+.route-task-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.route-task-grid span { display: grid; gap: 2px; min-width: 0; }
+.route-task-grid small { color: var(--color-text-secondary); font-size: var(--font-size-caption); }
+.route-task-grid b { overflow-wrap: anywhere; font-size: var(--font-size-label); font-weight: var(--font-weight-medium); }
+.route-task-reason { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-caption); line-height: var(--line-height-body); }
+.route-change-summary { flex-basis: 100%; display: grid; grid-template-columns: 1fr auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-3); border-left: 3px solid var(--color-warning); background: var(--color-warning-soft); font-size: var(--font-size-caption); }
+.route-change-label { grid-column: 1 / -1; color: var(--color-text-secondary); font-size: var(--font-size-caption); text-transform: uppercase; letter-spacing: 0.06em; }
+.route-change-summary div { display: flex; align-items: baseline; gap: var(--space-1); }
+.route-change-summary strong { font: var(--font-weight-semibold) var(--font-size-label) var(--font-family-mono); }
+.route-change-arrow { margin: 0 var(--space-1); color: var(--color-text-secondary); }
+.route-change-increase, .route-change-decrease { font: var(--font-weight-semibold) var(--font-size-label) var(--font-family-mono); }
+.route-change-increase { color: var(--color-danger); }
+.route-change-decrease { color: var(--color-primary); }
 /* Beside a visible map this is a secondary link; on phones it is the way to the map. */
 .chat-route-card .route-show {
   flex-basis: 100%;
@@ -436,3 +454,13 @@
   .confirm-row { grid-template-columns: 1fr; }
   .debug-facts { grid-template-columns: 1fr; }
 }
+
+.route-clear-comparison { flex-basis: 100%; border: 0; background: transparent; color: var(--color-text-secondary); font-size: var(--font-size-caption); text-align: left; text-decoration: underline; cursor: pointer; }
+.route-clear-comparison:hover { color: var(--color-text-primary); }
+@media (max-width: 560px) { .route-task-grid { grid-template-columns: 1fr; } .route-change-summary { grid-template-columns: 1fr; } .route-change-summary b { justify-self: start; } }
+
+.chat-route-card ol { list-style: none; padding-left: 0; }
+.chat-route-card li { display: flex; align-items: flex-start; gap: var(--space-3); }
+.route-step-number { display: grid; place-items: center; flex: 0 0 auto; width: 1.25rem; height: 1.25rem; border: 1px solid var(--color-border-strong); border-radius: 50%; color: var(--color-text-secondary); font: var(--font-weight-medium) var(--font-size-caption) var(--font-family-mono); }
+.chat-route-card li span:last-child { display: grid; gap: 2px; }
+.chat-route-card li span:last-child b { color: var(--color-text-secondary); font-size: var(--font-size-caption); font-weight: var(--font-weight-medium); }

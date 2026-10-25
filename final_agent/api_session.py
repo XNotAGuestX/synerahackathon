@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from . import object_edits
 from .agent import EFFORT, MODEL, MODELS, VOICE_EFFORT, VOICE_MODEL, VOICE_PROMPT, BuildingAgent, MissingCredentialsError
-from .building_map import BuildingMap, MapError, RouteResult
+from .building_map import BuildingMap, MapError, RouteResult, canonical_profile
 from .live import LiveState
 from .narration import landmark_candidates, narrate
 from .speech import REALTIME_URL, ClipCache, SpeechError, SpeechProvider
@@ -476,7 +476,7 @@ class SessionService:
                 ]) from error
             raise ApiError("30004_place_not_found", [{"field": field_name, "code": "not_found"}]) from error
 
-    def route_record(self, session: SessionState, route: RouteResult | None, stops: list[str], step_free: bool, reason: str = "") -> dict:
+    def route_record(self, session: SessionState, route: RouteResult | None, stops: list[str], step_free: bool, reason: str = "", profile: str | None = None) -> dict:
         directions = []
         legs = []
         if route is not None:
@@ -499,10 +499,11 @@ class SessionService:
                     legs.append({"floor_id": floor_id, "floor_level": session.map.floor_level(floor_id), "points": [list(point) for point in points]})
         else:
             directions = [{"text": reason, "floor_id": None, "at": None}]
+        recorded_profile = canonical_profile(profile if profile is not None else (route.route_profile if route is not None else None))
         return {
             "schema_version": 1, "id": self.new_id(), "session_id": session.id,
             "reachable": route is not None, "length_m": round(route.length_m, 2) if route else None,
-            "step_free": step_free, "via": stops[1:-1], "closed_ids": sorted(session.map.closed),
+            "step_free": step_free, "profile": recorded_profile, "via": stops[1:-1], "closed_ids": sorted(session.map.closed),
             "start_space_id": stops[0], "destination_space_id": stops[-1],
             "space_path": list(route.space_path) if route else [], "directions": directions,
             "legs": legs, "created_at": timestamp(self.clock()),
@@ -519,13 +520,20 @@ class SessionService:
             stops = [self.resolve(session.map, ref, "start" if i == 0 else "destination" if i == len(references) - 1 else "via")
                      for i, ref in enumerate(references)]
             step_free = body.get("step_free", session.preferences["step_free"])
+            profile = canonical_profile(body.get("profile"))
+            # A comparison route must not replace the walking route guidance follows.
+            persist = body.get("persist", True)
             try:
-                route = session.map.route(stops[0], stops[-1], step_free, stops[1:-1])
-                result = self.route_record(session, route, stops, step_free)
+                route = session.map.route(stops[0], stops[-1], step_free, stops[1:-1], profile=profile)
+                result = self.route_record(session, route, stops, step_free, profile=profile)
             except MapError as error:
+                if error.reason == "invalid_field":
+                    raise ApiError("20001_validation_failed", [{"field": error.field or "profile", "code": "invalid", "message": str(error)}]) from error
                 if error.reason != "unreachable":
                     raise
-                result = self.route_record(session, None, stops, step_free, str(error))
+                result = self.route_record(session, None, stops, step_free, str(error), profile=profile)
+            if not persist:
+                return copy.deepcopy(result)
             session.routes[result["id"]] = result
             if result["reachable"]:
                 session.route_results[result["id"]] = route

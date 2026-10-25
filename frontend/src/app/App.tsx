@@ -65,6 +65,7 @@ export function App() {
   const [demoOpen, setDemoOpen] = useState(false)
   const [forkliftOn, setForkliftOn] = useState(true)
   const [forkliftRoute, setForkliftRoute] = useState<Route | null>(null)
+  const [forkliftPending, setForkliftPending] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [mapView, setMapView] = useState<Presentation>(emptyPresentation)
   const [latestReply, setLatestReply] = useState<Reply | null>(null)
@@ -148,9 +149,11 @@ export function App() {
     const destination = route?.destination_space_id
     if (!forkliftOn || !sessionId || !route?.reachable || !start || !destination) {
       setForkliftRoute(null)
+      setForkliftPending(false)
       return
     }
     let cancelled = false
+    setForkliftPending(true)
     gateway.createRoute(sessionId, {
       start_space_id: start,
       destination_space_id: destination,
@@ -159,6 +162,7 @@ export function App() {
       profile: 'synera-industrial',
       persist: false,
     }).then((next) => { if (!cancelled) setForkliftRoute(next) }, () => { if (!cancelled) setForkliftRoute(null) })
+      .finally(() => { if (!cancelled) setForkliftPending(false) })
     return () => { cancelled = true }
   }, [forkliftOn, sessionId, route?.id, route?.reachable, route?.start_space_id, route?.destination_space_id, route?.step_free, route?.via, route?.closed_ids])
   const step = route?.directions[directionIndex]
@@ -610,7 +614,7 @@ export function App() {
           <div className="plan-stage">
             <PlanCanvas previousRoute={previousRoute} forkliftRoute={forkliftOn ? forkliftRoute : null} forkliftCompare={forkliftOn} plan={plan} floorName={floorTitle} emptyText={connection === 'connecting' ? copy.loadingPlan : floors.length === 0 ? copy.planUnavailableBody : copy.emptyPlan} route={route} spaceReasons={mapView.spaceReasons} assetIds={mapView.assetIds} closedIds={mapView.closedIds} focusPoint={mapView.focusFloorId === floor.id ? mapView.focusPoint : null} stepPoint={step?.floor_id === floor.id ? step.at : null} storyIndex={directionIndex} selectionId={selection?.id ?? null} onSelect={selectOnMap} onFocusSelection={(focused) => { setMapFocusActive(Boolean(focused)); setActivePanel(debugEnabled && focused ? 'debug' : 'guide') }} mockPoint={mockPoint} markerArmed={markerArmed} stepFree={stepFree} onPlaceMarker={(point) => { setMockPoint(point); setMarkerArmed(false); const near = plan?.spaces.find((space) => space.polygon.length > 0 && Math.hypot(point[0] - space.polygon[0][0], point[1] - space.polygon[0][1]) < 8); if (near) void sendText(`I am at ${near.name}`, { current_space_id: near.id }) }} walkerHere={walkerHere} onWalkerMove={onWalkerMove} onChangeFloor={changeWalkerFloor} guidanceTarget={guidanceTarget} editor={editor.overlay} preview={editor.open ? null : mapView.previewObjects} />
             <div className="map-caption" data-editor={editor.open ? (editor.invalid ? 'invalid' : 'on') : undefined}>{editor.caption ? <strong>{editor.caption}</strong> : selection ? <><strong>{selection.name}</strong><span>{selection.floorName}</span>{selection.kind !== 'opening' && <button type="button" disabled={busy} onClick={() => void useLocation(selection.id)}>Use as my location</button>}</> : <><span className="legend-dot focus-dot" aria-hidden="true" /> {startName ? `Starting at ${startName}` : copy.destinationFocus}</>}</div>
-            {forkliftOn && route?.reachable && <p className="forklift-note" role="status">{!forkliftRoute ? copy.forkliftWorking : !forkliftRoute.reachable || forkliftRoute.length_m === null ? copy.forkliftNone : <><strong>{copy.forklift} {formatMetres(forkliftRoute.length_m)}</strong><span> · {copy.walking} {formatMetres(route.length_m)}</span></>}</p>}
+            {forkliftOn && route?.reachable && <p className="forklift-note" role="status">{forkliftPending ? copy.forkliftWorking : !forkliftRoute?.reachable || forkliftRoute.length_m === null ? copy.forkliftNone : <><strong>{copy.forklift} {formatMetres(forkliftRoute.length_m)}</strong><span> · {copy.walking} {formatMetres(route.length_m)}</span></>}</p>}
           </div>
         </div>
         {stackOpen && <Suspense fallback={<p className="stack-loading">Loading 3D view…</p>}><FloorStack3D plans={stackPlans} route={route} previousRoute={previousRoute} forkliftRoute={forkliftOn ? forkliftRoute : null} storyIndex={directionIndex} activeFloorId={floor.id} startSpaceId={hereId} onRequestStart={openLocationPicker} onSelectFloor={(id) => { setFloorId(id); setFloorPinned(true) }} onSelect={selectOnMap} selectedId={selection?.id ?? null} /></Suspense>}

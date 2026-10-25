@@ -11,7 +11,16 @@ export type CampusDemoImage = { name: string; kind: string; label: string }
 export type CampusDemo = { lengths_m: number[]; stages: { id: string; title: string; length_m: number; images: CampusDemoImage[] }[]; matches_expected: boolean }
 export type Place = { id: string; kind: string; name: string; floor_id: string; floor_level: number; space_id: string | null; position: [number, number] | null }
 type CursorPage<T> = { items: T[]; next_cursor?: string | null }
-export type RouteRequest = { start_space_id: string; destination_space_id: string; step_free?: boolean; via?: string[]; current_space_id?: string | null }
+export type RouteRequest = {
+  start_space_id: string
+  destination_space_id: string
+  step_free?: boolean
+  via?: string[]
+  current_space_id?: string | null
+  profile?: 'kit-1.1.0' | 'synera-industrial'
+  /** False asks for a comparison snapshot that does not replace the session route. */
+  persist?: boolean
+}
 /** Full action as the API returns it, plus `closed_ids` lifted from a closure result for older callers. */
 export type ActionResult = Action & { closed_ids: string[] }
 export function requestId(): string {
@@ -173,6 +182,8 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
         step_free: input.step_free,
         via: input.via ?? [],
         current_space_id: input.current_space_id ?? null,
+        ...(input.profile ? { profile: input.profile } : {}),
+        ...(input.persist === false ? { persist: false } : {}),
       }), requestId())
     },
     async getRoute(sessionId, routeId) { return request<Route>(config, `/sessions/${sessionId}/routes/${routeId}`) },

@@ -321,6 +321,9 @@
 .sample-equipment { width: 16px; height: 11px; margin-inline: 1px; border: 1px solid var(--map-asset-stroke); border-radius: 2px; background: var(--map-asset-machine); }
 .sample-opening { width: 11px; height: 11px; margin-inline: 4px; border: 2px solid var(--map-opening-stroke); border-radius: 50%; background: var(--map-opening); }
 .sample-route { width: 18px; height: 3px; background: repeating-linear-gradient(90deg, var(--color-route) 0 5px, transparent 5px 8px); }
+.sample-forklift { width: 18px; height: 3px; background: repeating-linear-gradient(90deg, var(--color-warning) 0 4px, transparent 4px 7px); }
+.sample-previous-route { width: 18px; height: 3px; background: repeating-linear-gradient(90deg, var(--color-text-secondary) 0 4px, transparent 4px 7px); opacity: 0.65; }
+.sample-change { width: 10px; height: 10px; border: 2px solid var(--color-warning); border-radius: 50%; background: var(--color-surface); }
 .sample-closed { width: 18px; height: 12px; border: 2px solid var(--color-danger); border-radius: 2px; background: var(--map-closed); }
 
 /* Narrow map column (phones, and tablets with the guide beside the map) */
@@ -382,6 +385,8 @@
 }
 .opening.entrance { fill: var(--color-success); stroke: var(--color-success); }
 .opening.stepped { stroke: var(--color-danger); }
+.opening.closed { fill: var(--map-closed); stroke: var(--color-danger); stroke-width: 0.28; }
+.opening.closed::after { content: ""; }
 .opening.picked {
   stroke: var(--color-destination);
   stroke-width: 0.32;
@@ -417,6 +422,7 @@
 .room-label text { fill: var(--color-text-secondary); }
 
 .plan .route,
+.plan .route-previous { fill: none; stroke: var(--color-text-secondary); stroke-width: 0.42px; stroke-dasharray: 1.2 0.9; opacity: 0.42; vector-effect: non-scaling-stroke; pointer-events: none; }
 .plan .route-underlay {
   fill: none;
   stroke-width: 5px;
@@ -434,6 +440,23 @@
   stroke-dasharray: 9px 5px;
   animation: route-flow 1.5s linear infinite;
 }
+.plan .route-forklift {
+  fill: none;
+  stroke: var(--color-warning);
+  stroke-width: 0.55px;
+  stroke-dasharray: 1.1 0.7;
+  opacity: 0.95;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.plan .opening.forklift-narrow { stroke: var(--color-warning); }
+.forklift-note {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+.forklift-note strong { color: var(--color-warning); }
 .plan .route-progress {
   fill: none;
   stroke: var(--color-route);
@@ -754,3 +777,6 @@
   font-size: var(--font-size-label);
 }
 .stack-loading { margin: 0; color: var(--color-text-secondary); font: var(--font-size-label) var(--font-family-mono); }
+
+.plan .route-change-node { fill: var(--color-warning); stroke: var(--color-surface); stroke-width: 0.18; vector-effect: non-scaling-stroke; }
+.plan .opening.closed { fill: var(--map-closed); stroke: var(--color-danger); stroke-width: 0.3; }

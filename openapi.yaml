@@ -1993,6 +1993,14 @@ components:
             type: string
             minLength: 1
             maxLength: 200
+        profile:
+          type: string
+          enum: [kit-1.1.0, synera-industrial]
+          description: Fehlt der Wert, gilt kit-1.1.0. synera-industrial ist die Gabelstaplerroute.
+        persist:
+          type: boolean
+          default: true
+          description: false liefert die Route und lässt last_route_id sowie revision unverändert.
 
     Direction:
       type: object
@@ -2055,6 +2063,10 @@ components:
           type: [number, "null"]
         step_free:
           type: boolean
+        profile:
+          type: string
+          enum: [kit-1.1.0, synera-industrial]
+          description: Rechenprofil dieser Route. Ältere Antworten können das Feld weglassen.
         via:
           type: array
           items:

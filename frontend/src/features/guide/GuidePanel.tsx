@@ -62,6 +62,8 @@ function createSpeechRecognition(): BrowserSpeech | null {
 }
 
 type GuidePanelProps = {
+  comparisonVisible?: boolean
+  onClearComparison?: () => void
   query: string
   messages: ChatMessage[]
   busy: boolean
@@ -97,6 +99,16 @@ export function readableDirection(text: string): string {
   return text.replace(/\s*\[[^\]]+\]/g, '')
 }
 
+function routeFloorNames(route: Route, floors: FloorSummary[]): string[] {
+  return [...new Set(route.legs.map((leg) => floors.find((floor) => floor.id === leg.floor_id)?.name ?? 'Floor ' + leg.floor_level))]
+}
+
+function routeStatus(route: Route): string {
+  if (!route.reachable) return 'Cannot reach destination'
+  if (route.closed_ids.length > 0) return 'Rerouted around closure'
+  return 'Route validated'
+}
+
 /** Changing the map (closing, removing) is confirmed with a danger button; other changes with the primary one. */
 function destructive(proposal: ActionProposal | undefined): boolean {
   if (!proposal) return false
@@ -105,7 +117,7 @@ function destructive(proposal: ActionProposal | undefined): boolean {
 
 const COMPOSER_MAX_PX = 160
 
-export function GuidePanel({ query, messages, busy, ready, connection, suggestions, stepFree, activeRoute, activeMessageId,
+export function GuidePanel({ comparisonVisible = false, onClearComparison, query, messages, busy, ready, connection, suggestions, stepFree, activeRoute, activeMessageId,
   pendingActionId, onQuery, onSubmit, onChoose, onRetry, onConfirm, onCancel,
   onShowMap, onShowFloor, onAllowStairs, onChooseStart, inputMode, onInputMode, voice, guidanceActive, onStopGuidance, inputRef, floors }: GuidePanelProps) {
   const feedRef = useRef<HTMLDivElement>(null)
@@ -176,7 +188,7 @@ export function GuidePanel({ query, messages, busy, ready, connection, suggestio
               {suggestions.length > 0 && <ul className="chat-suggestions">{suggestions.map((text) => <li key={text}><button type="button" onClick={() => suggest(text)}>{text}</button></li>)}</ul>}
             </>}
       </div>}
-      {messages.map((message) => {
+      {messages.map((message, messageIndex) => {
         const reply = message.reply
         const asks = reply?.effects.filter((effect): effect is AskEffect => effect.type === 'ask' && Array.isArray(effect.options)) ?? []
         const active = message.id === activeMessageId
@@ -186,17 +198,37 @@ export function GuidePanel({ query, messages, busy, ready, connection, suggestio
         const role = reply?.understood?.missing.includes('start') ? 'start' : 'destination'
         // Steps already written in the reply are not listed a second time in the route card.
         const stepsInText = hasNumberedSteps(message.text)
+        const previousRoute = isCurrentRoute && route?.closed_ids.length && route.reachable
+          ? messages.slice(0, messageIndex).flatMap((item) => item.reply?.routes ?? []).reverse().find((item) => item.reachable && item.id !== route.id && item.length_m !== null)
+          : null
         return <article key={message.id} className={`chat-message ${message.role === 'user' ? 'chat-outgoing' : 'chat-incoming'}`} data-message-id={message.id} data-delivery={message.delivery ?? 'sent'} aria-label={message.role === 'user' ? 'Your message' : 'Guide reply'}>
           <p className="chat-text">{message.role === 'guide' ? <RichText text={message.text} /> : message.text}</p>
           {route && <div className={`chat-route-card${route.reachable ? '' : ' is-unreachable'}`}>
             <strong>{route.reachable ? route.length_m === 0 ? 'You’re already here' : formatMetres(route.length_m) : 'No route available'}</strong>
             <span>{route.step_free ? 'Step-free' : 'Stairs allowed'}</span>
+            <div className="route-task-summary" data-route-status={route.reachable ? 'valid' : 'blocked'}>
+              <div className="route-task-heading"><span className="route-status-mark" aria-hidden="true">{route.reachable ? '✓' : '!'}</span><strong>{routeStatus(route)}</strong></div>
+              <div className="route-task-grid">
+                <span><small>Floors</small><b>{route.reachable ? routeFloorNames(route, floors).join(' → ') || 'Single floor' : 'Not connected'}</b></span>
+                <span><small>Constraint</small><b>{route.step_free ? 'No stairs' : 'Stairs allowed'}</b></span>
+                <span><small>Connectors</small><b>{route.via.length > 0 ? route.via.join(' · ') : 'Direct path'}</b></span>
+                <span><small>Closures</small><b>{route.closed_ids.length > 0 ? route.closed_ids.length + ' active' : 'None'}</b></span>
+              </div>
+              {!route.reachable && <p className="route-task-reason">No valid opening or connector satisfies the current route constraints.</p>}
+              {route.reachable && route.closed_ids.length > 0 && <p className="route-task-reason">The original path was unavailable. This route avoids: {route.closed_ids.join(', ')}.</p>}
+            </div>
+            {isCurrentRoute && previousRoute && route.length_m !== null && previousRoute.length_m !== null && <div className="route-change-summary" role="status">
+              <span className="route-change-label">Closure impact</span>
+              <div><strong>{formatMetres(previousRoute.length_m)}</strong><span> before</span><span className="route-change-arrow" aria-hidden="true">→</span><strong>{formatMetres(route.length_m)}</strong><span> now</span></div>
+              <b className={route.length_m > previousRoute.length_m ? 'route-change-increase' : 'route-change-decrease'}>{route.length_m >= previousRoute.length_m ? '+' : ''}{formatMetres(route.length_m - previousRoute.length_m)}</b>
+            </div>}
+            {isCurrentRoute && comparisonVisible && previousRoute && onClearComparison && <button type="button" className="route-clear-comparison" onClick={onClearComparison}>Clear previous route</button>}
             {isCurrentRoute && route.reachable && <button type="button" className="route-show" onClick={onShowMap}>{copy.showRoute}</button>}
             {isCurrentRoute && !route.reachable && <div className="chat-route-recovery">
               {stepFree && <button type="button" className="small-action is-primary" disabled={busy} onClick={onAllowStairs}>{copy.allowStairs}</button>}
               <button type="button" className="small-action" disabled={busy} onClick={onChooseStart}>{copy.chooseStart}</button>
             </div>}
-            {route.directions.length > 0 && !stepsInText && <details><summary>{copy.directions}</summary><ol>{route.directions.map((direction, index) => <li key={index}>{readableDirection(direction.text)}</li>)}</ol></details>}
+            {route.directions.length > 0 && !stepsInText && <details><summary>{copy.directions}</summary><ol>{route.directions.map((direction, index) => <li key={index}><span className="route-step-number">{index + 1}</span><span><b>{floors.find((floor) => floor.id === direction.floor_id)?.name ?? 'Floor'}</b>{readableDirection(direction.text)}</span></li>)}</ol></details>}
             {isCurrentRoute && route.legs.length > 1 && <div className="chat-floor-links">{[...new Set(route.legs.map((leg) => leg.floor_id))].map((id) => <button type="button" key={id} onClick={() => onShowFloor(id)}>{floors.find((floor) => floor.id === id)?.name ?? 'Show floor'}</button>)}</div>}
           </div>}
           {active && asks.map((ask, index) => <div className="chat-choices" key={index}>

@@ -99,6 +99,8 @@ export type Route = {
   reachable: boolean
   length_m: number | null
   step_free: boolean
+  /** Omitted by older snapshots. kit-1.1.0 is the walking route; synera-industrial is the forklift route. */
+  profile?: 'kit-1.1.0' | 'synera-industrial'
   via: string[]
   closed_ids: string[]
   start_space_id: string | null
