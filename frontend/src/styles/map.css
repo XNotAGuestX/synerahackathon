@@ -81,8 +81,7 @@
 }
 
 .edit-map-toggle,
-.stack-toggle,
-.dev-toggle {
+.stack-toggle {
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
@@ -97,23 +96,15 @@
   transition: background-color var(--duration-fast) var(--easing-standard), border-color var(--duration-fast) var(--easing-standard);
 }
 .edit-map-toggle:hover,
-.stack-toggle:hover,
-.dev-toggle:hover { border-color: var(--color-primary); }
+.stack-toggle:hover { border-color: var(--color-primary); }
 .edit-map-toggle[aria-pressed='true'] {
   border-color: var(--color-primary);
   background: var(--color-primary);
   color: var(--color-on-primary);
 }
-.stack-toggle[aria-pressed='true'],
-.dev-toggle[aria-pressed='true'] {
+.stack-toggle[aria-pressed='true'] {
   border-color: var(--color-primary);
   background: var(--color-primary-a10);
-}
-/* Developer-only control: visibly secondary to navigation. */
-.dev-toggle {
-  border-style: dashed;
-  color: var(--color-text-secondary);
-  font: var(--font-weight-medium) var(--font-size-caption) var(--font-family-mono);
 }
 
 .floor-rail {
