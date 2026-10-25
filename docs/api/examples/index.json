@@ -1,9 +1,5 @@
 [
   {
-    "file": "health.json",
-    "schema": "Health"
-  },
-  {
     "file": "buildings.json",
     "schema": "BuildingPage"
   },
@@ -12,7 +8,7 @@
     "schema": "BuildingDetail"
   },
   {
-    "file": "session.json",
+    "file": "backend-session.json",
     "schema": "Session"
   },
   {
@@ -28,7 +24,7 @@
     "schema": "PlacePage"
   },
   {
-    "file": "route.json",
+    "file": "backend-route.json",
     "schema": "Route"
   },
   {
@@ -70,5 +66,85 @@
   {
     "file": "error_model.json",
     "schema": "Error"
+  },
+  {
+    "file": "buildings-page.json",
+    "schema": "BuildingPage"
+  },
+  {
+    "file": "buildings-page-2.json",
+    "schema": "BuildingPage"
+  },
+  {
+    "file": "building-detail.json",
+    "schema": "BuildingDetail"
+  },
+  {
+    "file": "session.json",
+    "schema": "Session"
+  },
+  {
+    "file": "floor-index.json",
+    "schema": "FloorIndex"
+  },
+  {
+    "file": "floor-plan.json",
+    "schema": "FloorPlan"
+  },
+  {
+    "file": "floor-plan-f1.json",
+    "schema": "FloorPlan"
+  },
+  {
+    "file": "floor-plan-closed.json",
+    "schema": "FloorPlan"
+  },
+  {
+    "file": "places-page.json",
+    "schema": "PlacePage"
+  },
+  {
+    "file": "route.json",
+    "schema": "Route"
+  },
+  {
+    "file": "route-unreachable.json",
+    "schema": "Route"
+  },
+  {
+    "file": "message-accepted.json",
+    "schema": "MessageAccepted"
+  },
+  {
+    "file": "message-clarify.json",
+    "schema": "MessageAccepted"
+  },
+  {
+    "file": "message-pending-action.json",
+    "schema": "MessageAccepted"
+  },
+  {
+    "file": "message-page.json",
+    "schema": "MessagePage"
+  },
+  {
+    "file": "action-pending.json",
+    "schema": "Action"
+  },
+  {
+    "file": "action-confirmed.json",
+    "schema": "Action"
+  },
+  {
+    "file": "error-validation.json",
+    "schema": "Error"
+  },
+  {
+    "file": "error-ambiguous.json",
+    "schema": "Error"
+  },
+  {
+    "file": "health.json",
+    "schema": "Health"
   }
 ]

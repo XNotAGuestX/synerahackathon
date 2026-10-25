@@ -449,6 +449,22 @@ A reply with no `Answer:` line is wrong. So is an answer line with a range or se
 - **Expose the data:** give your agent tools for what the plans actually contain (areas, door widths, adjacency, reachability, positions), not only search.
 - **Watch your costs:** each question can take many tool calls. Keep tool results compact, and use prompt caching for the building context.
 
+## Wayfinder frontend and HTTP API
+
+The Wayfinder frontend connects to the existing HTTP API under `/api/v1`. The authoritative contract is [openapi.yaml](openapi.yaml); the frontend copy has identical path and component schemas. See [API setup](docs/api/README.md) for sessions, authentication, errors and deterministic fixtures. The benchmark remains a separate CLI.
+
+```bash
+uv run python -m final_agent.api
+# In a second terminal:
+cd frontend
+npm ci
+npm run dev
+```
+
+Claude-backed chat requires configured Anthropic credentials; use `uv run --env-file .env python -m final_agent.api` to load a local `.env`. It uses main's standard Anthropic SDK client. Main's map, report, emergency, campus and plan-workspace features remain available. The frontend retains discovery, text/transcript input, confirmed closures, route playback, floor stacking, map controls, plan import and the walk pad with its speed slider.
+
+All live browser chat and benchmark answers use main's agent implementation. The browser connects to the main API through `VITE_API_BASE_URL` (default `/api/v1`, proxied by Vite to port 8000). API failures remain visible. `scripts/serve_api.py` is a compatibility launcher for that same API. Static debug previews and both fixture sets remain; regenerate them with `uv run python scripts/generate_api_fixtures.py` and validate with `uv run python scripts/validate_api_fixtures.py`.
+
 ## 8. Licences
 
 The data comes under several licences: CC BY 4.0 (Swiss Dwellings, ResPlan), ODbL 1.0 (the OpenStreetMap buildings) and CC0 (procedural). See `ATTRIBUTION.md`. If you publish anything built from the OSM buildings, it must stay under the ODbL and credit OpenStreetMap contributors.

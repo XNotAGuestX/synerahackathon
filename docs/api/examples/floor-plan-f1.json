@@ -1,0 +1,4938 @@
+{
+  "schema_version": 1,
+  "session_id": "11111111-1111-4111-8111-111111111111",
+  "revision": 1,
+  "floor": {
+    "id": "proc-factory-dev-003-F1",
+    "level": 1,
+    "name": "Floor 1",
+    "elevation_m": 3.5,
+    "height_m": 3.5,
+    "space_count": 32
+  },
+  "included": [
+    "spaces",
+    "openings",
+    "assets",
+    "connectors"
+  ],
+  "spaces": [
+    {
+      "id": "proc-factory-dev-003-F1-S001",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "corridor",
+      "room_type": "corridor",
+      "name": "Office corridor 1.01",
+      "ref": "1.01",
+      "polygon": [
+        [
+          7.0,
+          -0.0
+        ],
+        [
+          7.0,
+          69.8
+        ],
+        [
+          5.0,
+          69.8
+        ],
+        [
+          5.0,
+          -0.0
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S002",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "stair",
+      "room_type": "stairwell",
+      "name": "Staircase 1.02",
+      "ref": "1.02",
+      "polygon": [
+        [
+          12.0,
+          -0.0
+        ],
+        [
+          12.0,
+          4.0
+        ],
+        [
+          7.0,
+          4.0
+        ],
+        [
+          7.0,
+          -0.0
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S003",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "lift",
+      "room_type": "lift",
+      "name": "Lift 1.03",
+      "ref": "1.03",
+      "polygon": [
+        [
+          12.0,
+          4.0
+        ],
+        [
+          12.0,
+          6.5
+        ],
+        [
+          7.0,
+          6.5
+        ],
+        [
+          7.0,
+          4.0
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S004",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "office",
+      "name": "Office 1.04",
+      "ref": "1.04",
+      "polygon": [
+        [
+          5.0,
+          -0.0
+        ],
+        [
+          5.0,
+          5.43
+        ],
+        [
+          0.0,
+          5.43
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S005",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "server_room",
+      "name": "Server room 1.05",
+      "ref": "1.05",
+      "polygon": [
+        [
+          5.0,
+          5.43
+        ],
+        [
+          5.0,
+          9.74
+        ],
+        [
+          0.0,
+          9.74
+        ],
+        [
+          0.0,
+          5.43
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S006",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "office",
+      "name": "Office 1.06",
+      "ref": "1.06",
+      "polygon": [
+        [
+          5.0,
+          9.74
+        ],
+        [
+          5.0,
+          14.86
+        ],
+        [
+          0.0,
+          14.86
+        ],
+        [
+          0.0,
+          9.74
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S007",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "kitchen",
+      "name": "Kitchen 1.07",
+      "ref": "1.07",
+      "polygon": [
+        [
+          5.0,
+          14.86
+        ],
+        [
+          5.0,
+          19.22
+        ],
+        [
+          0.0,
+          19.22
+        ],
+        [
+          0.0,
+          14.86
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S008",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "kitchen",
+      "name": "Kitchen 1.08",
+      "ref": "1.08",
+      "polygon": [
+        [
+          5.0,
+          19.22
+        ],
+        [
+          5.0,
+          22.59
+        ],
+        [
+          0.0,
+          22.59
+        ],
+        [
+          0.0,
+          19.22
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S009",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "office",
+      "name": "Office 1.09",
+      "ref": "1.09",
+      "polygon": [
+        [
+          5.0,
+          22.59
+        ],
+        [
+          5.0,
+          28.07
+        ],
+        [
+          0.0,
+          28.07
+        ],
+        [
+          0.0,
+          22.59
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S010",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "meeting_room",
+      "name": "Meeting room 1.10",
+      "ref": "1.10",
+      "polygon": [
+        [
+          5.0,
+          28.07
+        ],
+        [
+          5.0,
+          32.57
+        ],
+        [
+          0.0,
+          32.57
+        ],
+        [
+          0.0,
+          28.07
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S011",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "office",
+      "name": "Office 1.11",
+      "ref": "1.11",
+      "polygon": [
+        [
+          5.0,
+          32.57
+        ],
+        [
+          5.0,
+          37.82
+        ],
+        [
+          0.0,
+          37.82
+        ],
+        [
+          0.0,
+          32.57
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S012",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "server_room",
+      "name": "Server room 1.12",
+      "ref": "1.12",
+      "polygon": [
+        [
+          5.0,
+          37.82
+        ],
+        [
+          5.0,
+          41.59
+        ],
+        [
+          0.0,
+          41.59
+        ],
+        [
+          0.0,
+          37.82
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S013",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "server_room",
+      "name": "Server room 1.13",
+      "ref": "1.13",
+      "polygon": [
+        [
+          5.0,
+          41.59
+        ],
+        [
+          5.0,
+          46.55
+        ],
+        [
+          0.0,
+          46.55
+        ],
+        [
+          0.0,
+          41.59
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S014",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "kitchen",
+      "name": "Kitchen 1.14",
+      "ref": "1.14",
+      "polygon": [
+        [
+          5.0,
+          46.55
+        ],
+        [
+          5.0,
+          52.15
+        ],
+        [
+          0.0,
+          52.15
+        ],
+        [
+          0.0,
+          46.55
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S015",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "office",
+      "name": "Office 1.15",
+      "ref": "1.15",
+      "polygon": [
+        [
+          5.0,
+          52.15
+        ],
+        [
+          5.0,
+          58.06
+        ],
+        [
+          0.0,
+          58.06
+        ],
+        [
+          0.0,
+          52.15
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S016",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "office",
+      "name": "Office 1.16",
+      "ref": "1.16",
+      "polygon": [
+        [
+          5.0,
+          58.06
+        ],
+        [
+          5.0,
+          62.18
+        ],
+        [
+          0.0,
+          62.18
+        ],
+        [
+          0.0,
+          58.06
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S017",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "office",
+      "name": "Office 1.17",
+      "ref": "1.17",
+      "polygon": [
+        [
+          5.0,
+          62.18
+        ],
+        [
+          5.0,
+          65.99
+        ],
+        [
+          0.0,
+          65.99
+        ],
+        [
+          0.0,
+          62.18
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S018",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "office",
+      "name": "Office 1.18",
+      "ref": "1.18",
+      "polygon": [
+        [
+          5.0,
+          65.99
+        ],
+        [
+          5.0,
+          69.8
+        ],
+        [
+          0.0,
+          69.8
+        ],
+        [
+          0.0,
+          65.99
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S019",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "meeting_room",
+      "name": "Meeting room 1.19",
+      "ref": "1.19",
+      "polygon": [
+        [
+          12.0,
+          6.5
+        ],
+        [
+          12.0,
+          10.85
+        ],
+        [
+          7.0,
+          10.85
+        ],
+        [
+          7.0,
+          6.5
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S020",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "office",
+      "name": "Office 1.20",
+      "ref": "1.20",
+      "polygon": [
+        [
+          12.0,
+          10.85
+        ],
+        [
+          12.0,
+          16.77
+        ],
+        [
+          7.0,
+          16.77
+        ],
+        [
+          7.0,
+          10.85
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S021",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "office",
+      "name": "Office 1.21",
+      "ref": "1.21",
+      "polygon": [
+        [
+          12.0,
+          16.77
+        ],
+        [
+          12.0,
+          22.31
+        ],
+        [
+          7.0,
+          22.31
+        ],
+        [
+          7.0,
+          16.77
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S022",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "office",
+      "name": "Office 1.22",
+      "ref": "1.22",
+      "polygon": [
+        [
+          12.0,
+          22.31
+        ],
+        [
+          12.0,
+          26.69
+        ],
+        [
+          7.0,
+          26.69
+        ],
+        [
+          7.0,
+          22.31
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S023",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "office",
+      "name": "Office 1.23",
+      "ref": "1.23",
+      "polygon": [
+        [
+          12.0,
+          26.69
+        ],
+        [
+          12.0,
+          30.07
+        ],
+        [
+          7.0,
+          30.07
+        ],
+        [
+          7.0,
+          26.69
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S024",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "office",
+      "name": "Office 1.24",
+      "ref": "1.24",
+      "polygon": [
+        [
+          12.0,
+          30.07
+        ],
+        [
+          12.0,
+          35.96
+        ],
+        [
+          7.0,
+          35.96
+        ],
+        [
+          7.0,
+          30.07
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S025",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "office",
+      "name": "Office 1.25",
+      "ref": "1.25",
+      "polygon": [
+        [
+          12.0,
+          35.96
+        ],
+        [
+          12.0,
+          40.67
+        ],
+        [
+          7.0,
+          40.67
+        ],
+        [
+          7.0,
+          35.96
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S026",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "office",
+      "name": "Office 1.26",
+      "ref": "1.26",
+      "polygon": [
+        [
+          12.0,
+          40.67
+        ],
+        [
+          12.0,
+          45.27
+        ],
+        [
+          7.0,
+          45.27
+        ],
+        [
+          7.0,
+          40.67
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S027",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "kitchen",
+      "name": "Kitchen 1.27",
+      "ref": "1.27",
+      "polygon": [
+        [
+          12.0,
+          45.27
+        ],
+        [
+          12.0,
+          48.95
+        ],
+        [
+          7.0,
+          48.95
+        ],
+        [
+          7.0,
+          45.27
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S028",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "kitchen",
+      "name": "Kitchen 1.28",
+      "ref": "1.28",
+      "polygon": [
+        [
+          12.0,
+          48.95
+        ],
+        [
+          12.0,
+          53.73
+        ],
+        [
+          7.0,
+          53.73
+        ],
+        [
+          7.0,
+          48.95
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S029",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "office",
+      "name": "Office 1.29",
+      "ref": "1.29",
+      "polygon": [
+        [
+          12.0,
+          53.73
+        ],
+        [
+          12.0,
+          57.04
+        ],
+        [
+          7.0,
+          57.04
+        ],
+        [
+          7.0,
+          53.73
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S030",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "office",
+      "name": "Office 1.30",
+      "ref": "1.30",
+      "polygon": [
+        [
+          12.0,
+          57.04
+        ],
+        [
+          12.0,
+          62.75
+        ],
+        [
+          7.0,
+          62.75
+        ],
+        [
+          7.0,
+          57.04
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S031",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "meeting_room",
+      "name": "Meeting room 1.31",
+      "ref": "1.31",
+      "polygon": [
+        [
+          12.0,
+          62.75
+        ],
+        [
+          12.0,
+          66.27
+        ],
+        [
+          7.0,
+          66.27
+        ],
+        [
+          7.0,
+          62.75
+        ]
+      ],
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-S032",
+      "floor_id": "proc-factory-dev-003-F1",
+      "type": "room",
+      "room_type": "toilet",
+      "name": "Toilet 1.32",
+      "ref": "1.32",
+      "polygon": [
+        [
+          12.0,
+          66.27
+        ],
+        [
+          12.0,
+          69.8
+        ],
+        [
+          7.0,
+          69.8
+        ],
+        [
+          7.0,
+          66.27
+        ]
+      ],
+      "synthetic": false
+    }
+  ],
+  "openings": [
+    {
+      "id": "proc-factory-dev-003-F1-O0055",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S002",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        7.0,
+        2.003
+      ],
+      "width_m": 1.2,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0056",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S003",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        7.0,
+        5.25
+      ],
+      "width_m": 1.1,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0057",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S004",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        5.0,
+        2.718
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0058",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S005",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        5.0,
+        7.585
+      ],
+      "width_m": 1.6,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0059",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S006",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        5.0,
+        12.3
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0060",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S007",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        5.0,
+        17.04
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0061",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S008",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        5.0,
+        20.905
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0062",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S009",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        5.0,
+        25.33
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0063",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S010",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        5.0,
+        30.32
+      ],
+      "width_m": 1.2,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0064",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S011",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        5.0,
+        35.195
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0065",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S012",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        5.0,
+        39.705
+      ],
+      "width_m": 1.6,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0066",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S013",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        5.0,
+        44.07
+      ],
+      "width_m": 1.6,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0067",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S014",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        5.0,
+        49.35
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0068",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S015",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        5.0,
+        55.105
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0069",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S016",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        5.0,
+        60.12
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0070",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S017",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        5.0,
+        64.085
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0071",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S018",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        5.0,
+        67.892
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0072",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S019",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        7.0,
+        8.675
+      ],
+      "width_m": 1.2,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0073",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S020",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        7.0,
+        13.81
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0074",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S021",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        7.0,
+        19.54
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0075",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S022",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        7.0,
+        24.5
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0076",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S023",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        7.0,
+        28.38
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0077",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S024",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        7.0,
+        33.015
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0078",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S025",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        7.0,
+        38.315
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0079",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S026",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        7.0,
+        42.97
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0080",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S027",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        7.0,
+        47.11
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0081",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S028",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        7.0,
+        51.34
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0082",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S029",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        7.0,
+        55.385
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0083",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S030",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        7.0,
+        59.895
+      ],
+      "width_m": 0.9,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0084",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S031",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        7.0,
+        64.51
+      ],
+      "width_m": 1.2,
+      "step_free": true,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-F1-O0085",
+      "floor_id": "proc-factory-dev-003-F1",
+      "space_ids": [
+        "proc-factory-dev-003-F1-S032",
+        "proc-factory-dev-003-F1-S001"
+      ],
+      "kind": "door",
+      "position": [
+        7.0,
+        68.032
+      ],
+      "width_m": 1.2,
+      "step_free": true,
+      "synthetic": false
+    }
+  ],
+  "assets": [
+    {
+      "id": "proc-factory-dev-003-A00311",
+      "name": "Coat rack 1.01",
+      "category": "furniture",
+      "type": "coat_rack",
+      "space_id": "proc-factory-dev-003-F1-S001",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        5.22,
+        28.198
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.3,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00312",
+      "name": "Fire extinguisher 1.02",
+      "category": "equipment",
+      "type": "fire_extinguisher",
+      "space_id": "proc-factory-dev-003-F1-S002",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        10.221,
+        0.22
+      ],
+      "footprint": {
+        "width_m": 0.3,
+        "depth_m": 0.3,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00313",
+      "name": "Desk 1.04-A",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S004",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.191,
+        0.42
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00314",
+      "name": "Desk 1.04-B",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S004",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.829,
+        5.01
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00315",
+      "name": "Office chair 1.04-A",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S004",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.949,
+        3.58
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00316",
+      "name": "Office chair 1.04-B",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S004",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.346,
+        2.98
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00317",
+      "name": "Bookshelf 1.04",
+      "category": "furniture",
+      "type": "bookshelf",
+      "space_id": "proc-factory-dev-003-F1-S004",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.245,
+        1.981
+      ],
+      "footprint": {
+        "width_m": 0.9,
+        "depth_m": 0.35,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00318",
+      "name": "Plant 1.04",
+      "category": "furniture",
+      "type": "plant",
+      "space_id": "proc-factory-dev-003-F1-S004",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        4.73,
+        4.995
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.4,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00319",
+      "name": "Server rack 1.05-A",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S005",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.5,
+        8.109
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00320",
+      "name": "Server rack 1.05-B",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S005",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        4.45,
+        6.149
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00321",
+      "name": "Server rack 1.05-C",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S005",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.831,
+        6.264
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00322",
+      "name": "Server rack 1.05-D",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S005",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.187,
+        8.936
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00323",
+      "name": "Server rack 1.05-E",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S005",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.731,
+        6.213
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00324",
+      "name": "Server rack 1.05-F",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S005",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.33,
+        7.348
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00325",
+      "name": "UPS unit 1.05",
+      "category": "equipment",
+      "type": "ups_unit",
+      "space_id": "proc-factory-dev-003-F1-S005",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.448,
+        5.9
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.8,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00326",
+      "name": "Fire extinguisher 1.05",
+      "category": "equipment",
+      "type": "fire_extinguisher",
+      "space_id": "proc-factory-dev-003-F1-S005",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        4.78,
+        9.162
+      ],
+      "footprint": {
+        "width_m": 0.3,
+        "depth_m": 0.3,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00327",
+      "name": "Desk 1.06-A",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S006",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.42,
+        11.64
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00328",
+      "name": "Desk 1.06-B",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S006",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.999,
+        10.16
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00329",
+      "name": "Office chair 1.06-A",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S006",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.827,
+        11.591
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00330",
+      "name": "Office chair 1.06-B",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S006",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.498,
+        12.382
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00331",
+      "name": "Filing cabinet 1.06-A",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S006",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.247,
+        10.11
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00332",
+      "name": "Filing cabinet 1.06-B",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S006",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.243,
+        14.49
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00333",
+      "name": "Bookshelf 1.06",
+      "category": "furniture",
+      "type": "bookshelf",
+      "space_id": "proc-factory-dev-003-F1-S006",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.245,
+        10.357
+      ],
+      "footprint": {
+        "width_m": 0.9,
+        "depth_m": 0.35,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00334",
+      "name": "Plant 1.06",
+      "category": "furniture",
+      "type": "plant",
+      "space_id": "proc-factory-dev-003-F1-S006",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        4.73,
+        13.461
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.4,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00335",
+      "name": "Kitchen counter 1.07",
+      "category": "fixture",
+      "type": "kitchen_counter",
+      "space_id": "proc-factory-dev-003-F1-S007",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.37,
+        16.621
+      ],
+      "footprint": {
+        "width_m": 2.4,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00336",
+      "name": "Fridge 1.07",
+      "category": "equipment",
+      "type": "fridge",
+      "space_id": "proc-factory-dev-003-F1-S007",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.561,
+        18.825
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.65,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00337",
+      "name": "Stove 1.07",
+      "category": "equipment",
+      "type": "stove",
+      "space_id": "proc-factory-dev-003-F1-S007",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.37,
+        18.361
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00338",
+      "name": "Dishwasher 1.07",
+      "category": "equipment",
+      "type": "dishwasher",
+      "space_id": "proc-factory-dev-003-F1-S007",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.258,
+        18.85
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00339",
+      "name": "Coffee machine 1.07",
+      "category": "equipment",
+      "type": "coffee_machine",
+      "space_id": "proc-factory-dev-003-F1-S007",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.126,
+        15.13
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.4,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00340",
+      "name": "Kitchen counter 1.08",
+      "category": "fixture",
+      "type": "kitchen_counter",
+      "space_id": "proc-factory-dev-003-F1-S008",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.37,
+        21.079
+      ],
+      "footprint": {
+        "width_m": 2.4,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00341",
+      "name": "Fridge 1.08",
+      "category": "equipment",
+      "type": "fridge",
+      "space_id": "proc-factory-dev-003-F1-S008",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.369,
+        22.195
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.65,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00342",
+      "name": "Stove 1.08",
+      "category": "equipment",
+      "type": "stove",
+      "space_id": "proc-factory-dev-003-F1-S008",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        4.63,
+        19.793
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00343",
+      "name": "Dishwasher 1.08",
+      "category": "equipment",
+      "type": "dishwasher",
+      "space_id": "proc-factory-dev-003-F1-S008",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.012,
+        19.59
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00344",
+      "name": "Coffee machine 1.08",
+      "category": "equipment",
+      "type": "coffee_machine",
+      "space_id": "proc-factory-dev-003-F1-S008",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.166,
+        22.32
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.4,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00345",
+      "name": "Dining table 1.08",
+      "category": "furniture",
+      "type": "dining_table",
+      "space_id": "proc-factory-dev-003-F1-S008",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.203,
+        21.359
+      ],
+      "footprint": {
+        "width_m": 1.6,
+        "depth_m": 0.9,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00346",
+      "name": "Desk 1.09-A",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S009",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.753,
+        27.65
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00347",
+      "name": "Desk 1.09-B",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S009",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.42,
+        27.236
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00348",
+      "name": "Office chair 1.09-A",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S009",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.388,
+        26.32
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00349",
+      "name": "Office chair 1.09-B",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S009",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.098,
+        24.703
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00350",
+      "name": "Filing cabinet 1.09",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S009",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        4.63,
+        23.039
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00351",
+      "name": "Plant 1.09",
+      "category": "furniture",
+      "type": "plant",
+      "space_id": "proc-factory-dev-003-F1-S009",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.911,
+        27.8
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.4,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00352",
+      "name": "Meeting table 1.10",
+      "category": "furniture",
+      "type": "meeting_table",
+      "space_id": "proc-factory-dev-003-F1-S010",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.431,
+        30.919
+      ],
+      "footprint": {
+        "width_m": 2.4,
+        "depth_m": 1.1,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00353",
+      "name": "Chair 1.10-A",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S010",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.586,
+        29.548
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00354",
+      "name": "Chair 1.10-B",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S010",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        4.132,
+        28.66
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00355",
+      "name": "Chair 1.10-C",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S010",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        4.094,
+        31.85
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00356",
+      "name": "Chair 1.10-D",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S010",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.053,
+        31.86
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00357",
+      "name": "Chair 1.10-E",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S010",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.033,
+        32.195
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00358",
+      "name": "Chair 1.10-F",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S010",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        4.305,
+        29.402
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00359",
+      "name": "Chair 1.10-G",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S010",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.178,
+        31.983
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00360",
+      "name": "Chair 1.10-H",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S010",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.97,
+        28.678
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00361",
+      "name": "Chair 1.10-I",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S010",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.659,
+        28.606
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00362",
+      "name": "Display screen 1.10",
+      "category": "equipment",
+      "type": "display_screen",
+      "space_id": "proc-factory-dev-003-F1-S010",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.22,
+        31.684
+      ],
+      "footprint": {
+        "width_m": 1.6,
+        "depth_m": 0.3,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00363",
+      "name": "Whiteboard 1.10",
+      "category": "equipment",
+      "type": "whiteboard",
+      "space_id": "proc-factory-dev-003-F1-S010",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.991,
+        32.45
+      ],
+      "footprint": {
+        "width_m": 1.8,
+        "depth_m": 0.1,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00364",
+      "name": "Desk 1.11-A",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S011",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.618,
+        32.99
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00365",
+      "name": "Desk 1.11-B",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S011",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        4.58,
+        37.024
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00366",
+      "name": "Office chair 1.11-A",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S011",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.359,
+        36.653
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00367",
+      "name": "Office chair 1.11-B",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S011",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.35,
+        35.117
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00368",
+      "name": "Filing cabinet 1.11",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S011",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.37,
+        35.342
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00369",
+      "name": "Server rack 1.12-A",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S012",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.687,
+        40.32
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00370",
+      "name": "Server rack 1.12-B",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S012",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.861,
+        39.596
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00371",
+      "name": "Server rack 1.12-C",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S012",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.223,
+        38.405
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00372",
+      "name": "Server rack 1.12-D",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S012",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.548,
+        38.524
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00373",
+      "name": "Server rack 1.12-E",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S012",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.893,
+        39.373
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00374",
+      "name": "Server rack 1.12-F",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S012",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        4.181,
+        41.127
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00375",
+      "name": "UPS unit 1.12",
+      "category": "equipment",
+      "type": "ups_unit",
+      "space_id": "proc-factory-dev-003-F1-S012",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.425,
+        38.29
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.8,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00376",
+      "name": "Fire extinguisher 1.12",
+      "category": "equipment",
+      "type": "fire_extinguisher",
+      "space_id": "proc-factory-dev-003-F1-S012",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.22,
+        39.741
+      ],
+      "footprint": {
+        "width_m": 0.3,
+        "depth_m": 0.3,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00377",
+      "name": "Server rack 1.13-A",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S013",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.811,
+        44.858
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00378",
+      "name": "Server rack 1.13-B",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S013",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.533,
+        45.678
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00379",
+      "name": "Server rack 1.13-C",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S013",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.259,
+        43.275
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00380",
+      "name": "Server rack 1.13-D",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S013",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.208,
+        43.405
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00381",
+      "name": "Server rack 1.13-E",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S013",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.556,
+        45.752
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00382",
+      "name": "Server rack 1.13-F",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S013",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        4.221,
+        42.338
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00383",
+      "name": "Server rack 1.13-G",
+      "category": "equipment",
+      "type": "server_rack",
+      "space_id": "proc-factory-dev-003-F1-S013",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.589,
+        42.289
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 1.2,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00384",
+      "name": "UPS unit 1.13",
+      "category": "equipment",
+      "type": "ups_unit",
+      "space_id": "proc-factory-dev-003-F1-S013",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.719,
+        46.08
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.8,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00385",
+      "name": "Fire extinguisher 1.13",
+      "category": "equipment",
+      "type": "fire_extinguisher",
+      "space_id": "proc-factory-dev-003-F1-S013",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.405,
+        46.33
+      ],
+      "footprint": {
+        "width_m": 0.3,
+        "depth_m": 0.3,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00386",
+      "name": "Kitchen counter 1.14",
+      "category": "fixture",
+      "type": "kitchen_counter",
+      "space_id": "proc-factory-dev-003-F1-S014",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.667,
+        51.78
+      ],
+      "footprint": {
+        "width_m": 2.4,
+        "depth_m": 0.6,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00387",
+      "name": "Fridge 1.14",
+      "category": "equipment",
+      "type": "fridge",
+      "space_id": "proc-factory-dev-003-F1-S014",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.348,
+        51.755
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.65,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00388",
+      "name": "Stove 1.14",
+      "category": "equipment",
+      "type": "stove",
+      "space_id": "proc-factory-dev-003-F1-S014",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.37,
+        48.39
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00389",
+      "name": "Dishwasher 1.14",
+      "category": "equipment",
+      "type": "dishwasher",
+      "space_id": "proc-factory-dev-003-F1-S014",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.78,
+        46.92
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00390",
+      "name": "Microwave 1.14",
+      "category": "equipment",
+      "type": "microwave",
+      "space_id": "proc-factory-dev-003-F1-S014",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        4.333,
+        46.82
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.4,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00391",
+      "name": "Coffee machine 1.14",
+      "category": "equipment",
+      "type": "coffee_machine",
+      "space_id": "proc-factory-dev-003-F1-S014",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.27,
+        47.091
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.4,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00392",
+      "name": "Desk 1.15-A",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S015",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.42,
+        56.939
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00393",
+      "name": "Desk 1.15-B",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S015",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.42,
+        54.208
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00394",
+      "name": "Office chair 1.15-A",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S015",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.697,
+        54.426
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00395",
+      "name": "Office chair 1.15-B",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S015",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.503,
+        57.155
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00396",
+      "name": "Filing cabinet 1.15",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S015",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.299,
+        57.69
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00397",
+      "name": "Desk 1.16-A",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S016",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.134,
+        61.76
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00398",
+      "name": "Desk 1.16-B",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S016",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.42,
+        60.572
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00399",
+      "name": "Office chair 1.16-A",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S016",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        4.462,
+        61.3
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00400",
+      "name": "Office chair 1.16-B",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S016",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.31,
+        59.483
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00401",
+      "name": "Filing cabinet 1.16",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S016",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.173,
+        58.43
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00402",
+      "name": "Bookshelf 1.16",
+      "category": "furniture",
+      "type": "bookshelf",
+      "space_id": "proc-factory-dev-003-F1-S016",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.135,
+        58.305
+      ],
+      "footprint": {
+        "width_m": 0.9,
+        "depth_m": 0.35,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00403",
+      "name": "Plant 1.16",
+      "category": "furniture",
+      "type": "plant",
+      "space_id": "proc-factory-dev-003-F1-S016",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.27,
+        59.258
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.4,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00404",
+      "name": "Desk 1.17-A",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S017",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        4.084,
+        65.57
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00405",
+      "name": "Desk 1.17-B",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S017",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.602,
+        62.6
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00406",
+      "name": "Office chair 1.17-A",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S017",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.307,
+        65.123
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00407",
+      "name": "Office chair 1.17-B",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S017",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.664,
+        63.828
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00408",
+      "name": "Filing cabinet 1.17",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S017",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.89,
+        65.62
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00409",
+      "name": "Bookshelf 1.17",
+      "category": "furniture",
+      "type": "bookshelf",
+      "space_id": "proc-factory-dev-003-F1-S017",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.245,
+        65.43
+      ],
+      "footprint": {
+        "width_m": 0.9,
+        "depth_m": 0.35,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00410",
+      "name": "Plant 1.17",
+      "category": "furniture",
+      "type": "plant",
+      "space_id": "proc-factory-dev-003-F1-S017",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.769,
+        62.45
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.4,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00411",
+      "name": "Desk 1.18-A",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S018",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        1.086,
+        69.38
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00412",
+      "name": "Desk 1.18-B",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S018",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        0.42,
+        68.162
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00413",
+      "name": "Office chair 1.18-A",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S018",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.151,
+        66.76
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00414",
+      "name": "Office chair 1.18-B",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S018",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        3.86,
+        66.67
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00415",
+      "name": "Filing cabinet 1.18",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S018",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        2.434,
+        69.43
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00416",
+      "name": "Plant 1.18",
+      "category": "furniture",
+      "type": "plant",
+      "space_id": "proc-factory-dev-003-F1-S018",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        4.73,
+        66.78
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.4,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00417",
+      "name": "Meeting table 1.19",
+      "category": "furniture",
+      "type": "meeting_table",
+      "space_id": "proc-factory-dev-003-F1-S019",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.754,
+        9.115
+      ],
+      "footprint": {
+        "width_m": 2.4,
+        "depth_m": 1.1,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00418",
+      "name": "Chair 1.19-A",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S019",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        8.51,
+        10.348
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00419",
+      "name": "Chair 1.19-B",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S019",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        7.886,
+        9.436
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00420",
+      "name": "Chair 1.19-C",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S019",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.615,
+        7.624
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00421",
+      "name": "Chair 1.19-D",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S019",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        8.848,
+        8.75
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00422",
+      "name": "Chair 1.19-E",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S019",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        7.968,
+        8.203
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00423",
+      "name": "Chair 1.19-F",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S019",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        7.355,
+        7.031
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00424",
+      "name": "Chair 1.19-G",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S019",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.221,
+        10.511
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00425",
+      "name": "Chair 1.19-H",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S019",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        10.857,
+        9.107
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00426",
+      "name": "Chair 1.19-I",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S019",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        8.247,
+        6.879
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00427",
+      "name": "Display screen 1.19",
+      "category": "equipment",
+      "type": "display_screen",
+      "space_id": "proc-factory-dev-003-F1-S019",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.78,
+        8.237
+      ],
+      "footprint": {
+        "width_m": 1.6,
+        "depth_m": 0.3,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00428",
+      "name": "Desk 1.20-A",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S020",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        10.098,
+        11.27
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00429",
+      "name": "Desk 1.20-B",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S020",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.209,
+        16.35
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00430",
+      "name": "Office chair 1.20-A",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S020",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        8.86,
+        15.509
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00431",
+      "name": "Office chair 1.20-B",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S020",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.79,
+        15.006
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00432",
+      "name": "Filing cabinet 1.20",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S020",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.095,
+        11.22
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00433",
+      "name": "Plant 1.20",
+      "category": "furniture",
+      "type": "plant",
+      "space_id": "proc-factory-dev-003-F1-S020",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        10.297,
+        16.5
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.4,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00434",
+      "name": "Desk 1.21-A",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S021",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.58,
+        21.288
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00435",
+      "name": "Desk 1.21-B",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S021",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        7.42,
+        17.633
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00436",
+      "name": "Office chair 1.21-A",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S021",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        8.362,
+        21.664
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00437",
+      "name": "Office chair 1.21-B",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S021",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        10.11,
+        19.142
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00438",
+      "name": "Filing cabinet 1.21",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S021",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        10.346,
+        21.94
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00439",
+      "name": "Bookshelf 1.21",
+      "category": "furniture",
+      "type": "bookshelf",
+      "space_id": "proc-factory-dev-003-F1-S021",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.755,
+        18.393
+      ],
+      "footprint": {
+        "width_m": 0.9,
+        "depth_m": 0.35,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00440",
+      "name": "Desk 1.22-A",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S022",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        10.876,
+        26.27
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00441",
+      "name": "Desk 1.22-B",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S022",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        10.232,
+        22.73
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00442",
+      "name": "Office chair 1.22-A",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S022",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.645,
+        23.462
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00443",
+      "name": "Office chair 1.22-B",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S022",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.806,
+        24.273
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00444",
+      "name": "Filing cabinet 1.22",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S022",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.63,
+        24.069
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00445",
+      "name": "Desk 1.23",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S023",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        7.892,
+        29.65
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00446",
+      "name": "Office chair 1.23",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S023",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        8.63,
+        28.738
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00447",
+      "name": "Plant 1.23",
+      "category": "furniture",
+      "type": "plant",
+      "space_id": "proc-factory-dev-003-F1-S023",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        8.28,
+        26.96
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.4,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00448",
+      "name": "Desk 1.24-A",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S024",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        8.065,
+        30.49
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00449",
+      "name": "Desk 1.24-B",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S024",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        10.878,
+        30.49
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00450",
+      "name": "Office chair 1.24-A",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S024",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.457,
+        33.95
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00451",
+      "name": "Office chair 1.24-B",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S024",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        10.104,
+        34.501
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00452",
+      "name": "Filing cabinet 1.24-A",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S024",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.63,
+        34.786
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00453",
+      "name": "Filing cabinet 1.24-B",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S024",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        10.479,
+        35.59
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00454",
+      "name": "Desk 1.25-A",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S025",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        8.368,
+        40.25
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00455",
+      "name": "Desk 1.25-B",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S025",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.58,
+        37.377
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00456",
+      "name": "Office chair 1.25-A",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S025",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.278,
+        36.722
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00457",
+      "name": "Office chair 1.25-B",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S025",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        10.694,
+        37.456
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00458",
+      "name": "Bookshelf 1.25",
+      "category": "furniture",
+      "type": "bookshelf",
+      "space_id": "proc-factory-dev-003-F1-S025",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        7.245,
+        39.853
+      ],
+      "footprint": {
+        "width_m": 0.9,
+        "depth_m": 0.35,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00459",
+      "name": "Plant 1.25",
+      "category": "furniture",
+      "type": "plant",
+      "space_id": "proc-factory-dev-003-F1-S025",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.73,
+        38.794
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.4,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00460",
+      "name": "Desk 1.26-A",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S026",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.58,
+        42.268
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00461",
+      "name": "Desk 1.26-B",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S026",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.134,
+        44.85
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00462",
+      "name": "Office chair 1.26-A",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S026",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        10.924,
+        41.905
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00463",
+      "name": "Office chair 1.26-B",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S026",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.526,
+        42.84
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00464",
+      "name": "Filing cabinet 1.26-A",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S026",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        7.37,
+        40.995
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00465",
+      "name": "Filing cabinet 1.26-B",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S026",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.239,
+        41.04
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00466",
+      "name": "Plant 1.26",
+      "category": "furniture",
+      "type": "plant",
+      "space_id": "proc-factory-dev-003-F1-S026",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.355,
+        40.94
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.4,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00467",
+      "name": "Kitchen counter 1.27",
+      "category": "fixture",
+      "type": "kitchen_counter",
+      "space_id": "proc-factory-dev-003-F1-S027",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.63,
+        47.059
+      ],
+      "footprint": {
+        "width_m": 2.4,
+        "depth_m": 0.6,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00468",
+      "name": "Fridge 1.27",
+      "category": "equipment",
+      "type": "fridge",
+      "space_id": "proc-factory-dev-003-F1-S027",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        8.308,
+        48.555
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.65,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00469",
+      "name": "Stove 1.27",
+      "category": "equipment",
+      "type": "stove",
+      "space_id": "proc-factory-dev-003-F1-S027",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.061,
+        45.64
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00470",
+      "name": "Dishwasher 1.27",
+      "category": "equipment",
+      "type": "dishwasher",
+      "space_id": "proc-factory-dev-003-F1-S027",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.005,
+        48.58
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00471",
+      "name": "Microwave 1.27",
+      "category": "equipment",
+      "type": "microwave",
+      "space_id": "proc-factory-dev-003-F1-S027",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.74,
+        45.54
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.4,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00472",
+      "name": "Coffee machine 1.27",
+      "category": "equipment",
+      "type": "coffee_machine",
+      "space_id": "proc-factory-dev-003-F1-S027",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        7.27,
+        46.163
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.4,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00473",
+      "name": "Kitchen counter 1.28",
+      "category": "fixture",
+      "type": "kitchen_counter",
+      "space_id": "proc-factory-dev-003-F1-S028",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.63,
+        52.32
+      ],
+      "footprint": {
+        "width_m": 2.4,
+        "depth_m": 0.6,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00474",
+      "name": "Fridge 1.28",
+      "category": "equipment",
+      "type": "fridge",
+      "space_id": "proc-factory-dev-003-F1-S028",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.094,
+        49.345
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.65,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00475",
+      "name": "Stove 1.28",
+      "category": "equipment",
+      "type": "stove",
+      "space_id": "proc-factory-dev-003-F1-S028",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        7.37,
+        53.197
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00476",
+      "name": "Microwave 1.28",
+      "category": "equipment",
+      "type": "microwave",
+      "space_id": "proc-factory-dev-003-F1-S028",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        10.293,
+        53.46
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.4,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00477",
+      "name": "Coffee machine 1.28",
+      "category": "equipment",
+      "type": "coffee_machine",
+      "space_id": "proc-factory-dev-003-F1-S028",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.644,
+        53.46
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.4,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00478",
+      "name": "Desk 1.29",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S029",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        8.808,
+        54.15
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00479",
+      "name": "Office chair 1.29",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S029",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        10.909,
+        54.133
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00480",
+      "name": "Filing cabinet 1.29-A",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S029",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.63,
+        55.871
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00481",
+      "name": "Filing cabinet 1.29-B",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S029",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.642,
+        56.67
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00482",
+      "name": "Plant 1.29",
+      "category": "furniture",
+      "type": "plant",
+      "space_id": "proc-factory-dev-003-F1-S029",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.73,
+        56.333
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.4,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00483",
+      "name": "Desk 1.30-A",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S030",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.58,
+        59.115
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00484",
+      "name": "Desk 1.30-B",
+      "category": "furniture",
+      "type": "desk",
+      "space_id": "proc-factory-dev-003-F1-S030",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        7.997,
+        57.46
+      ],
+      "footprint": {
+        "width_m": 1.4,
+        "depth_m": 0.7,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00485",
+      "name": "Office chair 1.30-A",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S030",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        7.409,
+        58.656
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00486",
+      "name": "Office chair 1.30-B",
+      "category": "furniture",
+      "type": "office_chair",
+      "space_id": "proc-factory-dev-003-F1-S030",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.237,
+        57.643
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.6,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00487",
+      "name": "Filing cabinet 1.30-A",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S030",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        10.711,
+        62.38
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00488",
+      "name": "Filing cabinet 1.30-B",
+      "category": "furniture",
+      "type": "filing_cabinet",
+      "space_id": "proc-factory-dev-003-F1-S030",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        8.988,
+        62.38
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.6,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00489",
+      "name": "Plant 1.30",
+      "category": "furniture",
+      "type": "plant",
+      "space_id": "proc-factory-dev-003-F1-S030",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.73,
+        57.985
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.4,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00490",
+      "name": "Meeting table 1.31",
+      "category": "furniture",
+      "type": "meeting_table",
+      "space_id": "proc-factory-dev-003-F1-S031",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.504,
+        64.431
+      ],
+      "footprint": {
+        "width_m": 2.4,
+        "depth_m": 1.1,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00491",
+      "name": "Chair 1.31-A",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S031",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        8.678,
+        63.302
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00492",
+      "name": "Chair 1.31-B",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S031",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        8.364,
+        64.432
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00493",
+      "name": "Chair 1.31-C",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S031",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        10.418,
+        63.281
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00494",
+      "name": "Chair 1.31-D",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S031",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.016,
+        65.881
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00495",
+      "name": "Chair 1.31-E",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S031",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        8.65,
+        65.408
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00496",
+      "name": "Chair 1.31-F",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S031",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        7.623,
+        65.787
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00497",
+      "name": "Chair 1.31-G",
+      "category": "furniture",
+      "type": "chair",
+      "space_id": "proc-factory-dev-003-F1-S031",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        7.643,
+        63.129
+      ],
+      "footprint": {
+        "width_m": 0.5,
+        "depth_m": 0.5,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00498",
+      "name": "Display screen 1.31",
+      "category": "equipment",
+      "type": "display_screen",
+      "space_id": "proc-factory-dev-003-F1-S031",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.577,
+        66.05
+      ],
+      "footprint": {
+        "width_m": 1.6,
+        "depth_m": 0.3,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00499",
+      "name": "Whiteboard 1.31",
+      "category": "equipment",
+      "type": "whiteboard",
+      "space_id": "proc-factory-dev-003-F1-S031",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.88,
+        64.678
+      ],
+      "footprint": {
+        "width_m": 1.8,
+        "depth_m": 0.1,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00500",
+      "name": "Toilet 1.32-A",
+      "category": "fixture",
+      "type": "toilet",
+      "space_id": "proc-factory-dev-003-F1-S032",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.58,
+        68.496
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.7,
+        "rotation_deg": 270.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00501",
+      "name": "Toilet 1.32-B",
+      "category": "fixture",
+      "type": "toilet",
+      "space_id": "proc-factory-dev-003-F1-S032",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        8.27,
+        66.69
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.7,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00502",
+      "name": "Toilet 1.32-C",
+      "category": "fixture",
+      "type": "toilet",
+      "space_id": "proc-factory-dev-003-F1-S032",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        7.662,
+        69.38
+      ],
+      "footprint": {
+        "width_m": 0.4,
+        "depth_m": 0.7,
+        "rotation_deg": 0.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00503",
+      "name": "Sink 1.32-A",
+      "category": "fixture",
+      "type": "sink",
+      "space_id": "proc-factory-dev-003-F1-S032",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        9.158,
+        66.565
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.45,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00504",
+      "name": "Sink 1.32-B",
+      "category": "fixture",
+      "type": "sink",
+      "space_id": "proc-factory-dev-003-F1-S032",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        11.576,
+        66.565
+      ],
+      "footprint": {
+        "width_m": 0.6,
+        "depth_m": 0.45,
+        "rotation_deg": 180.0
+      },
+      "source": "generated"
+    },
+    {
+      "id": "proc-factory-dev-003-A00505",
+      "name": "Hand dryer 1.32",
+      "category": "equipment",
+      "type": "hand_dryer",
+      "space_id": "proc-factory-dev-003-F1-S032",
+      "floor_id": "proc-factory-dev-003-F1",
+      "position": [
+        7.17,
+        66.919
+      ],
+      "footprint": {
+        "width_m": 0.3,
+        "depth_m": 0.2,
+        "rotation_deg": 90.0
+      },
+      "source": "generated"
+    }
+  ],
+  "connectors": [
+    {
+      "id": "proc-factory-dev-003-V01",
+      "kind": "stairs",
+      "name": "Office staircase",
+      "floor_ids": [
+        "proc-factory-dev-003-F0",
+        "proc-factory-dev-003-F1"
+      ],
+      "space_ids": [
+        "proc-factory-dev-003-F0-S017",
+        "proc-factory-dev-003-F1-S002"
+      ],
+      "step_free": false,
+      "synthetic": false
+    },
+    {
+      "id": "proc-factory-dev-003-V02",
+      "kind": "lift",
+      "name": "Office lift",
+      "floor_ids": [
+        "proc-factory-dev-003-F0",
+        "proc-factory-dev-003-F1"
+      ],
+      "space_ids": [
+        "proc-factory-dev-003-F0-S018",
+        "proc-factory-dev-003-F1-S003"
+      ],
+      "step_free": true,
+      "synthetic": false
+    }
+  ],
+  "closed_ids": [],
+  "bounds": {
+    "min": [
+      0.0,
+      -0.0
+    ],
+    "max": [
+      12.0,
+      69.8
+    ]
+  }
+}

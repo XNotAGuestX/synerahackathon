@@ -11,6 +11,17 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 from final_agent.api import load_contract
 
+FRONTEND_SCHEMAS = {
+    "buildings-page.json": "BuildingPage", "buildings-page-2.json": "BuildingPage",
+    "building-detail.json": "BuildingDetail", "session.json": "Session", "floor-index.json": "FloorIndex",
+    "floor-plan.json": "FloorPlan", "floor-plan-f1.json": "FloorPlan", "floor-plan-closed.json": "FloorPlan",
+    "places-page.json": "PlacePage", "route.json": "Route", "route-unreachable.json": "Route",
+    "message-accepted.json": "MessageAccepted", "message-clarify.json": "MessageAccepted",
+    "message-pending-action.json": "MessageAccepted", "message-page.json": "MessagePage",
+    "action-pending.json": "Action", "action-confirmed.json": "Action", "error-validation.json": "Error",
+    "error-ambiguous.json": "Error", "health.json": "Health",
+}
+
 
 def validate(directory: Path) -> int:
     contract = load_contract()

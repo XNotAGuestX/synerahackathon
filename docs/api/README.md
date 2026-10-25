@@ -75,3 +75,22 @@ Höhenkosten. Falls das geerbte Kit-Modell nur eine heuristische Distanz hat,
 werden keine erfundenen Linien durch getrennte Geometrie ergänzt. Sichtbare
 Teilstücke bleiben getrennte Legs; ein solcher Fall ist keine geometrisch
 validierte vollständige Wegführung.
+
+## Wayfinder-Integration
+
+`frontend/` verwendet ausschließlich die Haupt-API ohne das ältere `engine`-Feld,
+folgt Cursor-Pagination und liest bestätigte Sperrungen aus `Action.result`.
+Alle Chat-Nachrichten gehen an den Agenten von main. `scripts/serve_api.py`
+startet dieselbe API als Kompatibilitätsaufruf. Statische Debug-Vorschauen bleiben
+sichtbar; API-Fehler lösen keine lokalen Ersatzantworten aus.
+
+Der gemeinsame Generator erhält beide Beispielsätze. Die Frontend-Dateien
+(`floor-plan*.json`, `message-accepted.json`, `message-clarify.json`,
+`message-pending-action.json`, `action-pending.json`, `action-confirmed.json`)
+behalten ihre festen Demo-UUIDs. `session.json` und `route.json` gehören zu diesem
+Satz; `backend-session.json` und `backend-route.json` ergänzen die Backend-Beispiele.
+`index.json` erfasst sämtliche 37 erzeugten Beispiele für die gemeinsame Prüfung.
+
+`ANTHROPIC_API_KEY` bzw. eine SDK-Anmeldung authentifiziert Claude-Anfragen.
+Claude-Aufrufe verwenden den Standard-SDK-Client von main.
+`API_TOKEN` schützt unabhängig davon die lokale HTTP-API.

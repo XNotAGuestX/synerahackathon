@@ -42,3 +42,6 @@ coverage.xml
 # Local user reports and SQLite transaction files
 *.sqlite3
 *.sqlite3-*
+
+# Isolated task checkouts
+.worktrees/

@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from final_agent.api import error_response
 from final_agent.api_session import ApiError, SessionService, timestamp
+from scripts.generate_frontend_fixtures import generate_frontend
 
 
 def generate(data: Path, output: Path) -> list[dict]:
@@ -61,9 +62,14 @@ def generate(data: Path, output: Path) -> list[dict]:
         output.mkdir(parents=True, exist_ok=True)
         index = []
         for name, (schema, value) in examples.items():
-            filename = name + ".json"
+            # The frontend imports these shared names using its fixed demo session.
+            filename = ("backend-" if name in {"session", "route"} else "") + name + ".json"
             (output / filename).write_text(json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
             index.append({"file": filename, "schema": schema})
+        for filename, schema in generate_frontend(data, output).items():
+            if (output / filename).is_file():
+                index = [entry for entry in index if entry["file"] != filename]
+                index.append({"file": filename, "schema": schema})
         (output / "index.json").write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
         return index
 
