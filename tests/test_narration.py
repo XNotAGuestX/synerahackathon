@@ -73,8 +73,10 @@ class NarrationTests(unittest.TestCase):
 
         live = LiveState(lambda: NOW, iter(f"id{n}" for n in range(1000)).__next__, narrate=slow, first_wait_s=0.1)
         record = {"destination_space_id": self.route.destination_space_id}
-        live.start(self.building, "r1", record, self.route, spoken=False)
-        first = live.events_after(0, 0)[0][0]
+        started = threading.Event()
+        threading.Thread(target=lambda: (live.start(self.building, "r1", record, self.route, spoken=False), started.set()), daemon=True).start()
+        self.assertTrue(started.wait(1.0), "start() must not block on a slow narrator")
+        first = live.events_after(0, 2.0)[0][0]
         self.assertEqual(first["text"], render(self.walk.waypoints[0]))
         release.set()
         for _ in range(100):

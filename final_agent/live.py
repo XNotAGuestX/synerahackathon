@@ -92,7 +92,12 @@ class LiveState:
 
     # Guidance
 
-    def start(self, building_map: BuildingMap, route_id: str, route_record: dict, route_result, spoken: bool) -> None:
+    def start(self, building_map: BuildingMap, route_id: str, route_record: dict, route_result, spoken: bool) -> threading.Event:
+        """Activate guidance without blocking; returns an event set once the first instruction is emitted.
+
+        Callers may hold the session lock, so the wait for the narrator happens on a helper thread.
+        """
+        first_emitted = threading.Event()
         with self._cond:
             fix = self._fix
             fresh = fix is not None and (self.clock() - fix.measured_at).total_seconds() <= self.STALE_S
@@ -102,12 +107,6 @@ class LiveState:
             gen = self._gen
             self._texts, self._narrated = {}, threading.Event()
             narrated = self._narrated
-        if self._narrate is not None:
-            threading.Thread(target=self._narrate_walk, args=(gen, building_map, walk, spoken), daemon=True).start()
-            narrated.wait(self._first_wait_s)  # the first instruction waits briefly for the narrator
-        with self._cond:
-            if self._gen != gen:
-                return  # stopped or closed meanwhile
             self._walk = walk
             self._route_id = route_id
             self._destination_id = route_record["destination_space_id"]
@@ -119,8 +118,26 @@ class LiveState:
             self._status = "active"
             self._nav_gen = gen
             self._nav = Navigator(walk, self._destination_name, texts=self._texts, clock=self.clock)
-            for event in self._nav.start():
-                self._emit(event.kind, event.text, event.waypoint_index)
+            first = self._nav.start()  # initialises progress now; the first instruction may wait for the narrator
+            if self._narrate is None:
+                self._emit_first(gen, first, first_emitted)
+                return first_emitted
+        threading.Thread(target=self._narrate_walk, args=(gen, building_map, walk, spoken), daemon=True).start()
+        threading.Thread(target=self._emit_first_after_narration, args=(gen, narrated, first, first_emitted), daemon=True).start()
+        return first_emitted
+
+    def _emit_first_after_narration(self, gen: int, narrated: threading.Event, first: list, done: threading.Event) -> None:
+        narrated.wait(self._first_wait_s)
+        with self._cond:
+            self._emit_first(gen, first, done)
+
+    def _emit_first(self, gen: int, first: list, done: threading.Event) -> None:
+        """Emit the navigator's start events with the latest (possibly narrated) text. Caller holds self._cond."""
+        if self._gen == gen and self._nav is not None:
+            for event in first:
+                indexed = event.kind == "instruction" and event.waypoint_index is not None
+                self._emit(event.kind, self._nav.text_for(event.waypoint_index) if indexed else event.text, event.waypoint_index)
+        done.set()
 
     def _narrate_walk(self, gen: int, building_map: BuildingMap, walk: RouteWalk, spoken: bool) -> None:
         try:

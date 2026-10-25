@@ -551,7 +551,8 @@ class SessionService:
             result = session.route_results.get(route_id)
             if not record["reachable"] or result is None:
                 raise ApiError("20001_validation_failed", [{"field": "route_id", "code": "unreachable"}])
-            session.live.start(session.map, route_id, record, result, spoken=False)
+            first_emitted = session.live.start(session.map, route_id, record, result, spoken=False)
+        first_emitted.wait(5.0)  # outside the session lock, so the response carries the first instruction
         return self.get_guidance(session_id, 0, 0)
 
     def delete_guidance(self, session_id: str) -> None:
