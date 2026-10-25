@@ -39,6 +39,7 @@ type PlanCanvasProps = {
   closedIds: string[]
   focusPoint: Point | null
   stepPoint: Point | null
+  /** Index of the direction told by the step player; the route up to it is highlighted. */
   storyIndex: number
   selectionId: string | null
   onSelect: (selection: Selection) => void
@@ -66,6 +67,11 @@ function polygonArea(polygon: Point[]): number {
   return Math.abs(sum) / 2
 }
 
+function centroid(polygon: Point[]): Point {
+  const total = polygon.reduce(([x, y], [px, py]) => [x + px, y + py], [0, 0])
+  return [total[0] / polygon.length, total[1] / polygon.length]
+}
+
 function prefixTo(points: Point[], target: Point | null): Point[] {
   if (!target || points.length < 2) return points
   let best = 0
@@ -78,11 +84,6 @@ function prefixTo(points: Point[], target: Point | null): Point[] {
     }
   })
   return points.slice(0, Math.max(2, best + 1))
-}
-
-function centroid(polygon: Point[]): Point {
-  const total = polygon.reduce(([x, y], [px, py]) => [x + px, y + py], [0, 0])
-  return [total[0] / polygon.length, total[1] / polygon.length]
 }
 
 function containsPoint(polygon: Point[], point: Point): boolean {
@@ -171,6 +172,7 @@ function InteractivePlan({
   const svgRef = useRef<SVGSVGElement>(null)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState<Point>([0, 0])
+  const [fitRoute, setFitRoute] = useState(true)
   const [hovered, setHovered] = useState<Selection | null>(null)
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 })
   const [displayMode, setDisplayMode] = useState<'rooms' | 'items' | 'labels'>('items')
@@ -199,10 +201,11 @@ function InteractivePlan({
   useEffect(() => {
     setZoom(1)
     setPan([0, 0])
+    setFitRoute(true)
     pointers.current.clear()
     pinch.current = null
     gesture.current.pointerId = -1
-  }, [plan.floor.id])
+  }, [plan.floor.id, route?.id])
 
   const reasons = new Map(spaceReasons)
   if (route?.start_space_id && !reasons.has(route.start_space_id)) reasons.set(route.start_space_id, 'selected')
@@ -211,8 +214,18 @@ function InteractivePlan({
     if (reasons.get(spaceId) !== 'preview') reasons.set(spaceId, 'closed')
   }
 
-  const [minX, minY] = plan.bounds.min
-  const [maxX, maxY] = plan.bounds.max
+  // A new route opens zoomed to its legs on this floor; "Floor" shows the whole plan again.
+  const routePoints = route?.reachable && fitRoute ? route.legs.filter((leg) => leg.floor_id === plan.floor.id).flatMap((leg) => leg.points) : []
+  const routeBounds = routePoints.length > 0 ? {
+    min: [Math.min(...routePoints.map(([x]) => x)), Math.min(...routePoints.map(([, y]) => y))],
+    max: [Math.max(...routePoints.map(([x]) => x)), Math.max(...routePoints.map(([, y]) => y))],
+  } : null
+  const bounds = routeBounds ?? plan.bounds
+  const margin = routeBounds ? 2 : 0
+  const minX = bounds.min[0] - margin
+  const minY = bounds.min[1] - margin
+  const maxX = bounds.max[0] + margin
+  const maxY = bounds.max[1] + margin
   const pad = 1.2
   const baseX = minX - pad
   const baseY = -(maxY + pad)
@@ -248,9 +261,12 @@ function InteractivePlan({
     suppressClick.current = false
     return false
   }
-  const legs = route?.reachable ? route.legs.filter((leg) => leg.floor_id === plan.floor.id && leg.points.length > 1) : []
-  const firstLeg = route?.legs[0]
-  const lastLeg = route?.legs.at(-1)
+  const legs = route?.reachable
+    ? route.legs.map((leg, index) => ({ leg, index }))
+      .filter(({ leg }) => leg.floor_id === plan.floor.id && leg.points.length > 1)
+    : []
+  const firstLeg = route?.reachable ? route.legs[0] : null
+  const lastLeg = route?.reachable ? route.legs.at(-1) : null
   const focusedSpaceId = focusPoint ? plan.spaces.find((space) => containsPoint(space.polygon, focusPoint))?.id ?? null : null
   if (focusedSpaceId && !reasons.has(focusedSpaceId)) reasons.set(focusedSpaceId, 'selected')
 
@@ -580,28 +596,29 @@ function InteractivePlan({
             </g>
           )}
           {wallPoint && <circle className="wall-cursor" cx={wallPoint[0]} cy={wallPoint[1]} r={0.45} aria-hidden="true" />}
-          {legs.map((leg) => {
+          {legs.map(({ leg, index }) => {
+            const previous = route?.legs[index - 1]
+            const next = route?.legs[index + 1]
+            const handoffs = [
+              ...(previous && previous.floor_id !== leg.floor_id ? [{ point: leg.points[0], label: 'Arrive from another floor' }] : []),
+              ...(next && next.floor_id !== leg.floor_id ? [{ point: leg.points.at(-1)!, label: 'Continue on another floor' }] : []),
+            ]
             // The whole route is always drawn; the step player only highlights the part already told.
             const told = route?.directions[storyIndex]
             const progress = storyIndex > 0 && told?.floor_id === plan.floor.id ? prefixTo(leg.points, told.at) : null
-            const continues = route ? route.legs.slice(route.legs.indexOf(leg) + 1).some((later) => later.floor_id !== plan.floor.id) : false
-            const handoff = continues ? leg.points.at(-1)! : null
-            const connector = handoff
-              ? plan.connectors.find((item) => item.space_ids.some((spaceId) => {
-                const space = plan.spaces.find((candidate) => candidate.id === spaceId)
-                return space ? containsPoint(space.polygon, handoff) : false
-              }))
-              : null
+            const points = leg.points.map(([x, y]) => `${x},${y}`).join(' ')
             return (
-              <g key={`${leg.floor_id}-${leg.points.length}`}>
-                <polyline points={leg.points.map(([x, y]) => `${x},${y}`).join(' ')} className="route" />
+              <g key={index}>
+                {/* Keep each backend leg separate, including gaps in validated geometry. */}
+                <polyline points={points} className="route-underlay" />
+                <polyline points={points} className="route" />
                 {progress && <polyline points={progress.map(([x, y]) => `${x},${y}`).join(' ')} className="route-progress" />}
-                {handoff && (
-                  <g className="handoff" transform={`translate(${handoff[0]} ${handoff[1]})`}>
+                {handoffs.map(({ point, label }) => (
+                  <g key={label} className="handoff" transform={`translate(${point[0]} ${point[1]})`}>
                     <circle r={1.15} />
-                    <title>{connector?.name ?? 'Change floor'}</title>
+                    <title>{label}</title>
                   </g>
-                )}
+                ))}
               </g>
             )
           })}
@@ -635,7 +652,8 @@ function InteractivePlan({
         <button type="button" aria-label="Zoom out" onClick={() => setZoomAroundCenter(zoom / 1.25)} disabled={zoom <= MIN_ZOOM}>-</button>
         <span aria-live="polite">{Math.round(zoom * 100)}%</span>
         <button type="button" aria-label="Zoom in" onClick={() => setZoomAroundCenter(zoom * 1.25)} disabled={zoom >= MAX_ZOOM}>+</button>
-        <button type="button" aria-label="Reset map to 100 percent" onClick={resetView}>Reset</button>
+        {route?.reachable && <button type="button" aria-label="Fit route" onClick={() => { setFitRoute(true); resetView() }}>Route</button>}
+        <button type="button" aria-label="Fit floor" onClick={() => { setFitRoute(false); resetView() }}>Floor</button>
       </div>
       <div className="map-display-mode" role="group" aria-label="Map detail level"><button type="button" aria-pressed={displayMode === 'labels'} onClick={() => setDisplayMode('labels')}>Rooms</button><button type="button" aria-pressed={displayMode === 'items'} onClick={() => setDisplayMode('items')}>Rooms + items</button><button type="button" aria-pressed={displayMode === 'rooms'} onClick={() => setDisplayMode('rooms')}>Rooms + numbers</button></div>
       </div>

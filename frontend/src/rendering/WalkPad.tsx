@@ -274,7 +274,8 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree, keysPaused =
         return
       }
       mark.hidden = false
-      mark.style.transform = `translate(${at.x}px, ${at.y - 20}px) translate(-50%, -50%)`
+      // The pin's tip points at the endpoint; it rises above the walker's head so the figure never hides it.
+      mark.style.transform = `translate(${at.x}px, ${at.y - Math.max(height / 2, 6)}px) translate(-50%, calc(-100% - 7px))`
     }
     place(originRef.current, marksRef.current.origin)
     place(destRef.current, marksRef.current.destination)
@@ -293,10 +294,12 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree, keysPaused =
     if (!pad) return
     const width = pad.offsetWidth
     const height = pad.offsetHeight
+    // First placement: the map's lower-left corner, so the pad does not cover the chat column.
+    const map = svgRef.current?.getBoundingClientRect()
     setPlace((current) => {
       const origin = placeReady.current
         ? current
-        : { ...current, x: window.innerWidth - width - 16, y: window.innerHeight - height - 16 }
+        : { ...current, x: (map?.left ?? 0) + 16, y: window.innerHeight - height - 88 }
       placeReady.current = true
       const next = clampToViewport(origin.x, origin.y, width, height)
       if (next.x === current.x && next.y === current.y) return current

@@ -738,6 +738,27 @@ class BuildingMap:
             entrance=entrance,
         )
 
+    def nearest_asset_route(
+        self, start: str, asset_type: str, floor_level: int | None = None,
+        step_free: bool = False, min_width_m: float = 0.0, via: list[str] | None = None,
+    ) -> tuple[dict, RouteResult]:
+        """Compare every matching asset using the router without replacing the active route."""
+        candidates = self.search("", floor_level, kind="asset", asset_type=asset_type)
+        if not candidates:
+            raise MapError(f"No {asset_type.replace('_', ' ')} matches that floor/type.", reason="not_found")
+        reachable = []
+        for candidate in candidates:
+            try:
+                route = self.compute_route(start, candidate["id"], step_free, via, min_width_m)
+                reachable.append((route.length_m, candidate["id"], candidate, route))
+            except MapError as error:
+                if error.reason != "unreachable":
+                    raise
+        if not reachable:
+            raise MapError(f"No matching {asset_type.replace('_', ' ')} is reachable with these constraints.", reason="unreachable")
+        _, _, selected, route = min(reachable, key=lambda item: (item[0], item[1]))
+        return selected, route
+
     def route(
         self, start: str, destination: str, step_free: bool = False, via: list[str] | None = None,
         min_width_m: float = 0.0, entrance: str | None = None,
