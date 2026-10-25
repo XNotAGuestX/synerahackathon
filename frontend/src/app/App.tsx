@@ -9,12 +9,15 @@ import { clearRecovery, readRecovery, writeRecovery } from '../api/recovery'
 import { choiceMessage, choiceRole, optionName, placeById, withStartOptions } from '../domain/clarify'
 import { closureHighlights, distance, labelFromPlans, pendingReply, selectionFacts } from '../domain/live'
 import type { DiscoveryPlace } from '../domain/discovery'
+import { editedFloors } from '../domain/editor'
 import { buildPresentation, formatMetres } from '../domain/presentation'
 import type { Decision } from '../domain/presentation'
-import type { AskOption, FloorPlan, FloorSummary, Point, Reply, ReplyId, Selection, ViewEffect } from '../domain/types'
+import type { AskOption, ClientContext, FloorPlan, FloorSummary, Point, Reply, ReplyId, Selection, ViewEffect } from '../domain/types'
 import { DebugPanel } from '../features/debug/DebugPanel'
 import { PlaceDiscovery } from '../features/discovery/PlaceDiscovery'
 import { GuidePanel } from '../features/guide/GuidePanel'
+import { EditorPanel } from '../features/object-editor/EditorPanel'
+import { useObjectEditor } from '../features/object-editor/useObjectEditor'
 import { copy } from '../i18n/en'
 import { PlanImport } from '../features/building-ingestion/PlanImport'
 import { PlanCanvas } from '../rendering/PlanCanvas'
@@ -32,6 +35,7 @@ function initialThemeMode(): ThemeMode {
 
 export function App() {
   const inputRef = useRef<HTMLInputElement>(null)
+  const editButtonRef = useRef<HTMLButtonElement>(null)
   const announcedPoint = useRef<Point | null>(null)
   const sessionRef = useRef('')
   const [query, setQuery] = useState('')
@@ -66,6 +70,8 @@ export function App() {
   const [pendingDestination, setPendingDestination] = useState<string | null>(null)
   const [sampleId, setSampleId] = useState<ReplyId | null>(null)
   const [confirmedEffects, setConfirmedEffects] = useState<ViewEffect[]>([])
+  // Summary of a confirmed map edit; null for closures, which keep their own text.
+  const [confirmedNote, setConfirmedNote] = useState<string | null>(null)
   const [markerArmed, setMarkerArmed] = useState(false)
   const [mockPoint, setMockPoint] = useState<Point | null>(null)
   const [checkpointNote, setCheckpointNote] = useState<string | null>(null)
@@ -152,7 +158,10 @@ export function App() {
           const action = await gateway.getAction(session.id, session.pending_action_id)
           if (cancelled) return
           if (action.status === 'pending') {
-            const highlights = closureHighlights(nextPlans.map(([, plan]) => plan), action.proposal?.element_ref)
+            // Editor proposals bring their own ghosts; closures highlight the affected rooms.
+            const highlights = action.preview_effects.some((effect) => effect.type === 'preview_objects')
+              ? action.preview_effects
+              : closureHighlights(nextPlans.map(([, plan]) => plan), action.proposal?.element_ref)
             setLiveReply(pendingReply(action, highlights))
             setReplyId('pending')
             setDecision('pending')
@@ -204,8 +213,8 @@ export function App() {
   const reply = sampleId ? catalog.replies[sampleId] : replyId === 'miss' ? null : liveReply
   const presentation = useMemo(() => {
     if (!reply) return { ...emptyPresentation, alert: missed ? { tone: 'amber' as const, text: copy.missTitle } : null, guideText: missed ? copy.missBody : '' }
-    return buildPresentation({ guideText: reply.guideText, understood: reply.understood, effects: reply.effects, routes: reply.routes, pendingSummary: reply.pending?.summary ?? null, decision, confirmedEffects, confirmedClosedIds: appliedClosed ?? [], confirmedText: catalog.confirmedText, cancelledText: copy.cancelled })
-  }, [reply, decision, missed, appliedClosed])
+    return buildPresentation({ guideText: reply.guideText, understood: reply.understood, effects: reply.effects, routes: reply.routes, pendingSummary: reply.pending?.summary ?? null, decision, confirmedEffects, confirmedClosedIds: appliedClosed ?? [], confirmedText: confirmedNote ?? catalog.confirmedText, confirmedTone: confirmedNote ? 'green' : 'red', cancelledText: copy.cancelled })
+  }, [reply, decision, missed, appliedClosed, confirmedNote])
 
   useEffect(() => { if (!floorPinned && presentation.focusFloorId) setFloorId(presentation.focusFloorId) }, [floorPinned, presentation.focusFloorId])
   const patchedKey = presentation.patchedFloorIds.join('|')
@@ -221,6 +230,29 @@ export function App() {
 
   const floor = floors.find((item) => item.id === floorId) ?? floors[0] ?? catalog.floors[0]
   const plan = plans.get(floor.id) ?? null
+
+  /** Reload changed floors and the revision after a building edit. Resolves with the fresh plans. */
+  const refreshFloors = async (floorIds: string[]): Promise<Map<string, FloorPlan>> => {
+    const id = sessionRef.current || sessionId
+    if (!id || id.startsWith('local-')) return new Map()
+    const unique = [...new Set(floorIds)].filter((item) => plans.has(item) || floors.some((entry) => entry.id === item))
+    const [session, entries] = await Promise.all([
+      gateway.getSession(id),
+      Promise.all(unique.map(async (item) => [item, await gateway.getFloorPlan(id, item)] as const)),
+    ])
+    setRevision(session.revision)
+    setPlans((current) => { const next = new Map(current); for (const [item, nextPlan] of entries) next.set(item, nextPlan); return next })
+    return new Map(entries)
+  }
+
+  const editor = useObjectEditor({ sessionId, plans, floors, floorId: floor.id, selection, onSelect: setSelection, refreshFloors, buttonRef: editButtonRef })
+
+  const clientContext = (): ClientContext | undefined => {
+    if (!floors.some((item) => item.id === floor.id)) return undefined
+    if (selection?.kind === 'space') return { floor_level: floor.level, selected_space_id: selection.id }
+    if (selection) return { floor_level: floor.level, selected_object_id: selection.id }
+    return { floor_level: floor.level }
+  }
   const step = presentation.route?.directions[directionIndex]
   const nextText = !presentation.route ? copy.askRoute : presentation.route.reachable ? (step?.text ?? copy.askRoute) : copy.noRoute
   const visibleEffects = decision === 'confirmed' ? confirmedEffects : decision === 'cancelled' || !reply ? [] : reply.effects
@@ -337,7 +369,8 @@ export function App() {
     setLoading(true); setLoadError(null); setMissed(false)
     let routeFrom: string | null = null
     try {
-      const next = withStartOptions(await withLiveSession((id) => gateway.sendMessage(id, text, inputMode)), [...plans.values()])
+      const context = clientContext()
+      const next = withStartOptions(await withLiveSession((id) => gateway.sendMessage(id, text, inputMode, context)), [...plans.values()])
       setLiveReply(next); setReplyId(next.id); setDecision(next.pending ? 'pending' : null); setDirectionIndex(0); setFloorPinned(false)
       // A stated location becomes UI context only after the main agent resolves it.
       const resolved = next.understood?.resolved
@@ -426,23 +459,26 @@ export function App() {
     if (directions[nextIndex]?.floor_id) { setFloorId(directions[nextIndex].floor_id); setFloorPinned(true) }
   }
 
+  // Confirms any pending guide action: closures, doors, and object edits.
   const confirm = async () => {
     if (!sessionId || !reply?.pending) return
     setLoading(true); setLoadError(null)
     try {
       const elementId = reply.pending.proposal.element_ref
-      const result = await gateway.confirmAction(sessionId, reply.pending.id)
-      const highlights = closureHighlights([...plans.values()], elementId)
-      setConfirmedEffects(highlights)
-      setAppliedClosed(result.closed_ids)
+      const action = await gateway.confirmAction(sessionId, reply.pending.id)
+      const edit = editedFloors(action)
+      if (edit) {
+        setConfirmedEffects([])
+        setAppliedClosed(null)
+        setConfirmedNote(edit.summary ?? action.summary)
+      } else {
+        setConfirmedEffects(closureHighlights([...plans.values()], elementId))
+        setAppliedClosed(action.closed_ids)
+        setConfirmedNote(null)
+      }
       setDecision('confirmed')
       writeRecovery({ id: sessionId, buildingId, revision, stepFree, lastRouteId: null, pendingActionId: null })
-      if (!sessionId.startsWith('local-')) {
-        const refreshed = await gateway.getSession(sessionId)
-        setRevision(refreshed.revision)
-        const floorPlan = await gateway.getFloorPlan(sessionId, floorId)
-        setPlans((current) => new Map(current).set(floorId, floorPlan))
-      }
+      if (!sessionId.startsWith('local-')) await refreshFloors(edit?.floorIds.length ? edit.floorIds : [floor.id])
     } catch (error: unknown) { setLoadError(toUiError(error)) } finally { setLoading(false) }
   }
   const cancel = async () => {
@@ -456,15 +492,18 @@ export function App() {
     {booting && <p className="app-status" role="status">{copy.loadingPlan}</p>}
     {loadError && <div className="app-alert" role="alert"><strong>{loadError.code ?? copy.apiUnavailable}</strong><span>{loadError.message}</span>{loadError.traceId && <span>trace {loadError.traceId}</span>}{loadError.requestId && <span>request {loadError.requestId}</span>}</div>}
     <PlaceDiscovery plans={[...plans.values()]} floors={floors} stepFree={stepFree} busyId={routingId} onToggleStepFree={toggleStepFree} onFocus={focusDiscoveryPlace} onRoute={routeToPlace} />
-    <section className="workspace"><div className="map-column"><div className="map-toolbar"><div><span className="eyebrow">{copy.planEyebrow}</span><h1>{floor.name}</h1></div><div className="floor-rail" role="toolbar" aria-label="Floors">{floors.map((item) => <button type="button" key={item.id} className={item.id === floor.id ? 'active' : undefined} aria-pressed={item.id === floor.id} aria-label={`${copy.showFloor} ${item.name}`} onClick={() => { setFloorId(item.id); setFloorPinned(true) }}>{item.level}</button>)}<button type="button" className="floor-rail-toggle" aria-pressed={stackOpen} onClick={() => setStackOpen((open) => !open)}>{stackOpen ? copy.flatPlan : copy.stackFloors}</button>{debugEnabled && <button type="button" aria-pressed={activePanel === 'debug' && mapFocusActive} onClick={() => { setMapFocusActive(true); setActivePanel('debug') }}>{copy.debug}</button>}</div></div><div className="plan-stage"><PlanCanvas plan={plan} floorName={floor.name} route={presentation.route} spaceReasons={presentation.spaceReasons} assetIds={presentation.assetIds} closedIds={presentation.closedIds} focusPoint={presentation.focusFloorId === floor.id ? presentation.focusPoint : null} stepPoint={step?.floor_id === floor.id ? step.at : null} storyIndex={directionIndex} selectionId={selection?.id ?? null} onSelect={setSelection} onFocusSelection={(focused) => { setMapFocusActive(Boolean(focused)); setActivePanel(debugEnabled && focused ? 'debug' : 'guide') }} mockPoint={mockPoint} markerArmed={markerArmed} stepFree={stepFree} onPlaceMarker={(point) => { setMockPoint(point); setMarkerArmed(false); const near = plan?.spaces.find((space) => space.polygon.length > 0 && Math.hypot(point[0] - space.polygon[0][0], point[1] - space.polygon[0][1]) < 8); if (near) void sendText(`I am at ${near.name}`) }} /><div className="map-caption" role="status">{selection ? <><strong>{selection.name}</strong><span>{selection.floorName}</span></> : <><span className="legend-dot focus-dot" /> {copy.destinationFocus}</>}</div></div>{stackOpen && <FloorStack3D plans={[...plans.values()]} route={presentation.route} activeFloorId={floor.id} />}<PlanImport onApply={(imported) => { const id = `imported:${imported.floor.id}`; setImportedPlans((current) => new Map(current).set(id, imported)); setBuildings((current) => current.some((item) => item.id === id) ? current : [...current, { id, name: `${copy.importedSession}: ${imported.floor.name}`, floors: 1, has_lift: imported.connectors.some((item) => item.kind === 'lift'), has_step_free_entrance: imported.openings.some((item) => item.kind === 'entrance' && item.step_free) }]); setBuildingId(id) }} /><p className="revision-note"><span className="eyebrow">{copy.revision}</span><span className="mono">{revision}</span></p></div>
+    <section className="workspace"><div className="map-column"><div className="map-toolbar"><div><span className="eyebrow">{copy.planEyebrow}</span><h1>{floor.name}</h1></div><div className="map-toolbar-actions"><button type="button" ref={editButtonRef} className="edit-map-toggle" aria-pressed={editor.open} aria-keyshortcuts="E" title={copy.editor.openHint} onClick={editor.toggle}><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18"><path d="M4 20h4L19 9l-4-4L4 16v4Z M13.5 6.5l4 4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg><span>{editor.open ? copy.editor.done : copy.editor.open}</span></button><div className="floor-rail" role="toolbar" aria-label="Floors">{floors.map((item) => <button type="button" key={item.id} className={item.id === floor.id ? 'active' : undefined} aria-pressed={item.id === floor.id} aria-label={`${copy.showFloor} ${item.name}`} onClick={() => { setFloorId(item.id); setFloorPinned(true) }}>{item.level}</button>)}<button type="button" className="floor-rail-toggle" aria-pressed={stackOpen} onClick={() => setStackOpen((open) => !open)}>{stackOpen ? copy.flatPlan : copy.stackFloors}</button>{debugEnabled && <button type="button" aria-pressed={activePanel === 'debug' && mapFocusActive} onClick={() => { setMapFocusActive(true); setActivePanel('debug') }}>{copy.debug}</button>}</div></div></div><div className="plan-stage"><PlanCanvas plan={plan} floorName={floor.name} route={presentation.route} spaceReasons={presentation.spaceReasons} assetIds={presentation.assetIds} closedIds={presentation.closedIds} focusPoint={presentation.focusFloorId === floor.id ? presentation.focusPoint : null} stepPoint={step?.floor_id === floor.id ? step.at : null} storyIndex={directionIndex} selectionId={selection?.id ?? null} onSelect={setSelection} onFocusSelection={(focused) => { setMapFocusActive(Boolean(focused)); setActivePanel(debugEnabled && focused ? 'debug' : 'guide') }} mockPoint={mockPoint} markerArmed={markerArmed} stepFree={stepFree} onPlaceMarker={(point) => { setMockPoint(point); setMarkerArmed(false); const near = plan?.spaces.find((space) => space.polygon.length > 0 && Math.hypot(point[0] - space.polygon[0][0], point[1] - space.polygon[0][1]) < 8); if (near) void sendText(`I am at ${near.name}`) }} editor={editor.overlay} preview={editor.open ? null : presentation.previewObjects} /><div className="map-caption" role="status" data-editor={editor.open ? (editor.invalid ? 'invalid' : 'on') : undefined}>{editor.caption ? <strong>{editor.caption}</strong> : selection ? <><strong>{selection.name}</strong><span>{selection.floorName}</span></> : <><span className="legend-dot focus-dot" /> {copy.destinationFocus}</>}</div></div>{stackOpen && <FloorStack3D plans={[...plans.values()]} route={presentation.route} activeFloorId={floor.id} />}<PlanImport onApply={(imported) => { const id = `imported:${imported.floor.id}`; setImportedPlans((current) => new Map(current).set(id, imported)); setBuildings((current) => current.some((item) => item.id === id) ? current : [...current, { id, name: `${copy.importedSession}: ${imported.floor.name}`, floors: 1, has_lift: imported.connectors.some((item) => item.kind === 'lift'), has_step_free_entrance: imported.openings.some((item) => item.kind === 'entrance' && item.step_free) }]); setBuildingId(id) }} /><p className="revision-note"><span className="eyebrow">{copy.revision}</span><span className="mono">{revision}</span></p></div>
       <div className="guide-region">
+        {editor.open ? <EditorPanel editor={editor} /> : <>
         {mapFocusActive && <div className="panel-tabs" role="tablist" aria-label="Guide views">
           <button type="button" role="tab" aria-selected={activePanel === 'guide'} className={activePanel === 'guide' ? 'active' : undefined} onClick={() => { setActivePanel('guide') }}>Your Guide</button>
           {debugEnabled && <button type="button" role="tab" aria-selected={activePanel === 'debug'} className={activePanel === 'debug' ? 'active' : undefined} onClick={() => { setActivePanel('debug') }}>Debug</button>}
         </div>}
         {!mapFocusActive || activePanel === 'guide' ? <GuidePanel query={query} presentation={presentation} directionIndex={directionIndex} onQuery={setQuery} onSubmit={submit} onChoose={(option) => { void chooseOption(option) }} onConfirm={confirm} onCancel={cancel} onReplay={() => { setDirectionIndex(0); setPlaying(true) }} onAskText={(text) => { void sendText(text) }} onReopen={() => { const ids = appliedClosed ?? presentation.closedIds; const named = ids[0] ? placeName(ids[0]) : ''; void sendText(named && named !== ids[0] ? `Reopen ${named}` : ids[0] ? `Reopen ${ids[0]}` : copy.reopen) }} onShowFloor={(nextFloor) => { setFloorId(nextFloor); setFloorPinned(true) }} hereName={hereId ? placeName(hereId) : null} inputMode={inputMode} onInputMode={setInputMode} inputRef={inputRef} label={placeName} floors={floors} /> : <DebugPanel selection={selection} presentation={presentation} effects={visibleEffects} facts={plan && selection ? selectionFacts(plan, selection) : null} markerArmed={markerArmed} onArmMarker={() => setMarkerArmed((armed) => !armed)} onLoad={loadReply} onLeavePreview={() => setSampleId(null)} />}
+        </>}
       </div>
     </section>
+    <p className="sr-only" role="status" aria-live="polite"><span key={editor.announcement.id}>{editor.announcement.text}</span></p>
     <footer className="next-bar"><div><span className="eyebrow">{copy.nextStep}</span><strong>{loading ? copy.working : checkpointNote ?? nextText}</strong></div><button type="button" className="next-distance" onClick={() => setPlaying((value) => !value)} disabled={!presentation.route?.reachable} aria-pressed={playing}>{playing ? copy.pause : copy.play}</button><button type="button" className="next-distance" onClick={advance} disabled={!presentation.route?.reachable}>{presentation.route?.reachable ? `${formatMetres(presentation.route.length_m)} ->` : `${copy.noRoute} ->`}</button></footer>
   </main>
 }

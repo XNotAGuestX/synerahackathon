@@ -1,4 +1,4 @@
-import type { AskEffect, Point, Route, Understood, ViewEffect } from './types'
+import type { AskEffect, Asset, Connector, Opening, Point, Route, Understood, ViewEffect } from './types'
 
 const KNOWN_EFFECTS = new Set([
   'highlight_spaces',
@@ -9,9 +9,19 @@ const KNOWN_EFFECTS = new Set([
   'set_closures',
   'ask',
   'building_patched',
+  'preview_objects',
 ])
 
 export type Decision = 'pending' | 'confirmed' | 'cancelled'
+
+/** Ghosts for a proposed edit: the state after the change for new or changed elements. */
+export type PreviewObjects = {
+  floorIds: string[]
+  assets: Asset[]
+  openings: Opening[]
+  connectors: Connector[]
+  removedIds: string[]
+}
 
 export type Presentation = {
   guideText: string
@@ -28,7 +38,8 @@ export type Presentation = {
   effectTypes: string[]
   unknownEffectTypes: string[]
   patchedFloorIds: string[]
-  alert: { tone: 'amber' | 'red'; text: string } | null
+  previewObjects: PreviewObjects | null
+  alert: { tone: 'amber' | 'red' | 'green'; text: string } | null
 }
 
 type BuildInput = {
@@ -42,6 +53,8 @@ type BuildInput = {
   confirmedClosedIds: string[]
   confirmedText: string
   cancelledText: string
+  /** Closures confirm in red; map edits confirm in green. */
+  confirmedTone?: 'red' | 'green'
 }
 
 function isAsk(effect: ViewEffect): effect is AskEffect {
@@ -51,6 +64,25 @@ function isAsk(effect: ViewEffect): effect is AskEffect {
 function stringList(value: unknown): string[] | null {
   if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) return null
   return value
+}
+
+function records<T>(value: unknown, valid: (item: Record<string, unknown>) => boolean): T[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is T => Boolean(item) && typeof item === 'object' && valid(item as Record<string, unknown>))
+}
+
+function isPoint(value: unknown): boolean {
+  return Array.isArray(value) && value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number'
+}
+
+function readPreviewObjects(effect: Record<string, unknown>): PreviewObjects {
+  return {
+    floorIds: stringList(effect.floor_ids) ?? [],
+    assets: records<Asset>(effect.assets, (item) => typeof item.id === 'string' && typeof item.floor_id === 'string' && isPoint(item.position) && Boolean(item.footprint)),
+    openings: records<Opening>(effect.openings, (item) => typeof item.id === 'string' && typeof item.floor_id === 'string' && isPoint(item.position)),
+    connectors: records<Connector>(effect.connectors, (item) => typeof item.id === 'string'),
+    removedIds: stringList(effect.removed_ids) ?? [],
+  }
 }
 
 function pointOrNull(value: unknown): Point | null {
@@ -78,6 +110,7 @@ export function buildPresentation(input: BuildInput): Presentation {
   let focusPoint: Point | null = null
   let closedIds: string[] = []
   let patchedFloorIds: string[] = []
+  let previewObjects: PreviewObjects | null = null
 
   for (const effect of effects) {
     effectTypes.push(effect.type)
@@ -104,6 +137,8 @@ export function buildPresentation(input: BuildInput): Presentation {
       closedIds = closureIds
     } else if (effect.type === 'building_patched') {
       patchedFloorIds = stringList(fields.floor_ids) ?? patchedFloorIds
+    } else if (effect.type === 'preview_objects') {
+      previewObjects = readPreviewObjects(effect as Record<string, unknown>)
     } else if (isAsk(effect)) {
       asks.push(effect)
     }
@@ -116,7 +151,7 @@ export function buildPresentation(input: BuildInput): Presentation {
   let alert: Presentation['alert'] = null
   if (input.decision === 'confirmed') {
     guideText = input.confirmedText
-    alert = { tone: 'red', text: input.confirmedText }
+    alert = { tone: input.confirmedTone ?? 'red', text: input.confirmedText }
   } else if (input.decision === 'cancelled') {
     guideText = input.cancelledText
     alert = { tone: 'amber', text: input.cancelledText }
@@ -139,6 +174,7 @@ export function buildPresentation(input: BuildInput): Presentation {
     effectTypes,
     unknownEffectTypes,
     patchedFloorIds,
+    previewObjects,
     alert,
   }
 }

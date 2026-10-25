@@ -184,7 +184,7 @@ export function GuidePanel({
       <div className="guide-content" aria-live="polite">
         {presentation.alert && (
           <div role="alert" className={`notice ${presentation.alert.tone}`}>
-            <span>{presentation.alert.tone === 'red' ? '!' : '?'}</span>
+            <span aria-hidden="true">{presentation.alert.tone === 'red' ? '!' : presentation.alert.tone === 'green' ? '✓' : '?'}</span>
             <div>
               <strong>{presentation.alert.text}</strong>
               {presentation.guideText !== presentation.alert.text && <p>{presentation.guideText}</p>}

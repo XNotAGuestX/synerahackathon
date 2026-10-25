@@ -1,5 +1,6 @@
 import { ApiError } from './errors'
-import type { FloorPlan, FloorSummary, Reply, ReplyId, Route } from '../domain/types'
+import type { ErrorDetail } from './errors'
+import type { Action, ClientContext, EditProposal, FloorPlan, FloorSummary, ObjectCatalog, Reply, ReplyId, Route } from '../domain/types'
 
 export type InputMode = 'text' | 'transcript'
 
@@ -9,7 +10,8 @@ export type Session = { id: string; building_id: string; building_name: string; 
 export type Place = { id: string; kind: string; name: string; floor_id: string; floor_level: number; space_id: string | null; position: [number, number] | null }
 type CursorPage<T> = { items: T[]; next_cursor?: string | null }
 export type RouteRequest = { start_space_id: string; destination_space_id: string; step_free?: boolean; via?: string[] }
-export type ActionResult = { summary: string; closed_ids: string[]; id?: string; status?: string; proposal?: { kind: string; element_ref?: string; closed?: boolean } }
+/** Full action as the API returns it, plus `closed_ids` lifted from a closure result for older callers. */
+export type ActionResult = Action & { closed_ids: string[] }
 function requestId(): string {
   const browserCrypto = globalThis.crypto
   if (typeof browserCrypto?.randomUUID === 'function') return browserCrypto.randomUUID()
@@ -37,10 +39,12 @@ export interface BuildingGateway {
   createRoute(sessionId: string, input: RouteRequest): Promise<Route>
   getRoute(sessionId: string, routeId: string): Promise<Route>
   updatePreferences(sessionId: string, preferences: { step_free: boolean }): Promise<Session>
-  sendMessage(sessionId: string, text: string, inputMode?: InputMode): Promise<Reply>
+  sendMessage(sessionId: string, text: string, inputMode?: InputMode, clientContext?: ClientContext): Promise<Reply>
+  listObjectTypes(): Promise<ObjectCatalog>
+  createAction(sessionId: string, proposal: EditProposal): Promise<ActionResult>
   confirmAction(sessionId: string, actionId: string): Promise<ActionResult>
   cancelAction(sessionId: string, actionId: string): Promise<ActionResult>
-  getAction(sessionId: string, actionId: string): Promise<ActionResult & { id: string; status: string }>
+  getAction(sessionId: string, actionId: string): Promise<ActionResult>
 }
 
 async function request<T>(config: GatewayConfig, path: string, init?: RequestInit, idempotencyKey?: string): Promise<T> {
@@ -52,8 +56,9 @@ async function request<T>(config: GatewayConfig, path: string, init?: RequestIni
   }
   if (!response.ok) {
     const requestId = response.headers.get('X-Request-Id')
-    const payload = await response.json().catch(() => null) as { code?: string; message?: string; trace_id?: string } | null
-    throw new ApiError(payload?.message ?? `API request failed (${response.status})`, payload?.code ?? '00001_internal', payload?.trace_id ?? 'unknown', requestId, response.status)
+    const payload = await response.json().catch(() => null) as { code?: string; message?: string; trace_id?: string; details?: unknown } | null
+    const details = Array.isArray(payload?.details) ? payload.details.filter((item): item is ErrorDetail => Boolean(item) && typeof item === 'object') : []
+    throw new ApiError(payload?.message ?? `API request failed (${response.status})`, payload?.code ?? '00001_internal', payload?.trace_id ?? 'unknown', requestId, response.status, details)
   }
   return response.json() as Promise<T>
 }
@@ -80,8 +85,18 @@ function normalizeReply(value: unknown): Reply {
   }
 }
 
-function normalizeAction(value: ActionResult & { result?: { closed_ids?: string[] } | null }): ActionResult {
-  return { ...value, closed_ids: value.closed_ids ?? value.result?.closed_ids ?? [] }
+function normalizeAction(value: Partial<Action> & { id: string; closed_ids?: string[] }): ActionResult {
+  const result = value.result ?? null
+  const closed = Array.isArray(result?.closed_ids) ? result.closed_ids.filter((id): id is string => typeof id === 'string') : []
+  return {
+    ...value,
+    status: value.status ?? 'pending',
+    summary: value.summary ?? '',
+    proposal: value.proposal ?? { kind: 'unknown' },
+    preview_effects: value.preview_effects ?? [],
+    result,
+    closed_ids: value.closed_ids ?? closed,
+  }
 }
 
 export function createHttpGateway(config: GatewayConfig): BuildingGateway {
@@ -126,10 +141,16 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
     async updatePreferences(sessionId, preferences) {
       return request<Session>(config, `/sessions/${sessionId}/preferences`, { method: 'PUT', body: JSON.stringify(preferences) })
     },
-    async sendMessage(sessionId, text, inputMode = 'text') { const result = await request<unknown>(config, `/sessions/${sessionId}/messages`, json({ text, input_mode: inputMode }), requestId()); return normalizeReply(result) },
-    async confirmAction(sessionId, actionId) { return normalizeAction(await request<ActionResult>(config, `/sessions/${sessionId}/actions/${actionId}/confirmations`, json({}), requestId())) },
-    async cancelAction(sessionId, actionId) { return normalizeAction(await request<ActionResult>(config, `/sessions/${sessionId}/actions/${actionId}/cancellations`, json({}), requestId())) },
-    async getAction(sessionId, actionId) { return request<ActionResult & { id: string; status: string }>(config, `/sessions/${sessionId}/actions/${actionId}`) },
+    async sendMessage(sessionId, text, inputMode = 'text', clientContext) {
+      const body = clientContext ? { text, input_mode: inputMode, client_context: clientContext } : { text, input_mode: inputMode }
+      const result = await request<unknown>(config, `/sessions/${sessionId}/messages`, json(body), requestId())
+      return normalizeReply(result)
+    },
+    async listObjectTypes() { return request<ObjectCatalog>(config, '/object-types') },
+    async createAction(sessionId, proposal) { return normalizeAction(await request<Action>(config, `/sessions/${sessionId}/actions`, json(proposal), requestId())) },
+    async confirmAction(sessionId, actionId) { return normalizeAction(await request<Action>(config, `/sessions/${sessionId}/actions/${actionId}/confirmations`, json({}), requestId())) },
+    async cancelAction(sessionId, actionId) { return normalizeAction(await request<Action>(config, `/sessions/${sessionId}/actions/${actionId}/cancellations`, json({}), requestId())) },
+    async getAction(sessionId, actionId) { return normalizeAction(await request<Action>(config, `/sessions/${sessionId}/actions/${actionId}`)) },
   }
 }
 

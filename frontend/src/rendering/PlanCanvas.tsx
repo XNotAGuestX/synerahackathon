@@ -1,8 +1,33 @@
 ﻿import { useEffect, useRef, useState } from 'react'
-import type { FloorPlan, Point, Route, Selection } from '../domain/types'
+import type { PointerEvent as ReactPointerEvent } from 'react'
+import type { Asset, FloorPlan, Opening, Point, Route, Selection } from '../domain/types'
 import type { Connector } from '../domain/types'
+import { interiorPoint, spaceAt } from '../domain/editor'
 import { connectorNoteFromPlan, landmarkIds } from '../domain/live'
+import type { PreviewObjects } from '../domain/presentation'
 import { WalkPad } from './WalkPad'
+
+export type GhostAsset = { asset: Asset; layer: number }
+
+/** What the map editor draws and listens for. Built by `useObjectEditor`. */
+export type EditorOverlay = {
+  /** place: ghost follows the pointer; wall: click a shared wall; rooms: click rooms; form/pick: normal map. */
+  mode: 'pick' | 'place' | 'wall' | 'rooms' | 'form'
+  /** Draft object first, then everything that moves with it. */
+  ghosts: GhostAsset[]
+  ghostOpening: Opening | null
+  /** Footprint that follows the pointer in place mode. */
+  cursor: { width: number; depth: number; rotation: number; category: string } | null
+  /** Originals drawn faded while their ghosts sit elsewhere. */
+  fadedIds: string[]
+  pickedSpaceIds: string[]
+  invalid: boolean
+  draggable: boolean
+  constrain: (point: Point) => Point
+  onPoint: (point: Point) => void
+  onPickSpace: (spaceId: string) => void
+  onDragEnd: (point: Point) => void
+}
 
 type PlanCanvasProps = {
   plan: FloorPlan | null
@@ -21,6 +46,9 @@ type PlanCanvasProps = {
   markerArmed?: boolean
   onPlaceMarker?: (point: Point) => void
   stepFree?: boolean
+  editor?: EditorOverlay | null
+  /** Ghosts for a guide proposal that waits for confirmation. */
+  preview?: PreviewObjects | null
 }
 
 function polygonArea(polygon: Point[]): number {
@@ -75,6 +103,15 @@ function closedSpaceIds(closedIds: string[], connectors: Connector[]): Set<strin
   return spaces
 }
 
+function StackBadge({ x, y, layer }: { x: number; y: number; layer: number }) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(1 -1)`} className="stack-badge" aria-hidden="true">
+      <rect x={-0.55} y={-0.38} width={1.1} height={0.76} rx={0.2} />
+      <text textAnchor="middle" dominantBaseline="central" fontSize={0.52}>{`L${layer}`}</text>
+    </g>
+  )
+}
+
 function UprightText({ x, y, children }: { x: number; y: number; children: string }) {
   return (
     <g transform={`translate(${x} ${y}) scale(1 -1)`} className="room-label">
@@ -119,6 +156,8 @@ function InteractivePlan({
   markerArmed = false,
   onPlaceMarker,
   stepFree = false,
+  editor = null,
+  preview = null,
 }: PlanCanvasProps & { plan: FloorPlan }) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [zoom, setZoom] = useState(1)
@@ -131,6 +170,11 @@ function InteractivePlan({
   const pinch = useRef<{ startDistance: number; startZoom: number; anchorX: number; anchorY: number } | null>(null)
   const suppressClick = useRef(false)
   const planWrap = useRef<HTMLDivElement>(null)
+  const [hoverPoint, setHoverPoint] = useState<Point | null>(null)
+  const [dragPoint, setDragPoint] = useState<Point | null>(null)
+  const drag = useRef<{ pointerId: number; offset: Point } | null>(null)
+  const pointerMode = editor?.mode === 'place' || editor?.mode === 'wall' || editor?.mode === 'rooms'
+  useEffect(() => { if (!pointerMode) setHoverPoint(null) }, [pointerMode])
   useEffect(() => {
     const element = planWrap.current
     if (!element) return
@@ -201,6 +245,41 @@ function InteractivePlan({
   const focusedSpaceId = focusPoint ? plan.spaces.find((space) => containsPoint(space.polygon, focusPoint))?.id ?? null : null
   if (focusedSpaceId && !reasons.has(focusedSpaceId)) reasons.set(focusedSpaceId, 'selected')
 
+  const toPlan = (clientX: number, clientY: number): Point | null => {
+    const svg = svgRef.current
+    const matrix = svg?.getScreenCTM()
+    if (!svg || !matrix) return null
+    const point = svg.createSVGPoint()
+    point.x = clientX
+    point.y = clientY
+    const mapped = point.matrixTransform(matrix.inverse())
+    return [mapped.x, -mapped.y]
+  }
+  const floorGhosts = (editor?.ghosts ?? []).filter((ghost) => ghost.asset.floor_id === plan.floor.id)
+  const primaryGhost = floorGhosts[0] ?? null
+  const startDrag = (event: ReactPointerEvent<SVGGElement>) => {
+    if (event.button !== 0 || !editor?.draggable || !primaryGhost) return
+    const point = toPlan(event.clientX, event.clientY)
+    if (!point) return
+    // The ghost owns this pointer: the map does not pan while it moves.
+    event.stopPropagation()
+    event.preventDefault()
+    svgRef.current?.setPointerCapture(event.pointerId)
+    drag.current = { pointerId: event.pointerId, offset: [primaryGhost.asset.position[0] - point[0], primaryGhost.asset.position[1] - point[1]] }
+    setDragPoint(primaryGhost.asset.position)
+  }
+  const dragDelta: Point = dragPoint && primaryGhost ? [dragPoint[0] - primaryGhost.asset.position[0], dragPoint[1] - primaryGhost.asset.position[1]] : [0, 0]
+  const layers = new Map((plan.stacking ?? []).map((row) => [row.object_id, row.layer]))
+  const previewAssets = preview?.assets.filter((asset) => asset.floor_id === plan.floor.id) ?? []
+  const previewOpenings = preview?.openings.filter((opening) => opening.floor_id === plan.floor.id) ?? []
+  const removedIds = new Set(preview?.removedIds ?? [])
+  const fadedIds = new Set([...(editor?.fadedIds ?? []), ...previewAssets.map((asset) => asset.id)])
+  const pickedSpaces = new Set(editor?.pickedSpaceIds ?? [])
+  const showAssets = displayMode === 'items' || Boolean(editor) || previewAssets.length > 0 || removedIds.size > 0
+  const orderedAssets = [...plan.assets].sort((left, right) => (layers.get(left.id) ?? 0) - (layers.get(right.id) ?? 0))
+  const cursorPoint = editor?.mode === 'place' ? hoverPoint : null
+  const wallPoint = editor?.mode === 'wall' ? hoverPoint : null
+
   const updateHover = (event: React.MouseEvent<SVGElement>, selection: Selection) => { const rect = event.currentTarget.ownerSVGElement?.getBoundingClientRect(); if (rect) setHoverPosition({ x: event.clientX - rect.left + 14, y: event.clientY - rect.top + 14 }); setHovered(selection) }
 
   const selectSpace = (space: FloorPlan['spaces'][number]) => {
@@ -223,10 +302,22 @@ function InteractivePlan({
       <div ref={planWrap} className="plan-wrap" aria-label={`${floorName} plan`} data-floor={plan.floor.id}>
       <svg
         ref={svgRef}
-        className={`plan${gesture.current.pointerId >= 0 ? ' panning' : ''}`}
+        className={`plan${gesture.current.pointerId >= 0 ? ' panning' : ''}${editor ? ` editing editing-${editor.mode}` : ''}`}
         viewBox={viewBox}
         data-zoom={zoom}
         onClick={(event) => {
+          if (editor && pointerMode) {
+            if (suppressClick.current) { suppressClick.current = false; return }
+            const point = toPlan(event.clientX, event.clientY)
+            if (!point) return
+            if (editor.mode === 'rooms') {
+              const space = spaceAt(plan.spaces, point)
+              if (space) editor.onPickSpace(space.id)
+              return
+            }
+            editor.onPoint(point)
+            return
+          }
           if (!markerArmed || !onPlaceMarker) return
           const svg = event.currentTarget
           const point = svg.createSVGPoint()
@@ -255,6 +346,12 @@ function InteractivePlan({
           gesture.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, panX, panY, moved: false }
         }}
         onPointerMove={(event) => {
+          if (drag.current?.pointerId === event.pointerId && editor) {
+            const point = toPlan(event.clientX, event.clientY)
+            if (point) setDragPoint(editor.constrain([point[0] + drag.current.offset[0], point[1] + drag.current.offset[1]]))
+            return
+          }
+          if ((editor?.mode === 'place' || editor?.mode === 'wall') && event.pointerType === 'mouse') setHoverPoint(toPlan(event.clientX, event.clientY))
           if (!pointers.current.has(event.pointerId)) return
           pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
           if (pointers.current.size >= 2 && pinch.current) {
@@ -286,7 +383,15 @@ function InteractivePlan({
             clamp(gesture.current.panY - (dy / rect.height) * viewH, 0, maxPanY),
           ])
         }}
+        onPointerLeave={() => setHoverPoint(null)}
         onPointerUp={(event) => {
+          if (drag.current?.pointerId === event.pointerId) {
+            const finalPoint = dragPoint
+            drag.current = null
+            setDragPoint(null)
+            if (finalPoint && editor) editor.onDragEnd([Math.round(finalPoint[0] * 1000) / 1000, Math.round(finalPoint[1] * 1000) / 1000])
+            return
+          }
           pointers.current.delete(event.pointerId)
           if (pointers.current.size === 0) {
             if (gesture.current.pointerId === event.pointerId && gesture.current.moved) suppressClick.current = true
@@ -301,6 +406,11 @@ function InteractivePlan({
           }
         }}
         onPointerCancel={(event) => {
+          if (drag.current?.pointerId === event.pointerId) {
+            drag.current = null
+            setDragPoint(null)
+            return
+          }
           pointers.current.delete(event.pointerId)
           pinch.current = null
           gesture.current.pointerId = -1
@@ -318,7 +428,7 @@ function InteractivePlan({
               <g key={space.id}>
                 <polygon
                   points={space.polygon.map(([x, y]) => `${x},${y}`).join(' ')}
-                  className={['space', `room-type-${roomType}`, reason ? `reason-${reason}` : '', picked ? 'picked' : ''].filter(Boolean).join(' ')}
+                  className={['space', `room-type-${roomType}`, reason ? `reason-${reason}` : '', picked ? 'picked' : '', pickedSpaces.has(space.id) ? 'editor-picked' : ''].filter(Boolean).join(' ')}
                   role="button"
                   tabIndex={0}
                   aria-label={space.name}
@@ -327,11 +437,14 @@ function InteractivePlan({
                   onMouseLeave={() => setHovered(null)}
                   onFocus={() => onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNoteFromPlan(plan, space.id) })}
                   onBlur={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.ownerSVGElement?.contains(event.relatedTarget)) onFocusSelection(null) }}
-                  onClick={() => selectSpace(space)}
+                  onClick={() => { if (!pointerMode) selectSpace(space) }}
                   onKeyDown={(event) => {
                     if (event.key !== 'Enter' && event.key !== ' ') return
                     event.preventDefault()
-                    selectSpace(space)
+                    // Keyboard path for the editor: Enter places into this room or picks it as a stop.
+                    if (editor?.mode === 'rooms') editor.onPickSpace(space.id)
+                    else if (editor?.mode === 'place') editor.onPoint(interiorPoint(space.polygon))
+                    else if (editor?.mode !== 'wall') selectSpace(space)
                   }}
                 >
                   <title>{space.name}</title>
@@ -353,6 +466,7 @@ function InteractivePlan({
               onMouseLeave={() => setHovered(null)}
               aria-label={`${opening.kind}, ${opening.width_m} m`}
               onClick={(event) => {
+                if (pointerMode) return
                 event.stopPropagation()
                 onFocusSelection({ kind: 'opening', id: opening.id, name: `${opening.kind}, ${opening.width_m} m`, floorId: plan.floor.id, floorName: plan.floor.name, note: opening.step_free ? 'Step-free' : 'Has a step' })
                 if (!allowSelect()) return
@@ -369,23 +483,25 @@ function InteractivePlan({
               <title>{`${opening.kind}, ${opening.width_m} m`}</title>
             </circle>
           ))}
-          {displayMode === 'items' && plan.assets.map((asset) => {
+          {showAssets && orderedAssets.map((asset) => {
             const landmark = landmarkIds(plan, stepPoint).includes(asset.id)
             const highlighted = assetIds.has(asset.id) || landmark
             const picked = selectionId === asset.id
+            const layer = layers.get(asset.id) ?? 0
             const { width_m: width, depth_m: depth, rotation_deg: rotation } = asset.footprint
             return (
               <g
                 key={asset.id}
                 transform={`translate(${asset.position[0]} ${asset.position[1]}) rotate(${rotation})`}
-                className={['asset', asset.category, highlighted ? 'highlighted' : '', landmark ? 'landmark' : '', picked ? 'picked' : ''].filter(Boolean).join(' ')}
+                className={['asset', asset.category, highlighted ? 'highlighted' : '', landmark ? 'landmark' : '', picked ? 'picked' : '', layer > 0 ? 'stacked' : '', fadedIds.has(asset.id) ? 'moving-origin' : '', removedIds.has(asset.id) ? 'removing' : ''].filter(Boolean).join(' ')}
                 role="button"
                 tabIndex={highlighted ? 0 : -1}
-                onMouseEnter={(event) => updateHover(event, { kind: 'asset', id: asset.id, name: asset.name, floorId: plan.floor.id, floorName: plan.floor.name, note: `${asset.type} - ${asset.category}` })}
+                onMouseEnter={(event) => updateHover(event, { kind: 'asset', id: asset.id, name: asset.name, floorId: plan.floor.id, floorName: plan.floor.name, note: `${asset.type} - ${asset.category}${layer > 0 ? ` - Layer ${layer}` : ''}` })}
                 onMouseLeave={() => setHovered(null)}
-                aria-label={asset.name}
+                aria-label={layer > 0 ? `${asset.name}, layer ${layer}` : asset.name}
                 aria-pressed={picked}
                 onClick={(event) => {
+                  if (pointerMode) return
                   event.stopPropagation()
                 onFocusSelection({ kind: 'asset', id: asset.id, name: asset.name, floorId: plan.floor.id, floorName: plan.floor.name, note: asset.type })
                   if (!allowSelect()) return
@@ -416,6 +532,45 @@ function InteractivePlan({
               </g>
             )
           })}
+          {showAssets && orderedAssets.map((asset) => {
+            const layer = layers.get(asset.id) ?? 0
+            if (layer < 1 || fadedIds.has(asset.id)) return null
+            return <StackBadge key={`badge-${asset.id}`} x={asset.position[0] + Math.max(asset.footprint.width_m, 0.35) / 2} y={asset.position[1] + Math.max(asset.footprint.depth_m, 0.35) / 2} layer={layer} />
+          })}
+          {previewAssets.map((asset) => (
+            <g key={`preview-${asset.id}`} className={['asset', 'ghost', 'preview', asset.category].join(' ')} transform={`translate(${asset.position[0]} ${asset.position[1]}) rotate(${asset.footprint.rotation_deg})`} aria-hidden="true">
+              <rect x={-asset.footprint.width_m / 2} y={-asset.footprint.depth_m / 2} width={Math.max(asset.footprint.width_m, 0.35)} height={Math.max(asset.footprint.depth_m, 0.35)} />
+            </g>
+          ))}
+          {previewOpenings.map((opening) => <circle key={`preview-${opening.id}`} className="opening ghost" cx={opening.position[0]} cy={opening.position[1]} r={0.55} aria-hidden="true" />)}
+          {floorGhosts.map(({ asset, layer }, index) => {
+            const x = asset.position[0] + dragDelta[0]
+            const y = asset.position[1] + dragDelta[1]
+            const primary = index === 0
+            return (
+              <g key={`ghost-${asset.id}`}>
+                <g
+                  className={['asset', 'ghost', asset.category, primary && editor?.invalid ? 'invalid' : '', primary && editor?.draggable ? 'draggable' : '', dragPoint ? 'dragging' : ''].filter(Boolean).join(' ')}
+                  transform={`translate(${x} ${y}) rotate(${asset.footprint.rotation_deg})`}
+                  onPointerDown={primary ? startDrag : undefined}
+                  aria-hidden="true"
+                >
+                  <rect x={-asset.footprint.width_m / 2} y={-asset.footprint.depth_m / 2} width={Math.max(asset.footprint.width_m, 0.35)} height={Math.max(asset.footprint.depth_m, 0.35)} />
+                  {primary && <circle className="ghost-centre" r={0.12} />}
+                </g>
+                {layer > 0 && <StackBadge x={x + Math.max(asset.footprint.width_m, 0.35) / 2} y={y + Math.max(asset.footprint.depth_m, 0.35) / 2} layer={layer} />}
+              </g>
+            )
+          })}
+          {editor?.ghostOpening && editor.ghostOpening.floor_id === plan.floor.id && (
+            <circle className={['opening', 'ghost', editor.invalid ? 'invalid' : ''].filter(Boolean).join(' ')} cx={editor.ghostOpening.position[0]} cy={editor.ghostOpening.position[1]} r={0.55} aria-hidden="true" />
+          )}
+          {cursorPoint && editor?.cursor && (
+            <g className={['asset', 'ghost', 'cursor', editor.cursor.category].join(' ')} transform={`translate(${cursorPoint[0]} ${cursorPoint[1]}) rotate(${editor.cursor.rotation})`} aria-hidden="true">
+              <rect x={-editor.cursor.width / 2} y={-editor.cursor.depth / 2} width={Math.max(editor.cursor.width, 0.35)} height={Math.max(editor.cursor.depth, 0.35)} />
+            </g>
+          )}
+          {wallPoint && <circle className="wall-cursor" cx={wallPoint[0]} cy={wallPoint[1]} r={0.45} aria-hidden="true" />}
           {legs.map((leg) => {
             const told = route?.directions[storyIndex]
             const revealed = told?.floor_id === plan.floor.id ? prefixTo(leg.points, told.at) : leg.points
@@ -449,7 +604,7 @@ function InteractivePlan({
           {mockPoint && <circle className="mock-marker" cx={mockPoint[0]} cy={mockPoint[1]} r={1.3} />}
         </g>
       </svg>
-      <WalkPad svgRef={svgRef} plan={plan} route={route} closedIds={closedIds} stepFree={stepFree} />
+      <WalkPad svgRef={svgRef} plan={plan} route={route} closedIds={closedIds} stepFree={stepFree} keysPaused={Boolean(editor)} />
       {hovered && <div className="map-tooltip" role="status" style={{ left: hoverPosition.x, top: hoverPosition.y }}><strong>{hovered.name}</strong><dl><dt>Type</dt><dd>{hovered.kind === 'space' ? 'Room / area' : hovered.kind === 'asset' ? 'Equipment / item' : 'Opening / connector'}</dd><dt>Floor</dt><dd>{hovered.floorName}</dd><dt>Details</dt><dd>{hovered.note || 'No additional details'}</dd></dl></div>}
     </div>
       <div
