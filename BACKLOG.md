@@ -165,6 +165,8 @@ Implementation brief: [LEVEL_4_HANDOFF.md](LEVEL_4_HANDOFF.md). Implemented 25 O
 
   **25 October 2026:** merged the emergency-roll-call mock and adapted it to building-scoped interactive sessions; the benchmark path stays separate. Simulated alerts/locations/replies are not real tracking or messaging. No tests were rerun at the user's request, so EXT-01 remains unverified.
 
+- [ ] **EXT-02 — Voice mode with live position and waypoint guidance.** **25 October 2026:** implemented, tested only with fake providers (no paid calls): `PUT position`, server-side guidance (3 m reached radius, one wrong-way warning per waypoint), long-poll feed, phrase-catalogue narrator, transcriptions and speech clips, hands-free frontend voice with VAD and barge-in. Design: ADR-0003. **Still pending:** the browser/microphone test (AudioWorklet, VAD thresholds, echo) and the live ElevenLabs + Anthropic check with STT/agent/TTS latency. Not verified end to end, so EXT-02 stays open.
+
 ## 12. Suggested delivery milestones
 
 1. **Runnable baseline:** CORE-01–05, existing tests green, original warm-up retained. Package wiring/storage and the benchmark callable are done; finish configuration and interactive-output isolation.

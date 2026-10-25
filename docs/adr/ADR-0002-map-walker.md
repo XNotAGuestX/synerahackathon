@@ -1,6 +1,6 @@
 # ADR-0002 — Begehbare Figur auf dem Grundriss
 
-- Status: Accepted
+- Status: Accepted. Teilweise ersetzt durch ADR-0003: Die Klausel „Die Position bleibt im Seitenlauf“ gilt nicht mehr. Die Position geht als Live-Position an die Sitzung.
 - Datum: 2026-10-25
 - Entscheider: Umsetzung der Karteninteraktion. Eine neue API-Version braucht diese Entscheidung nicht.
 

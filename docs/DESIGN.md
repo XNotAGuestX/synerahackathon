@@ -2,7 +2,7 @@
 
 > Autoritative Gestaltung. Die Wire-Form steht in `docs/api/openapi.yaml`. Widerspricht ein Beispiel hier der OpenAPI-Datei, gilt OpenAPI.
 >
-> Entscheidung: `docs/adr/ADR-0001-http-session-contract.md`.
+> Entscheidungen: `docs/adr/ADR-0001-http-session-contract.md`, `docs/adr/ADR-0003-voice-live-position.md`.
 
 ## 1. Zweck
 
@@ -57,8 +57,13 @@ Eine brechende Änderung braucht eine neue ADR und `/api/v2`. Der Server sendet 
 - FR-8: Den Dialog seitenweise lesen. Nach einem Reload stellen `last_route_id` und `pending_action_id` die Karte wieder her.
 - FR-9: Fehler haben stabile Codes. Kein Stacktrace in der Antwort.
 - FR-10: Beispielantworten lassen sich aus dem dev-Datensatz erzeugen.
+- FR-11 Sprachschleife: Bei aktivem Voice-Modus bleibt das Mikrofon offen. Jede Äußerung wird transkribiert, als Nutzernachricht gezeigt, vom Agenten beantwortet und gesprochen. Voice-Antworten sind ein bis zwei kurze Sätze. Ein Provider-Fehler zeigt einen Fehler, Texteingabe bleibt nutzbar.
+- FR-12 Live-Position: Der Client sendet Positionsfixes in Plan-Metern. Der Server löst sie zu einem Raum auf. Der Agent nutzt eine frische Live-Position als Routenstart. Ein Fix ändert `revision` nicht und löst kein `30012_revision_conflict` aus.
+- FR-13 Geführter Weg: Der Server nennt den nächsten Wegpunkt und die nächste Anweisung, sobald die Position höchstens 3 m vom aktuellen Ziel entfernt ist. Die Ankunft wird gemeldet.
+- FR-14 Falsche Richtung: Pro Wegpunkt höchstens eine Warnung. Danach Stille und keine automatische Neuroute. Die Warnung wird erst nach dem nächsten erreichten Wegpunkt wieder scharf.
+- FR-15 Erzähler: Ein KI-Aufruf pro Route wählt Sätze aus einem festen Phrasenkatalog und füllt Landmarken. Distanzen, Seiten und Namen kommen aus Code. Fällt das Modell aus, gelten die Standardphrasen.
 
-FR-1 → `list_buildings`, `get_building`. FR-2 → sessions. FR-3 → `get_floor_plan`. FR-4 → `search_places`. FR-5 → routes. FR-6 → `create_message`. FR-7 → actions. FR-8 → `list_messages` und Session. FR-9 → `Error`. FR-10 → `scripts/generate_api_fixtures.py`.
+FR-1 → `list_buildings`, `get_building`. FR-2 → sessions. FR-3 → `get_floor_plan`. FR-4 → `search_places`. FR-5 → routes. FR-6 → `create_message`. FR-7 → actions. FR-8 → `list_messages` und Session. FR-9 → `Error`. FR-10 → `scripts/generate_api_fixtures.py`. FR-11 → `create_transcription`, `get_speech_clip`, `create_message` mit `input_mode: voice`. FR-12 → `put_position`. FR-13, FR-14 → `get_guidance`, `put_guidance`, `delete_guidance`. FR-15 → Phrasenkatalog in `final_agent/narration.py`.
 
 ### NFR
 
@@ -73,7 +78,7 @@ FR-1 → `list_buildings`, `get_building`. FR-2 → sessions. FR-3 → `get_floo
 ### Nicht in v1
 
 - Sonntags-Benchmark, Fragenkatalog, Bewertung.
-- SSE.
+- SSE. Der Guidance-Feed ist ein Long-Poll (ADR-0003).
 - Ein Gebäude aus einem Grundriss erzeugen.
 - Eine Sitzung für mehrere Gebäude.
 - Etagen-PNG. Der Client zeichnet Polygone.
@@ -105,7 +110,9 @@ Ablauf:
 
 Stufenfrei: fehlt `preferences` beim Anlegen, ist `step_free` false. `PUT .../preferences` wird der spätere Default. Ein Satz darf das über `client_context.preferences.step_free` nur für diesen Turn übersteuern. Die Oberfläche zeigt `understood.constraints.step_free`.
 
-Begehbare Figur: Die Karte kann eine Figur auf der aktuellen Etage bewegen. Wände und Türen werden aus den Polygonkanten und Öffnungen des gelesenen Plans abgeleitet. Die Figur berechnet keine Route, schreibt keine Sitzung und wechselt die Etage nicht. Siehe `docs/specs/map-walker.md` und `docs/adr/ADR-0002-map-walker.md`.
+Begehbare Figur: Die Karte kann eine Figur auf der aktuellen Etage bewegen. Wände und Türen werden aus den Polygonkanten und Öffnungen des gelesenen Plans abgeleitet. Die Figur berechnet keine Route, schreibt keine Sitzung und wechselt die Etage nicht. Siehe `docs/specs/map-walker.md` und `docs/adr/ADR-0002-map-walker.md`. Die Position bleibt nicht mehr nur in der Seite: Die Figur sendet sie als Live-Position an die Sitzung (`PUT .../position`, ADR-0003). Sie ist trotzdem kein Sitzungszustand mit `revision`.
+
+Live-Position und Führung: `LiveState` pro Sitzung besitzt Position, Fortschritt und Ereignisse. Der Navigator vergleicht jeden Fix mit dem aktuellen Ziel. Die nächste Anweisung folgt erst bei höchstens 3 m. Der Feed `GET .../guidance` ist ein Long-Poll mit Cursor `after`. Sprachtexte haben eine `speech_clip_id`. Das Audio holt der Client mit `GET .../speech-clips/{clip_id}`. Der Server synthetisiert beim ersten Abruf und cached.
 
 ## 6. Datenmodell
 
@@ -195,8 +202,23 @@ Normative Details stehen in OpenAPI. Hier steht die Semantik.
 | 503 | `40001_model_unavailable` | Nur messages |
 | 429 | `40002_model_rate_limited` | Nur messages. Mit `Retry-After`. |
 | 504 | `40003_model_timeout` | Nur messages |
+| 503 | `40004_speech_unavailable` | Sprachanbieter nicht nutzbar. `details.reason` ist `not_configured`, `auth`, `rate_limited`, `timeout` oder `provider_error`. |
+| 404 | `30014_speech_clip_not_found` | Unbekannte `clip_id` |
 
-Reserviert und nicht umzuwidmen: `30006` und `30011`. Eine Suche ohne Treffer ist 200 und eine leere Liste. Eine Nachricht mit unklarem Ort ist 201, `intent` ist `clarify` oder `unknown`.
+Reserviert und nicht umzuwidmen: `30006` und `30011`. Eine Transkription mit falschem Audiotyp ist `20001_validation_failed` mit Feld `Content-Type`. Eine Suche ohne Treffer ist 200 und eine leere Liste. Eine Nachricht mit unklarem Ort ist 201, `intent` ist `clarify` oder `unknown`.
+
+### Sprache und Position
+
+| Operation | Semantik |
+|---|---|
+| `put_position` | `PUT /sessions/{id}/position`. Ersetzt die Live-Position. Kein `Idempotency-Key`, keine `revision`. Veraltete Fixes kommen mit `applied: false` zurück. Ein Fix älter als 15 s gilt als `stale`. |
+| `create_transcription` | `POST /sessions/{id}/transcriptions`. Roher Audio-Body, `Idempotency-Key` pro Äußerung. Antwort `{text, language}`. Rauschen ergibt `text: ""`. |
+| `get_guidance` | `GET /sessions/{id}/guidance?after=n&wait_s=0..25`. Zustand plus Ereignisse nach `after`. Long-Poll. |
+| `put_guidance` | `PUT /sessions/{id}/guidance`, `{route_id}`. Startet die Führung ohne Agenten. |
+| `delete_guidance` | `DELETE /sessions/{id}/guidance`. 204, Status `idle`. |
+| `get_speech_clip` | `GET /sessions/{id}/speech-clips/{clip_id}`. `audio/mpeg`. |
+
+`position` und `guidance` sind Singletons nach dem Muster von `preferences` (Ausnahme von „Nomen im Plural“, ADR-0003). `GuidanceEvent.kind` ist `instruction`, `wrong_way`, `arrived` oder `stopped`. `MessageCreate.input_mode` kennt `voice`. `MessageAccepted.speech_clip_id` ist nur bei Voice-Turns nicht `null`. Eine bestätigte Schließung auf der geführten Route beendet die Führung mit `stopped`.
 
 ### Header
 
@@ -232,7 +254,9 @@ In Array-Reihenfolge anwenden. Unbekannter `type`: dieses Element überspringen.
 
 ### Auth, Limit, CSRF
 
-v1 nutzt keine Cookies und damit kein CSRF-Token. Cross-Origin steuert das Backend über `CORS_ORIGINS`. Über dem Limit: 429 und `Retry-After`. JSON-Bodies höchstens 64 KiB. Kein Upload.
+v1 nutzt keine Cookies und damit kein CSRF-Token. Cross-Origin steuert das Backend über `CORS_ORIGINS`. Über dem Limit: 429 und `Retry-After`. JSON-Bodies höchstens 64 KiB. Einzige Ausnahme ist Audio bis 2 MiB auf `POST .../transcriptions`. Darüber gilt `20012_payload_too_large`.
+
+Limit: Der Client sendet etwa eine Position pro Sekunde (`PUT .../position`) und hält einen Long-Poll offen. Das App-Limit muss beides tragen, sonst kommt `00002_rate_limited` und die Führung hakt. Jeder offene Long-Poll belegt einen Threadpool-Thread, bis er endet oder abläuft.
 
 Logs auf Info: `trace_id`, Methode, Pfad, Status, Dauer, `session_id`. Der originale Nutzersatz nur auf Debug. Kein Authorization-Header im Log.
 
@@ -241,12 +265,14 @@ Logs auf Info: `trace_id`, Methode, Pfad, Status, Dauer, `session_id`. Der origi
 - M1: v1-Vertrag und dev-Mock. Das Frontend entwickelt dagegen.
 - M2: Backend implementiert buildings, sessions, plan, places, routes, actions.
 - M3: Backend hängt messages an den Agenten. Fällt das Modell aus, bleiben die M2-Endpunkte nutzbar.
-- Später: Sprache über `input_mode: transcript`, Streaming, Entwurfsgebäude, mehrere Häuser. `input_mode` fehlt es, gilt `text`.
+- M4: Sprache und Live-Position (EXT-02): Position, Führung, Transkription, Sprachclips. Der Browser-Mikrofontest und die Live-Prüfung mit ElevenLabs und Anthropic stehen noch aus.
+- Später: Streaming, Entwurfsgebäude, mehrere Häuser, Wi-Fi-Ortung statt Figur. Fehlt `input_mode`, gilt `text`.
 
 ## 9. Offene Punkte
 
 - Ob ein Gebäude aus einem Plan eine Sitzung ohne Datensatz-Id bekommen darf. v1 unterstützt das nicht.
-- Wer Sprache in Text wandelt. Die API nimmt nur schon vorhandenen `text` an.
+- Entschieden: Der Server wandelt Sprache mit ElevenLabs (STT und TTS), siehe ADR-0003. `input_mode: voice` markiert den Turn. Der Schlüssel liegt nur in der Umgebung.
+- Offen: Echo-Unterdrückung bei Lautsprechern (Barge-in). Für die Demo gelten Kopfhörer. Die Latenz bis zum ersten Ton ist ungemessen.
 
 ## 10. Änderungsmatrix
 
@@ -255,6 +281,7 @@ Logs auf Info: `trace_id`, Methode, Pfad, Status, Dauer, `session_id`. Der origi
 | OpenAPI-Feld oder Fehlercode | Diese Tabelle, examples, beide Seiten |
 | Geometriefelder in `building.json` | Floor-plan-Schema, Fixture-Skript |
 | Routenkostenmodell | Backend-Route und Kit-Bewertung. HTTP-Feldnamen bleiben. |
+| Position, Führung, Sprache | Diese Tabelle, ADR-0003, Fixtures, `final_agent/narration.py`, Frontend `features/voice` |
 | Neuer effect-Typ | OpenAPI oneOf, Frontend-Zweig für unbekannte Typen |
 | Brechende Änderung | Neue ADR, `/api/v2`, CHANGELOG |
 
