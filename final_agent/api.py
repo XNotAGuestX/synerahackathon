@@ -20,7 +20,7 @@ import uvicorn
 import yaml
 from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 from starlette.exceptions import HTTPException
 from starlette.middleware.cors import CORSMiddleware
@@ -463,6 +463,21 @@ def create_app(
     async def framework_error(request: Request, error: HTTPException):
         code = "30004_place_not_found" if error.status_code == 404 else "20001_validation_failed"
         return error_response(ApiError(code, [{"field": "path", "code": "not_found" if error.status_code == 404 else "method_not_allowed"}]), request.state.trace_id)
+
+    @app.post(API_ROOT + "/campus-demo")
+    def run_campus_demo():
+        from .campus_demo import run_campus_walkway
+        return run_campus_walkway()
+
+    @app.get(API_ROOT + "/campus-demo/images/{name}")
+    def campus_demo_image(name: str):
+        from .campus_demo import DEFAULT_OUTPUT
+        if not re.fullmatch(r"[a-z0-9-]+\.png", name):
+            raise ApiError("20001_validation_failed", [{"field": "name", "code": "invalid"}])
+        path = (DEFAULT_OUTPUT / "images" / name).resolve()
+        if not path.is_relative_to((DEFAULT_OUTPUT / "images").resolve()) or not path.is_file():
+            raise ApiError("30004_place_not_found", [{"field": "name", "code": "not_found"}])
+        return FileResponse(path, media_type="image/png")
 
     @app.get(API_ROOT + "/health", operation_id="get_health")
     def get_health():

@@ -2882,6 +2882,10 @@ button.next-distance:focus-visible { outline-color: var(--color-bar-accent); }
 
 /* Route A to B: start picker and the route target line. */
 .location-chip { max-width: 230px; min-height: 36px; padding: 6px 12px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); color: var(--color-text-primary); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.campus-walkway { display: contents; }
+.campus-report { position: absolute; z-index: 20; top: 4.5rem; right: 1rem; width: min(28rem, calc(100vw - 2rem)); max-height: 70vh; overflow: auto; padding: 1rem; background: var(--color-surface); border: 1px solid var(--color-border); }
+.campus-report img { width: 100%; height: auto; }
+.campus-report h2 { font-size: 1rem; margin: 0.75rem 0 0.25rem; }
 .map-caption button { padding: 5px 9px; border: 1px solid var(--color-primary); border-radius: 7px; background: var(--color-primary-a10); color: var(--color-text-primary); }
 .map-route-target { margin: 5px 0 0; font-size: 13px; color: var(--color-text-secondary); }
 .drawer-backdrop { position: fixed; inset: 0; z-index: 50; background: rgb(0 0 0 / 25%); display: flex; justify-content: flex-end; }

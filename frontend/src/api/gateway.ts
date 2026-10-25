@@ -7,6 +7,8 @@ export type InputMode = 'text' | 'transcript' | 'voice'
 
 export type GatewayConfig = { baseUrl: string }
 export type BuildingSummary = { id: string; name: string; floors: number; has_lift: boolean; has_step_free_entrance: boolean }
+export type CampusDemoImage = { name: string; kind: string; label: string }
+export type CampusDemo = { lengths_m: number[]; stages: { id: string; title: string; length_m: number; images: CampusDemoImage[] }[]; matches_expected: boolean }
 export type Place = { id: string; kind: string; name: string; floor_id: string; floor_level: number; space_id: string | null; position: [number, number] | null }
 type CursorPage<T> = { items: T[]; next_cursor?: string | null }
 export type RouteRequest = { start_space_id: string; destination_space_id: string; step_free?: boolean; via?: string[]; current_space_id?: string | null }
@@ -31,6 +33,8 @@ export function requestId(): string {
 export interface BuildingGateway {
   readonly mode: 'http'
   listBuildings(): Promise<BuildingSummary[]>
+  runCampusDemo(): Promise<CampusDemo>
+  campusImageUrl(name: string): string
   createSession(buildingId: string): Promise<Session>
   getSession(sessionId: string): Promise<Session>
   listMessages(sessionId: string): Promise<TranscriptMessage[]>
@@ -124,6 +128,8 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
   const json = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) })
   return {
     mode: 'http',
+    async runCampusDemo() { return request<CampusDemo>(config, '/campus-demo', json({})) },
+    campusImageUrl(name) { return `${config.baseUrl.replace(/\/$/, '')}/campus-demo/images/${encodeURIComponent(name)}` },
     async listBuildings() {
       const items: BuildingSummary[] = []
       let cursor: string | null = null
