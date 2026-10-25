@@ -128,7 +128,7 @@ paths:
       tags: [Catalog]
       summary: Objekt- und Verbindungstypen des Editors lesen
       description: |
-        Katalog aus `final_agent/object_catalog.json`, ohne Sitzung. Gruppe `items` enthält Objekttypen
+        Katalog aus `final_agent/object_types.json`, ohne Sitzung. Gruppe `items` enthält Objekttypen
         (`action: add_object`) mit Default-Maßen und Default-Höhe. Gruppe `connections` enthält Tür und Durchgang
         (`add_opening`) sowie Treppe, Rolltreppe und Aufzug (`add_connector`); deren `height_m` ist null.
       parameters:

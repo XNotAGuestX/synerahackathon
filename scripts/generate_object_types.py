@@ -1,6 +1,6 @@
-"""Generate final_agent/object_catalog.json from the train and dev buildings; deterministic, no model calls.
+"""Generate final_agent/object_types.json from the train and dev buildings; deterministic, no model calls.
 
-Run: uv run python scripts/generate_object_catalog.py
+Run: uv run python scripts/generate_object_types.py
 """
 
 import json
@@ -12,26 +12,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from final_agent.building_map import NEW_DOOR_WIDTH_M  # noqa: E402
+from final_agent.object_catalog import object_height, read_catalog  # noqa: E402
 from final_agent.object_edits import CATALOG_PATH, type_label  # noqa: E402
 
 CATEGORIES = ("furniture", "equipment", "fixture", "machine")
 STEP_M = 0.05
-# The dataset has no object heights. Typical heights in metres, floor to top, for common types. Small
-# items that usually stand on furniture (coffee machine, microwave, printer) are low so stacking works.
-TYPICAL_HEIGHTS_M = {
-    "armchair": 0.9, "bed": 0.5, "single_bed": 0.5, "bench": 0.45, "tv_stand": 0.5, "bookshelf": 2.0, "chair": 0.9, "dining_chair": 0.9,
-    "office_chair": 1.0, "coffee_table": 0.45, "desk": 0.75, "dining_table": 0.75, "meeting_table": 0.75,
-    "seminar_table": 0.75, "canteen_table": 0.75, "filing_cabinet": 1.3, "locker": 1.8, "nightstand": 0.55,
-    "pallet_rack": 2.5, "plant": 1.0, "shelf": 2.0, "sofa": 0.85, "wardrobe": 2.0, "workbench": 0.9,
-    "lab_bench": 0.9,
-    "coffee_machine": 0.45, "microwave": 0.3, "printer": 0.4, "multifunction_printer": 1.2, "fridge": 1.8,
-    "dishwasher": 0.85, "stove": 0.9, "washing_machine": 0.85, "fire_extinguisher": 0.6, "server_rack": 2.0,
-    "vending_machine": 1.8, "whiteboard": 2.0, "projector": 0.3, "microscope": 0.5,
-    "toilet": 0.8, "sink": 0.9, "kitchen_counter": 0.9, "bathtub": 0.6, "shower": 2.1,
-    "forklift": 2.2, "3d_printer": 0.6, "cnc_lathe": 2.0, "cnc_mill": 2.2,
-}
-# Every other type of a category.
-CATEGORY_HEIGHTS_M = {"furniture": 0.8, "equipment": 1.0, "fixture": 0.9, "machine": 1.8}
+# Heights come from the shared 3D object catalog (final_agent/object_catalog.json), so the editor,
+# the stacking file and the 3D view agree on one height per type.
+CATEGORY_HEIGHTS_M = read_catalog()["defaults"]["category_heights_m"]
 CONNECTIONS = (
     ("same_floor", "Same floor", "add_opening", (("door", "Door"), ("opening", "Passage"))),
     ("between_floors", "Between floors", "add_connector", (("stairs", "Stairs"), ("escalator", "Escalator"), ("lift", "Lift"))),
@@ -74,7 +62,7 @@ def catalog(data: Path) -> dict:
                 "id": type_id, "label": type_label(type_id), "action": "add_object",
                 "width_m": rounded(statistics.median(width for width, _ in footprints)),
                 "depth_m": rounded(statistics.median(depth for _, depth in footprints)),
-                "height_m": TYPICAL_HEIGHTS_M.get(type_id, CATEGORY_HEIGHTS_M[category]),
+                "height_m": object_height({"type": type_id, "category": category}),
                 "count": len(footprints),
             }
             for (item_category, type_id), footprints in sizes.items() if item_category == category

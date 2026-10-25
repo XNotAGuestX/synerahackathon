@@ -357,6 +357,10 @@ def validate_building(raw: dict, *, strict: bool = True) -> list[dict]:
     for a in assets:
         if not isinstance(a,dict): continue
         aid=a.get("id"); fid=a.get("floor_id"); sid=a.get("space_id")
+        if not isinstance(a.get("type"), str) or not a["type"].strip() or len(a["type"]) > 120:
+            issue("Asset requires a non-empty type of at most 120 characters.",aid,fid)
+        if "height_m" in a and (not _number(a["height_m"]) or a["height_m"] <= 0):
+            issue("Known asset height must be positive and finite metres.",aid,fid)
         if (not isinstance(fid,str) or fid not in floor_ids or not isinstance(sid,str) or sid not in space_ids): issue("Asset must reference a known floor and room.",aid,fid)
         elif space_map[sid].get("floor_id")!=fid: issue("Asset floor must match its containing room.",aid,fid)
         if not _valid_pair(a.get("position")): issue("Asset position must be finite XY metres.",aid,fid)
@@ -472,7 +476,12 @@ class PlanDraft:
         saver=save_fn or (lambda p,d: JsonBuildingStore.save(p,d))
         old_bytes=self.output_path.read_bytes() if self.output_path.exists() else None
         prior=copy.deepcopy(self.base_data)
-        try: saver(self.output_path,copy.deepcopy(self.data))
+        try:
+            saver(self.output_path,copy.deepcopy(self.data))
+            # Register only accepted imports, never previews, cancelled drafts or benchmark reads.
+            # A catalog write failure rolls back the building save through the same failure path.
+            from .object_catalog import register_asset_types
+            register_asset_types(self.data.get("assets", []))
         except Exception as exc:
             # The store itself is atomic; restore bytes if a custom saver partially wrote.
             try:

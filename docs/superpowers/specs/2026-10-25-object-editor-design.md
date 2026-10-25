@@ -57,7 +57,7 @@ Begriffe: *Objekt* = `asset` in `building.json`. *Verbindung* = `opening` (`door
 
 ### 3.3 Objektkatalog
 
-`final_agent/object_catalog.json`, erzeugt von `uv run python scripts/generate_object_catalog.py` aus allen `data/train/*/building.json` und `data/dev/*/building.json`. Deterministisch (sortiert, Mediane auf 0,05 m gerundet, mindestens 0,05 m).
+`final_agent/object_types.json`, erzeugt von `uv run python scripts/generate_object_types.py` aus allen `data/train/*/building.json` und `data/dev/*/building.json`. Deterministisch (sortiert, Mediane auf 0,05 m gerundet, mindestens 0,05 m).
 
 ```json
 {
@@ -288,7 +288,7 @@ Tests nur für Kernregeln: Platzierung, Stapel (schwebend, Zyklus, Mitbewegen, `
 
 | Agent | Phase | Dateien |
 |---|---|---|
-| A backend-core | 1 | `final_agent/building_map.py`, `stacking.py`, `object_edits.py`, `object_catalog.json`, `tools.py`, `agent.py`, `scripts/generate_object_catalog.py`, `tests/test_object_edits.py` |
+| A backend-core | 1 | `final_agent/building_map.py`, `stacking.py`, `object_edits.py`, `object_types.json`, `tools.py`, `agent.py`, `scripts/generate_object_types.py`, `tests/test_object_edits.py` |
 | B frontend-editor | 1 (parallel zu A) | nur `frontend/` |
 | C api-contract | 2 (nach A) | `openapi.yaml`, `docs/api/openapi.yaml`, `docs/DESIGN.md`, `final_agent/api.py`, `final_agent/api_session.py`, `scripts/generate_api_fixtures.py`, `docs/api/examples/`, `tests/test_api.py` |
 | D integration | 3 | beliebig, nur Abgleichsfehler |

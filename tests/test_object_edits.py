@@ -104,7 +104,9 @@ class ObjectEditTests(unittest.TestCase):
         }])
         self.assertEqual(layers[1]["objects"][0]["elevation_m"], 0.9)
         self.assertEqual(layers[1]["objects"][0]["height_source"], "catalog")
-        self.assertEqual(object_edits.effective_height(self.map, machine), 0.45)
+        # Without an override the shared 3D catalog height applies.
+        self.assertEqual(object_edits.effective_height(self.map, machine),
+                         object_edits.default_height(self.map.assets[machine]))
         self.assert_rejected("exceeds_ceiling", kind="update_object", object_ref=DESK, height_m=3.5)
         self.assert_rejected("invalid_field", kind="update_object", object_ref=DESK, height_m=0)
         self.assertEqual(self.map.height_overrides, {DESK: 0.9})

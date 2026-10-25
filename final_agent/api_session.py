@@ -252,7 +252,7 @@ class SessionService:
 
     @staticmethod
     def object_types() -> dict:
-        """The object catalog (object_catalog.json): item and connection types with default sizes and heights."""
+        """The object catalog (object_types.json): item and connection types with default sizes and heights."""
         return object_edits.load_catalog()
 
     def create(self, building_id: str, preferences: dict) -> dict:
@@ -352,7 +352,9 @@ class SessionService:
 
     @staticmethod
     def asset(record: dict) -> dict:
-        return project(record, "id name category type space_id floor_id position footprint source")
+        # An imported asset's own height_m is optional on the wire (see the 3D object catalog).
+        return {**project(record, "id name category type space_id floor_id position footprint source"),
+                **({"height_m": record["height_m"]} if "height_m" in record else {})}
 
     @staticmethod
     def connector(record: dict) -> dict:

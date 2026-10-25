@@ -18,9 +18,10 @@ from shapely.ops import nearest_points, unary_union
 
 from . import stacking
 from .building_map import OUTSIDE, BuildingMap, MapError, normalize_type
+from .object_catalog import object_height, read_catalog
 
 EDIT_KINDS = ("add_object", "update_object", "remove_object", "add_opening", "add_connector", "undo_edit")
-CATALOG_PATH = Path(__file__).with_name("object_catalog.json")
+CATALOG_PATH = Path(__file__).with_name("object_types.json")
 # All 20 320 dev assets lie within their room grown by this much (thick walls, rounded footprints).
 PLACEMENT_TOLERANCE_M = 0.15
 SUPPORT_MIN_OVERLAP_M2 = 0.01
@@ -59,7 +60,7 @@ def _catalog() -> dict:
 
 
 def load_catalog() -> dict:
-    """The object catalog (object_catalog.json), read once; every caller gets its own copy."""
+    """The object catalog (object_types.json), read once; every caller gets its own copy."""
     return copy.deepcopy(_catalog())
 
 
@@ -125,12 +126,18 @@ def footprint_polygon(asset: dict) -> Polygon:
     return affinity.rotate(rectangle, footprint.get("rotation_deg") or 0.0, origin=(x, y))
 
 
+@functools.cache
+def _visual_catalog() -> dict:
+    # A type registered later by a plan import gets the same estimate object_height computes for it.
+    return read_catalog()
+
+
 def default_height(asset: dict) -> float:
-    """Catalog height of the asset's type in its category, else its category's fallback."""
-    for category, entry in _item_types().get(normalize_type(asset["type"]), []):
-        if category == asset.get("category"):
-            return entry["height_m"]
-    return _category_heights().get(asset.get("category"), FALLBACK_HEIGHT_M)
+    """Height without a user override: the asset's own height_m, else the shared 3D catalog's type height.
+
+    One table (final_agent/object_catalog.json) serves the editor, the stacking file and the 3D view.
+    """
+    return object_height(asset, _visual_catalog())
 
 
 def effective_height(building_map: BuildingMap, asset_id: str) -> float:

@@ -239,7 +239,7 @@ In Array-Reihenfolge anwenden. Unbekannter `type`: dieses Element überspringen.
 
 Regeln und Datenmodell stehen in `docs/superpowers/specs/2026-10-25-object-editor-design.md`. Hier steht der HTTP-Teil.
 
-- Katalog: `GET /api/v1/object-types` liefert `final_agent/object_catalog.json`, ohne Sitzung. Objekttypen tragen Default-Breite, -Tiefe und -Höhe.
+- Katalog: `GET /api/v1/object-types` liefert `final_agent/object_types.json`, ohne Sitzung. Objekttypen tragen Default-Breite, -Tiefe und -Höhe.
 - Kinds: `add_object`, `update_object`, `remove_object`, `add_opening`, `add_connector`, `undo_edit`. Fehlende Felder oder `null` bedeuten Default beim Anlegen und „unverändert“ beim Ändern.
 - Vorschlagen prüft die Änderung auf einer Kopie der Sitzungskarte. Die Aktion speichert die normalisierte Proposal: Ids statt Namen, berechnete Position, gefüllte Defaults. Ohne Angabe bleibt `height_m` `null`, dann gilt die Katalog-Höhe. `preview_effects` = `preview_objects` plus `highlight_spaces` mit `reason: preview`.
 - Bestätigen wendet die gespeicherte Proposal an. `result` ist `EditResult`: `kind`, `summary`, `changed_ids`, `removed_ids`, `floor_ids`. Der Client lädt die Pläne aus `floor_ids` neu.
