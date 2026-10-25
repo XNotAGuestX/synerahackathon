@@ -8,6 +8,7 @@ import hmac
 import json
 import logging
 import math
+import re
 import secrets
 import threading
 from dataclasses import dataclass, field
@@ -259,6 +260,13 @@ VOICE_RULES = '\n\nThe rules below apply only when the turn context has "input_m
 # Undocumented --voice-delay-mock, just for speed in the demo video: this spoken question skips the model
 # (a voice turn takes 15-25 s there). finish_navigation still routes to the nearest toilet and guidance starts.
 VOICE_DELAY_MOCK_QUESTION = "Guide me to the nearest toilet from my position."
+DIGIT_WORDS = "zero one two three four five six seven eight nine".split()
+
+
+def spoken_room_number(text: str) -> str:
+    """Voice delay mock only: "Toilet 0.22" is spoken "Toilet zero dot two two"; whole numbers stay as they are."""
+    return re.sub(r"\d+(?:\.\d+)+", lambda match: " dot ".join(
+        " ".join(DIGIT_WORDS[int(digit)] for digit in part) for part in match.group().split(".")), text)
 
 
 class SessionService:
@@ -1300,6 +1308,8 @@ class SessionService:
                 constraint = "step-free, " if record["step_free"] else ""
                 lead_in = f"Heading to {work.map.spaces[record['destination_space_id']]['name']}, {constraint}{spoken_distance(record['length_m'])}."
                 spoken = f"{warning} {lead_in}".strip()
+            if mocked:
+                spoken = spoken_room_number(spoken)
             stop_only = body["text"].strip().casefold().rstrip(".!?").removeprefix("please ") in {
                 "stop", "stop guiding me", "stop guidance", "stop navigation", "cancel guidance", "cancel navigation",
             }
