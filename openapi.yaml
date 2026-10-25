@@ -1303,6 +1303,9 @@ components:
           type: array
           items:
             type: string
+        current_space_id:
+          type: [string, "null"]
+          description: Explicitly confirmed user location; selection and destination do not set it.
         last_route_id:
           oneOf:
             - type: string
@@ -1570,6 +1573,9 @@ components:
       additionalProperties: false
       required: [start, destination]
       properties:
+        current_space_id:
+          type: [string, "null"]
+          description: User-confirmed room id, supplied only when the UI knows the user's location.
         start:
           type: string
           minLength: 1
@@ -1944,6 +1950,12 @@ components:
           type: [integer, "null"]
         selected_space_id:
           type: [string, "null"]
+        current_space_id:
+          type: [string, "null"]
+          description: Explicitly confirmed current room, independent of map selection.
+        destination_place_id:
+          type: [string, "null"]
+          description: Verified space or asset chosen from a destination clarification.
         preferences:
           oneOf:
             - $ref: "#/components/schemas/Preferences"

@@ -54,11 +54,14 @@ class RouteCreate(Input):
     destination: Reference
     step_free: bool | None = None
     via: list[Reference] = Field(default_factory=list, max_length=8)
+    current_space_id: str | None = None
 
 
 class ClientContext(Input):
     floor_level: int | None = None
     selected_space_id: str | None = None
+    current_space_id: str | None = None
+    destination_place_id: str | None = None
     preferences: Preferences | None = None
 
 
