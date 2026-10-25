@@ -15,7 +15,7 @@ from pathlib import Path
 
 from anthropic.lib.tools import ToolError
 
-from .building_map import BuildingMap, MapError
+from .building_map import BuildingMap, MapError, require_navigation_records
 from .campus import Campus
 from .plan_build import Calibration, PlanDraft, PlanError, extract_plan, observations_to_building
 from .storage import JsonBuildingStore
@@ -104,7 +104,9 @@ class Workspace:
         return self.campus.buildings[building_id]
 
     def register(self, path: str, *, facility_number: str | None = None) -> dict:
-        source = BuildingMap.load(Path(path))
+        raw_path = Path(path)
+        require_navigation_records(JsonBuildingStore.load(raw_path))
+        source = BuildingMap.load(raw_path)
         bid = safe_id(source.data["building"]["id"])
         if facility_number is not None and not str(facility_number).strip():
             raise ValueError("Give a non-empty facility number.")
@@ -531,13 +533,13 @@ def make_workspace_tools(workspace: Workspace, emergency: bool = False) -> list:
         Each floor needs id,name,level,elevation_m,source_path,calibration. calibration contains point_a_px:[x,y],
         point_b_px:[x,y],distance_m; optionally origin_m:[x,y],rotation_deg. Multi-floor imports also need
         alignment_confirmed:true and calibrated common-frame anchors/orientations. Ask for missing scale/elevation/
-        alignment or attribution rather than inventing it. PDF users must export each page as PNG/JPEG first.
+        alignment or attribution rather than inventing it. A one-page PDF is rendered to PNG before extraction.
         """
         return workspace.create_plan(building_id, name, floors, license, attribution)
 
     @register
     def import_plan_image(path: str) -> dict:
-        """Start from just a PNG/JPEG path. Printed dimensions/scale are metres; use visible metric evidence only.
+        """Start from a PNG, JPEG, or one-page PDF path. Printed dimensions/scale are metres; use visible metric evidence only.
         The first single floor uses level 0 and elevation 0 as a local datum, source/license stay explicitly unknown.
         Produces a pending draft or needs_calibration; never claims navigation on an uncalibrated image.
         """

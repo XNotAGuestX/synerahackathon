@@ -143,6 +143,8 @@ class ApiTests(unittest.TestCase):
     def make_app(self, **options):
         options.setdefault("speech_factory", lambda: self.speech)
         options.setdefault("admin_pin", "")  # independent of a developer's EMERGENCY_ADMIN_PIN
+        # The suite exercises the object editor; the frozen default has its own test.
+        options.setdefault("map_editing", True)
         return create_app(self.data, self.root / "output", notes_database=self.root / "notes.sqlite3",
                           client_factory=lambda: self.model, clock=lambda: self.now, api_token="", **options)
 
@@ -332,6 +334,21 @@ class ApiTests(unittest.TestCase):
                           status=400, schema="Error").json()
         self.assertEqual(error["details"][0]["code"], "access_unverified")
 
+    def test_forklift_comparison_does_not_replace_the_walking_route(self):
+        session = self.session()
+        path = self.path(session)
+        walking = self.post(path + "/routes", {"start": "printer", "destination": "upstairs"}, schema="Route").json()
+        self.assertEqual(walking["profile"], "kit-1.1.0")
+        before = self.client.get(path).json()
+        compared = self.post(path + "/routes", {
+            "start": "printer", "destination": "upstairs", "profile": "synera-industrial", "persist": False,
+        }, schema="Route").json()
+        self.assertEqual(compared["profile"], "synera-industrial")
+        after = self.client.get(path).json()
+        self.assertEqual(after["last_route_id"], walking["id"])
+        self.assertEqual(after["revision"], before["revision"])
+        self.assertEqual(self.client.get(path + "/routes/" + compared["id"]).status_code, 404)
+
     def test_session_isolation_closures_and_source_preservation(self):
         first, other = self.session(), self.session()
         path = self.path(first)
@@ -454,6 +471,63 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(next_page.json()["items"][0]["text"], "Take me upstairs.")
         self.assertEqual(list((self.root / "output").rglob("*.png")), [])
 
+    def test_navigation_clarification_retains_request_and_confirmed_location(self):
+        self.model.turns = [
+            [reply(answer("Where are you?", "route", navigation={"asset_type": "desk", "floor_level": 1, "step_free": True}))],
+            [reply(answer("Location received.", confirmed_location="left"))],
+            [reply(answer("The lift connects both floors."))],
+        ]
+        session = self.session()
+        path = self.path(session)
+        waiting = self.post(path + "/messages", {"text": "I need the nearest desk on floor 1."}, schema="MessageAccepted").json()
+        self.assertEqual(waiting["guide_message"]["understood"]["missing"], ["start"])
+        routed = self.post(path + "/messages", {"text": "I am in Left."}, key="resume-nearest", schema="MessageAccepted").json()
+        retried = self.post(path + "/messages", {"text": "I am in Left."}, key="resume-nearest", schema="MessageAccepted").json()
+        self.assertEqual(retried, routed)
+        self.assertEqual(len(self.client.get(path + "/messages").json()["items"]), 4)
+        self.assertEqual(routed["session"]["current_space_id"], "left")
+        self.assertEqual(routed["routes"][0]["destination_space_id"], "upstairs")
+        self.assertTrue(routed["routes"][0]["step_free"])
+        self.assertIn("desk", routed["guide_message"]["understood"]["resolved"]["asset_ids"])
+        followup = self.post(path + "/messages", {"text": "Which lift is that?"}, schema="MessageAccepted").json()
+        self.assertEqual(followup["session"]["last_route_id"], routed["session"]["last_route_id"])
+        self.assertNotIn("clear_route", [effect["type"] for effect in followup["guide_message"]["effects"]])
+
+    def test_nearest_asset_uses_complete_candidates_constraints_and_stable_ties(self):
+        building = BuildingMap(api_building())
+        building.assets["near"] = {**building.assets["desk"], "id": "near", "name": "Z desk", "space_id": "left", "floor_id": "F0"}
+        building.assets["near-a"] = {**building.assets["near"], "id": "near-a", "name": "Another desk"}
+        for index in range(20):
+            building.assets[f"far-{index}"] = {**building.assets["desk"], "id": f"far-{index}", "name": f"A distant desk {index}"}
+        selected, route = building.nearest_asset_route("left", "desk", step_free=True)
+        self.assertEqual(selected["id"], "near")
+        self.assertEqual(route.length_m, 0)
+        self.assertIsNone(building.last_route)
+        selected, route = building.nearest_asset_route("left", "desk", floor_level=1, step_free=True)
+        self.assertEqual(selected["id"], "desk")
+        building.set_closed("lift", True)
+        with self.assertRaisesRegex(Exception, "reachable"):
+            building.nearest_asset_route("left", "desk", floor_level=1, step_free=True)
+
+    def test_explicit_ui_location_and_destination_choice_are_distinct_from_selection(self):
+        self.model.turns = [
+            [reply(answer("Need a start.", "route", navigation={"destination": "desk"}))],
+            [reply(answer("Okay."))],
+            [reply(answer("You are there.", "route", navigation={"destination": "printer"}))],
+        ]
+        session = self.session()
+        path = self.path(session)
+        waiting = self.post(path + "/messages", {"text": "Take me to the desk.", "client_context": {"selected_space_id": "left"}}, schema="MessageAccepted").json()
+        self.assertIsNone(waiting["session"]["current_space_id"])
+        self.assertEqual(waiting["guide_message"]["understood"]["missing"], ["start"])
+        routed = self.post(path + "/messages", {"text": "Use this room.", "client_context": {"current_space_id": "left"}}, schema="MessageAccepted").json()
+        self.assertTrue(routed["routes"][0]["reachable"])
+        same = self.post(path + "/messages", {"text": "Take me to the printer."}, schema="MessageAccepted").json()
+        self.assertEqual(same["routes"][0]["length_m"], 0)
+        self.assertIn("already", same["guide_message"]["text"])
+        other = self.session()
+        self.assertIsNone(other["current_space_id"])
+
     def test_chat_proposes_before_edit_and_preserves_persistent_reports(self):
         self.model.turns = [
             [reply(call("set_closed", element="lift", closed=True)), reply(answer("Please confirm the lift closure.", "close"))],
@@ -561,6 +635,51 @@ class ApiTests(unittest.TestCase):
         confirmed = self.post(path + "/actions/" + action["id"] + "/confirmations", status=200, schema="Action").json()
         self.assertEqual(confirmed["result"]["kind"], proposal["kind"])
         return action, confirmed["result"]
+
+    def tool_names_offered(self, app):
+        """Names of the tools the agent sends to the model on the first request of a turn."""
+        requests = []
+
+        def transport(request):
+            requests.append(json.loads(request.content))
+            text = answer("Done.", "close").text
+            return httpx2.Response(200, json={
+                "id": "msg_test", "type": "message", "role": "assistant", "model": "claude-sonnet-5-5",
+                "content": [{"type": "text", "text": text}], "stop_reason": "end_turn",
+                "stop_sequence": None, "usage": {"input_tokens": 10, "output_tokens": 5},
+            })
+
+        app.state.service.client_factory = lambda: anthropic.Anthropic(
+            api_key="test-only", max_retries=0, http_client=httpx2.Client(transport=httpx2.MockTransport(transport)),
+        )
+        client = TestClient(app)
+        self.addCleanup(client.close)
+        session = client.post(self.base + "/sessions", json={"building_id": "test"}, headers={"Idempotency-Key": str(uuid4())}).json()
+        client.post(self.path(session) + "/messages", json={"text": "Add a desk."}, headers={"Idempotency-Key": str(uuid4())})
+        return {tool["name"] for tool in requests[0]["tools"]}
+
+    def test_object_editor_is_frozen_unless_enabled(self):
+        with mock.patch.dict("os.environ", {"MAP_EDITING": ""}):
+            frozen = self.make_app(map_editing=None)
+        client = TestClient(frozen)
+        self.addCleanup(client.close)
+        session = client.post(self.base + "/sessions", json={"building_id": "test"}, headers={"Idempotency-Key": str(uuid4())}).json()
+        path = self.path(session)
+        for proposal in ({"kind": "add_object", "type": "desk", "space": "right"}, {"kind": "undo_edit"}):
+            response = client.post(path + "/actions", json=proposal, headers={"Idempotency-Key": str(uuid4())})
+            self.assertEqual(response.status_code, 403, response.text)
+            self.validate(response, "Error")
+            self.assertEqual(response.json()["code"], "10002_forbidden")
+            self.assertEqual(response.json()["details"], [{"field": "kind", "code": "map_editing_disabled"}])
+        # Closures and doors are not object edits and stay available.
+        closure = client.post(path + "/actions", json={"kind": "set_closed", "element_ref": "lift", "closed": True}, headers={"Idempotency-Key": str(uuid4())})
+        self.assertEqual(closure.status_code, 201, closure.text)
+        # The agent is not offered the edit tools while frozen.
+        offered = self.tool_names_offered(self.make_app(map_editing=False))
+        self.assertIn("set_closed", offered)
+        self.assertFalse(offered & {"add_object", "update_object", "remove_object", "add_opening", "add_connector", "undo_last_edit"})
+        with mock.patch.dict("os.environ", {"MAP_EDITING": "1"}):
+            self.assertTrue(self.make_app(map_editing=None).state.service.map_editing)
 
     def plan(self, session, floor_id="F0"):
         return self.validate(self.client.get(self.path(session) + f"/floors/{floor_id}/plan"), "FloorPlan")
@@ -965,9 +1084,11 @@ class ApiTests(unittest.TestCase):
         self.fix(session, -2, 0)
         result = self.turn(session, [reply(answer("Hi.", speech_text="Hi."))], input_mode="voice")
         request = self.model.requests[0]
-        system = request["system"][0]["text"]
-        self.assertIn("# Voice turn", system)
-        self.assertIn('"live_position": {"space_id": "left"', system)
+        # Voice rules sit in the fixed system prompt; the per-turn context marks the turn as voice.
+        self.assertIn("# Voice turn", request["system"][0]["text"])
+        turn = request["messages"][-1]["content"]
+        self.assertIn('"input_mode": "voice"', turn)
+        self.assertIn('"live_position": {"space_id": "left"', turn)
         self.assertEqual((request["model"], request["output_config"]), ("claude-haiku-5-5", {"effort": "high"}))
         clip = self.client.get(self.path(session) + "/speech-clips/" + result["speech_clip_id"])
         self.assertEqual((clip.headers["content-type"], clip.content), ("audio/mpeg", b"ID3Hi."))
@@ -977,8 +1098,11 @@ class ApiTests(unittest.TestCase):
         result = self.turn(session, [reply(answer("Hi."))])
         self.assertIsNone(result["speech_clip_id"])
         self.assertIsNone(result["speech_text"])
-        self.assertNotIn("# Voice turn", self.model.requests[0]["system"][0]["text"])
-        self.assertEqual(self.model.requests[0]["output_config"], {"effort": "medium"})
+        request = self.model.requests[0]
+        self.assertIn('"input_mode": "text"', request["messages"][-1]["content"])
+        # Turn state never enters the system prompt, so switching text/voice keeps prior thinking blocks valid.
+        self.assertNotIn("Current turn context", request["system"][0]["text"])
+        self.assertEqual(request["output_config"], {"effort": "medium"})
 
     def test_voice_to_text_followup_keeps_facts_but_drops_old_thinking(self):
         session = self.session()

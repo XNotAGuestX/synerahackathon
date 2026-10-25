@@ -22,7 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from . import object_edits
 from .agent import EFFORT, MODEL, MODELS, VOICE_EFFORT, VOICE_MODEL, VOICE_PROMPT, BuildingAgent, MissingCredentialsError
-from .building_map import BuildingMap, MapError, RouteResult
+from .building_map import BuildingMap, MapError, RouteResult, canonical_profile
 from .emergency import STATUS_ORDER, EmergencyMode, EmergencyNotActive, PersonNotFound, PhoneFix
 from .live import LiveState
 from .narration import landmark_candidates, narrate
@@ -45,7 +45,7 @@ ERRORS = {
     "00001_internal": (500, "An internal error occurred."),
     "00002_rate_limited": (429, "Request rate limit exceeded."),
     "10001_unauthenticated": (401, "Authentication is required."),
-    "10002_forbidden": (403, "Admin rights are required."),
+    "10002_forbidden": (403, "This operation is not allowed."),
     "10003_admin_disabled": (403, "Admin features are disabled on this server. Set EMERGENCY_ADMIN_PIN to enable them."),
     "20001_validation_failed": (400, "Request validation failed."),
     "20010_idempotency_key_required": (400, "Idempotency-Key is required."),
@@ -137,6 +137,8 @@ class SessionState:
     actions: dict[str, dict] = field(default_factory=dict)
     transcript: list[dict] = field(default_factory=list)
     history: list[dict] = field(default_factory=list)
+    current_space_id: str | None = None
+    pending_navigation: dict | None = None
     lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
     route_results: dict[str, Any] = field(default_factory=dict)  # route id -> RouteResult; never on the wire
     live: LiveState = field(default_factory=lambda: LiveState(utc_now, identifier), repr=False)
@@ -153,6 +155,18 @@ class AskChoice(BaseModel):
     place_id: str | None
 
 
+class NavigationRequest(BaseModel):
+    """Interpreted request; the application resolves places and computes the route."""
+    model_config = ConfigDict(extra="forbid")
+    start: str | None = None
+    destination: str | None = None
+    asset_type: str | None = None
+    floor_level: int | None = None
+    step_free: bool | None = None
+    min_width_m: float | None = Field(default=None, ge=0)
+    via: list[str] | None = None
+
+
 class ApiReply(BaseModel):
     """The model supplies wording and intent; the application supplies verified map facts/effects."""
     model_config = ConfigDict(extra="forbid")
@@ -162,6 +176,9 @@ class ApiReply(BaseModel):
     missing: list[Literal["start", "destination", "asset", "element"]]
     question: str | None
     options: list[AskChoice]
+    confirmed_location: str | None = None
+    navigation: NavigationRequest | None = None
+    clear_route: bool = False
     has_other_answer: bool = Field(default=False, description=(
         "True only when the user needs an independent answer/clarification besides an object edit, "
         "or essential safety warnings must be retained. False for pure add/remove/update requests, "
@@ -214,10 +231,31 @@ Do not silently replace it. Do not attempt to confirm an action by another tool.
 show_location and show_route produce JSON map effects, not image files. A successful effect
 can be described as sent to the map. Selected UI space is selection context, not proof of the
 user's location. An explicit constraint in the user's sentence overrides turn/session defaults.
-live_position with tracking=live comes from the building's positioning system and is the user's current
-location; use its space_id as the route start. Selected UI space is still not proof of location.
+live_position with tracking=live comes from the building's positioning system. A current_space_id in the
+turn context is the start the user chose explicitly and always wins; only without it is the live_position
+space_id the user's current location and the route start. Selected UI space is still not proof of location.
 start_guidance begins spoken step-by-step guidance for the route you just computed; stop_guidance ends it.
+
+The UI is a chat beside a live map. For ALL navigation requests ("take me to", "I need to go",
+"how do I reach", and "nearest/closest coffee machine"), return navigation with a verified exact
+destination id/name, or asset_type and optional target floor_level for nearest equipment. The
+application compares ALL matching assets by walking distance and draws the winning route. Do this
+even when the user did not explicitly ask for a line/map. Do not just offer to calculate directions.
+Use the dataset's asset type discovered with search_building (for example coffee_machine), not a
+guessed type or a search-result ordering. Carry explicit step_free, min_width_m and via constraints.
+Return confirmed_location only when the user explicitly states/confirms where THEY are, using a
+verified room/asset id or exact name. "I am on floor 1" is insufficient: ask which room/place.
+A selected place and a requested destination never establish the user's location. Reuse the supplied
+current_space_id for "me/here"; retain pending_navigation while resolving its missing information.
+If a pending request needs the start and the user answers with their room, populate confirmed_location.
+For "take me there", reuse the last verified selected destination, not the current location.
+Use clear_route=true only for an explicit request to clear/cancel navigation. Otherwise false.
+The application will supply missing-start questions and verified route facts after interpretation.
+Keep the visible reply to one to three short sentences; do not list raw ids or announce empty report lists.
 """
+# Voice rules stay in the fixed system prompt; the turn context says when they apply. Changing the
+# system prompt between turns would invalidate the thinking blocks already in the history.
+VOICE_RULES = '\n\nThe rules below apply only when the turn context has "input_mode": "voice".' + VOICE_PROMPT
 
 
 class SessionService:
@@ -225,7 +263,7 @@ class SessionService:
         self, data_directory: Path, output_directory: Path, *, notes_database: Path | None = None,
         client_factory: Callable | None = None, clock: Callable = utc_now, new_id: Callable = identifier,
         model_timeout: float = 60, cursor_secret: bytes | None = None,
-        speech: SpeechProvider | None = None, admin_pin: str = "",
+        speech: SpeechProvider | None = None, admin_pin: str = "", map_editing: bool = True,
     ) -> None:
         self.speech, self.clips = speech, ClipCache()
         self.admin_pin = admin_pin
@@ -234,6 +272,8 @@ class SessionService:
         self.admin_tokens: dict[str, dict] = {}  # sha256(token) -> name, expires; the token itself is not kept
         self.pin_failures: list[datetime] = []
         self._emergency_lock = threading.Lock()  # never take a session lock while holding it
+        # False freezes the object editor (object_edits.EDIT_KINDS) for the API and the agent; closures and doors stay.
+        self.map_editing = map_editing
         self.first_instruction_wait_s = 2.5
         self.data_directory = Path(data_directory).resolve()
         self.output_directory = Path(output_directory)
@@ -480,6 +520,7 @@ class SessionService:
                 "building_name": session.map.data["building"]["name"], "revision": session.revision,
                 "object_revision": session.object_revision,
                 "preferences": dict(session.preferences), "closed_ids": sorted(session.map.closed),
+                "current_space_id": session.current_space_id,
                 "last_route_id": session.last_route_id, "pending_action_id": session.pending_action_id,
                 "created_at": session.created_at, "updated_at": session.updated_at,
             }
@@ -581,7 +622,7 @@ class SessionService:
 
     def route_record(
         self, session: SessionState, route: RouteResult | None, stops: list[str], step_free: bool,
-        reason: str = "", travel_mode: str = "walking", min_width_m: float = 0,
+        reason: str = "", travel_mode: str = "walking", min_width_m: float = 0, profile: str | None = None,
     ) -> dict:
         directions = []
         legs = []
@@ -605,13 +646,14 @@ class SessionService:
                     legs.append({"floor_id": floor_id, "floor_level": session.map.floor_level(floor_id), "points": [list(point) for point in points]})
         else:
             directions = [{"text": reason, "floor_id": None, "at": None}]
+        recorded_profile = canonical_profile(profile if profile is not None else (route.route_profile if route is not None else None))
         return {
             "schema_version": 1, "id": self.new_id(), "session_id": session.id,
             "reachable": route is not None, "length_m": round(route.length_m, 2) if route else None,
             "step_free": route.step_free if route else step_free,
             "travel_mode": route.travel_mode if route else travel_mode,
             "min_width_m": route.min_width_m if route else min_width_m,
-            "via": stops[1:-1], "closed_ids": sorted(session.map.closed),
+            "profile": recorded_profile, "via": stops[1:-1], "closed_ids": sorted(session.map.closed),
             "start_space_id": stops[0], "destination_space_id": stops[-1],
             "space_path": list(route.space_path) if route else [], "directions": directions,
             "legs": legs, "created_at": timestamp(self.clock()),
@@ -622,6 +664,9 @@ class SessionService:
             self.sync_objects(session)
             self.expire(session)
             self.match(session, revision)
+            current = body.get("current_space_id")
+            if current is not None and current not in session.map.spaces:
+                raise ApiError("30004_place_not_found", [{"field": "current_space_id", "code": "not_found"}])
             references = [body["start"], *body.get("via", []), body["destination"]]
             stops = [self.resolve(session.map, ref, "start" if i == 0 else "destination" if i == len(references) - 1 else "via")
                      for i, ref in enumerate(references)]
@@ -629,18 +674,30 @@ class SessionService:
             default_mode = (session.map.active_request or {}).get("travel_mode", session.preferences.get("travel_mode", "walking"))
             travel_mode = body.get("travel_mode", default_mode)
             step_free, min_width_m = session.map.route_constraints(step_free, body.get("min_width_m", 0), travel_mode)
+            profile = canonical_profile(body.get("profile"))
+            # A comparison route must not replace the walking route guidance follows, so it is computed
+            # without touching the map's active route either.
+            persist = body.get("persist", True)
             try:
-                route = session.map.route(stops[0], stops[-1], step_free, stops[1:-1], min_width_m, travel_mode=travel_mode)
-                result = self.route_record(session, route, stops, step_free)
+                compute = session.map.route if persist else session.map.compute_route
+                route = compute(stops[0], stops[-1], step_free, stops[1:-1], min_width_m, travel_mode=travel_mode, profile=profile)
+                result = self.route_record(session, route, stops, step_free, profile=profile)
             except MapError as error:
+                if error.reason == "invalid_field":
+                    raise ApiError("20001_validation_failed", [{"field": error.field or "profile", "code": "invalid", "message": str(error)}]) from error
                 if error.reason != "unreachable":
                     raise ApiError("20001_validation_failed", [{"field": error.field or "route", "code": error.reason or "invalid",
                                                                "message": str(error)}]) from error
-                result = self.route_record(session, None, stops, step_free, str(error), travel_mode, min_width_m)
+                result = self.route_record(session, None, stops, step_free, str(error), travel_mode, min_width_m, profile=profile)
+            if not persist:
+                return copy.deepcopy(result)
             session.routes[result["id"]] = result
             if result["reachable"]:
                 session.route_results[result["id"]] = route
             session.last_route_id = result["id"]
+            if current is not None:
+                session.current_space_id = current
+            session.pending_navigation = None
             self.bump(session)
             return copy.deepcopy(result)
 
@@ -722,11 +779,16 @@ class SessionService:
         pair = {proposal["first_space"], proposal["second_space"]}
         return next((door for _, door in sorted(building_map.openings.items()) if door["kind"] == "door" and set(door["space_ids"]) == pair), None)
 
+    def require_editing(self, proposal: dict) -> None:
+        if not self.map_editing and proposal.get("kind") in object_edits.EDIT_KINDS:
+            raise ApiError("10002_forbidden", [{"field": "kind", "code": "map_editing_disabled"}])
+
     def propose(self, session: SessionState, proposal: dict, revision: int | None) -> dict:
         with session.lock:
             self.sync_objects(session)
             self.expire(session)
             self.match(session, revision)
+            self.require_editing(proposal)
             if session.pending_action_id is not None:
                 raise ApiError("30010_action_conflict")
             if proposal["kind"] in object_edits.EDIT_KINDS:
@@ -784,6 +846,7 @@ class SessionService:
             self.match(session, revision)
             if confirm:
                 proposal = action["proposal"]
+                self.require_editing(proposal)
                 if proposal["kind"] == "set_closed":
                     proposal = self.validate_proposal(session, proposal)
                     with session.map.transaction():
@@ -1015,6 +1078,8 @@ class SessionService:
             route_results=dict(session.route_results), live=session.live,  # live is shared, never copied
             object_revision=session.object_revision, action_object_revisions=dict(session.action_object_revisions),
             is_working_copy=True,
+            current_space_id=session.current_space_id,
+            pending_navigation=copy.deepcopy(session.pending_navigation),
         )
 
     @staticmethod
@@ -1038,6 +1103,110 @@ class SessionService:
                 "destination_name": view["destination_name"], "target_index": index, "waypoint_count": len(waypoints),
                 "next_instruction": waypoints[index]["text"] if index is not None else None}
 
+    @staticmethod
+    def navigation_question(reply: ApiReply, slot: str, text: str, candidates: list[dict] = ()) -> ApiReply:
+        options = [AskChoice(id=item["id"], place_id=item["id"],
+                             label=f"{item['name']} · {item.get('floor', item.get('floor_name', ''))}")
+                   for item in candidates[:4]]
+        return reply.model_copy(update={"intent": "clarify", "text": text, "summary": text,
+                                        "missing": [slot], "question": text, "options": options})
+
+    def finish_navigation(self, work: SessionState, bridge, reply: ApiReply, step_free: bool,
+                          context: dict, live_space_id: str | None = None) -> ApiReply:
+        """Complete navigation from verified interpretation, including a deferred start choice."""
+        if reply.clear_route:
+            work.pending_navigation = None
+            work.last_route_id = None
+            work.map.last_route = None
+            work.map.active_request = None
+            bridge.effects.append({"type": "clear_route"})
+            return reply
+        if reply.confirmed_location:
+            try:
+                work.current_space_id = work.map.resolve_space(reply.confirmed_location)
+            except MapError as error:
+                return self.navigation_question(reply, "start", "Which room are you in?", error.candidates)
+        request = copy.deepcopy(work.pending_navigation) or {}
+        if reply.navigation is not None:
+            patch = reply.navigation.model_dump(exclude_none=True)
+            if patch.get("asset_type"):
+                request.pop("destination", None)
+            elif patch.get("destination"):
+                request.pop("asset_type", None)
+            request.update(patch)
+            if reply.navigation.step_free is not None:
+                work.preferences["step_free"] = reply.navigation.step_free
+        if context.get("destination_place_id"):
+            request.pop("asset_type", None)
+            request["destination"] = context["destination_place_id"]
+        resume = work.pending_navigation and (reply.confirmed_location or context.get("current_space_id") or context.get("destination_place_id"))
+        if reply.navigation is None and not resume:
+            return reply
+        request.setdefault("step_free", step_free)
+        work.pending_navigation = request
+        # A start the user chose explicitly wins over the live position fix.
+        start = request.get("start") or work.current_space_id or live_space_id
+        try:
+            if start:
+                start = work.map.resolve_space(start)
+        except MapError as error:
+            return self.navigation_question(reply, "start", "Which starting room do you mean?", error.candidates)
+        destination = request.get("destination")
+        asset_type = request.get("asset_type")
+        if not destination and not asset_type:
+            return self.navigation_question(reply, "destination", "Where would you like to go?")
+        if not start:
+            work.last_route_id = None
+            work.map.last_route = None
+            bridge.route_ids.clear()
+            bridge.effects.append({"type": "clear_route"})
+            return self.navigation_question(reply, "start", "Where are you starting? Choose your room or set it on the map.")
+        try:
+            via = request.get("via") or []
+            width = request.get("min_width_m", 0.0)
+            tool_route = work.map.last_route if bridge.route_ids else None
+            if asset_type:
+                selected, _ = work.map.nearest_asset_route(
+                    start, asset_type, request.get("floor_level"), request["step_free"], width, via)
+                destination = selected["id"]
+            selection = work.map.select(destination)
+            route = work.map.route(start, destination, request["step_free"], via, width)
+        except MapError as error:
+            if error.reason == "ambiguous":
+                return self.navigation_question(reply, "destination", "Which destination do you mean?", error.candidates)
+            work.pending_navigation = None
+            work.last_route_id = None
+            work.map.last_route = None
+            bridge.route_ids.clear()
+            bridge.effects.append({"type": "clear_route"})
+            return reply.model_copy(update={"intent": "route", "text": str(error), "summary": str(error),
+                                            "missing": [], "question": None, "options": []})
+        record = self.route_record(work, route, route.stops, route.step_free)
+        work.routes[record["id"]] = record
+        work.route_results[record["id"]] = route
+        work.last_route_id = record["id"]
+        work.pending_navigation = None
+        # Live guidance follows the route that is displayed, including one requested this turn.
+        if bridge.guidance_request is not None and bridge.guidance_request[0] == "start":
+            bridge.guidance_request = ("start", record["id"])
+        bridge.guided_route_id = record["id"]
+        # Only the final requested/winning route is displayed, never a comparison candidate.
+        bridge.effects = [effect for effect in bridge.effects if effect["type"] not in {"draw_route", "clear_route", "ask", "highlight_assets"}]
+        bridge.effects.append({"type": "draw_route", "route_id": record["id"]})
+        bridge.route_ids = [record["id"]]
+        bridge.space_ids.update(route.space_path)
+        if selection["kind"] == "asset":
+            bridge.asset_ids = {selection["id"]}
+            bridge.effects.append({"type": "highlight_assets", "asset_ids": [selection["id"]]})
+        target = selection["name"]
+        floor_name = work.map.floor_name(work.map.spaces[route.destination_space_id]["floor_id"])
+        text = f"You're already at {target} on {floor_name}." if route.length_m == 0 else f"{target} on {floor_name} is {record['length_m']:g} m away. The route is shown on the map."
+        if tool_route and route.length_m > 0 and tool_route.node_path == route.node_path and tool_route.edge_path == route.edge_path:
+            # Retain tool-grounded context such as safety notes for this exact route.
+            text = reply.text + " The route is shown on the map."
+        return reply.model_copy(update={"intent": "route", "text": text, "summary": text,
+                                        "missing": [], "question": None, "options": []})
+
     def message(self, session: SessionState, body: dict, revision: int | None) -> dict:
         with session.lock:
             self.sync_objects(session)
@@ -1056,6 +1225,13 @@ class SessionService:
         selected_object = context.get("selected_object_id")
         if selected_object is not None and not any(selected_object in index for index in (work.map.assets, work.map.openings, work.map.connectors)):
             raise ApiError("30013_element_not_found", [{"field": "selected_object_id", "code": "not_found"}])
+        for name in ("current_space_id", "destination_place_id"):
+            value = context.get(name)
+            valid = value is None or value in work.map.spaces or (name == "destination_place_id" and value in work.map.assets)
+            if not valid:
+                raise ApiError("30004_place_not_found", [{"field": name, "code": "not_found"}])
+        if context.get("current_space_id"):
+            work.current_space_id = context["current_space_id"]
         step_free = (context.get("preferences") or work.preferences)["step_free"]
         active_mode = (work.map.active_request or {}).get("travel_mode", work.preferences.get("travel_mode", "walking"))
         travel_mode = (context.get("preferences") or {}).get("travel_mode", active_mode)
@@ -1065,20 +1241,27 @@ class SessionService:
         try:
             bridge = TurnTools(self, work, store, step_free, travel_mode)
             live_context = {"live_position": self.live_context(work, session.live), "guidance": self.guidance_context(session.live)}
-            turn_context = API_PROMPT + ("" if not voice else VOICE_PROMPT)
             client = self.client_factory()
             agent = BuildingAgent(
                 work.map, self.output_directory / session.id, client=client,
                 registered_tools=bridge.tools, response_format=VoiceReply if voice else ApiReply,
-                turn_context=turn_context + "\nCurrent turn context: " + json.dumps({**context, "step_free_default": step_free,
-                                                                                  "travel_mode_default": travel_mode, **live_context}),
-                request_timeout=self.model_timeout, effort=VOICE_EFFORT if voice else EFFORT, model=VOICE_MODEL if voice else MODEL,
+                extra_prompt=API_PROMPT + VOICE_RULES, request_timeout=self.model_timeout,
+                effort=VOICE_EFFORT if voice else EFFORT, model=VOICE_MODEL if voice else MODEL,
             )
             agent.messages = work.history
-            reply = (VoiceReply if voice else ApiReply).model_validate_json(agent.ask(body["text"]))
+            turn_context = "Current turn context: " + json.dumps({**context, "input_mode": body.get("input_mode", "text"),
+                "current_space_id": work.current_space_id, "pending_navigation": work.pending_navigation,
+                "step_free_default": step_free, "travel_mode_default": travel_mode, **live_context})
+            reply = (VoiceReply if voice else ApiReply).model_validate_json(agent.ask(body["text"], turn_context))
             spoken = reply.speech_text.strip() if isinstance(reply, VoiceReply) else None
             if voice and not spoken:
                 raise ValueError("Voice reply contained no spoken summary.")
+            live_position = live_context["live_position"]
+            live_space_id = live_position["space_id"] if live_position and live_position["tracking"] == "live" else None
+            navigated = self.finish_navigation(work, bridge, reply, step_free, context, live_space_id)
+            if voice and navigated.text != reply.text:
+                spoken = navigated.text  # The application replaced the model's answer, e.g. with a start question.
+            reply = navigated
             acknowledgement = bridge.object_edit_acknowledgement()
             if acknowledgement is not None and not reply.has_other_answer:
                 # Tool evidence owns edit status. Old room-report context cannot add a vote requirement.
@@ -1156,7 +1339,8 @@ class SessionService:
                     raise self.objects_changed()
                 if session.revision != base_revision or len(session.history) != history_length:
                     raise ApiError("30012_revision_conflict")
-                changed = (work.preferences != session.preferences or work.last_route_id != session.last_route_id or work.pending_action_id != session.pending_action_id)
+                changed = (work.preferences != session.preferences or work.last_route_id != session.last_route_id or work.pending_action_id != session.pending_action_id
+                           or work.current_space_id != session.current_space_id or work.pending_navigation != session.pending_navigation)
                 work.revision = session.revision
                 work.updated_at = session.updated_at
                 if changed:
@@ -1173,7 +1357,8 @@ class SessionService:
                 # Validate JSON before committing session state. Room reports are already saved
                 # per tool call; a retry cannot add votes because each chat counts once.
                 json.dumps(response, allow_nan=False)
-                for name in ("map", "revision", "updated_at", "last_route_id", "pending_action_id", "routes", "actions", "transcript", "history", "route_results", "action_object_revisions"):
+                for name in ("map", "revision", "updated_at", "last_route_id", "pending_action_id", "routes", "actions", "transcript",
+                             "history", "route_results", "action_object_revisions", "current_space_id", "pending_navigation"):
                     setattr(session, name, getattr(work, name))
                 if bridge.guidance_request is not None:
                     action, route_id = bridge.guidance_request
@@ -1189,6 +1374,17 @@ class SessionService:
         except (anthropic.APITimeoutError, TimeoutError) as error:
             raise ApiError("40003_model_timeout") from error
         except (anthropic.APIError, MissingCredentialsError, ValueError) as error:
+            if isinstance(error, anthropic.APIStatusError):
+                LOG.error(
+                    "model request failed status=%s request_id=%s message=%s body=%s",
+                    error.status_code,
+                    getattr(error, "request_id", None),
+                    error.message,
+                    getattr(error, "body", None),
+                    exc_info=True,
+                )
+            else:
+                LOG.error("model request failed type=%s message=%s", type(error).__name__, error, exc_info=True)
             raise ApiError("40001_model_unavailable", retry_after=1) from error
         finally:
             if client is not None and hasattr(client, "close"):
@@ -1450,7 +1646,10 @@ class TurnTools:
         )}
         originals = make_tools(work.map, service.output_directory / work.id, notes_store=store, session_id=work.id)
         mode_state = {"travel_mode": travel_mode}
-        self.tools = [ObservedTool(overrides.get(tool.name, tool), self.observe, step_free, self.failed, mode_state) for tool in originals]
+        # With the editor frozen the agent is not offered the object-edit tools, so it never promises such an edit.
+        frozen = set() if getattr(service, "map_editing", True) else {"add_object", "update_object", "remove_object", "add_opening", "add_connector", "undo_last_edit"}
+        self.tools = [ObservedTool(overrides.get(tool.name, tool), self.observe, step_free, self.failed, mode_state)
+                      for tool in originals if tool.name not in frozen]
         self.tools += [ArgumentCheckedTool(function) for function in (start_guidance, stop_guidance)]
 
     def guidance_problem(self) -> str | None:

@@ -1,5 +1,7 @@
 # TODOLIST – hackathon-synera / Wayfinder
 
+**当前执行清单是 [TODOLIST-2026-10-25.md](TODOLIST-2026-10-25.md)。** 本文件保留 2026-10-24 的前端核对记录。下面的 `[x]` / `[~]` 不是挑战达标结论。
+
 **Integration 25.10.2026:** Live-Chat und Benchmark verwenden ausschließlich den Agenten aus main. Frühere Fixture-/Tool-Adapter-Notizen unten sind historische Frontend-Evidenz; UI-Prüfungen bleiben auf Nutzerwunsch ausgesetzt.
 
 **Stand:** 2026-10-24, Checkboxen nach Codeprüfung von `frontend/src` gesetzt  

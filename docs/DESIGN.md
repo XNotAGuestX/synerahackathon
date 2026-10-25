@@ -51,7 +51,7 @@ Eine brechende Änderung braucht eine neue ADR und `/api/v2`. Der Server sendet 
 - FR-2: Sitzung anlegen, Stufenfrei-Präferenz ersetzen, Sitzung löschen.
 - FR-3: Zeichenbare Geometrie pro Etage lesen, inklusive bestätigter neuer Türen und Editor-Änderungen. `closed_ids` und `stacking` entsprechen der Sitzung derselben `revision`.
 - FR-4: Räume und Geräte nach Wörtern suchen.
-- FR-5: Route berechnen und die Polylinie pro Etage liefern. Unerreichbar bleibt eine Route mit `reachable: false`.
+- FR-5: Route berechnen und die Polylinie pro Etage liefern. Unerreichbar bleibt eine Route mit `reachable: false`. Optionales `profile` ist `kit-1.1.0` oder `synera-industrial`. `persist: false` liefert nur den Vergleich und ändert `last_route_id` und `revision` nicht.
 - FR-6: Einen Satz senden und Antworttext, `understood`, `effects` und die zitierten Routen erhalten.
 - FR-7: Schließen, Wiederöffnen, eine Tür oder eine Editor-Änderung (FR-11) vorschlagen. Erst die Bestätigung ändert die Sitzung. Chat und Editor-Buttons nutzen denselben Ablauf `propose → confirm`.
 - FR-8: Den Dialog seitenweise lesen. Nach einem Reload stellen `last_route_id` und `pending_action_id` die Karte wieder her.
@@ -187,6 +187,7 @@ Normative Details stehen in OpenAPI. Hier steht die Semantik.
 | 401 | `10001_unauthenticated` | `API_TOKEN` ist gesetzt, Token fehlt oder stimmt nicht. |
 | 403 | `10002_forbidden` | Ohne Admin-Recht: falsche PIN (`field: pin`) oder `X-Admin-Token` fehlt, unbekannt, abgelaufen (`code` `required`, `invalid`, `expired`). |
 | 403 | `10003_admin_disabled` | `EMERGENCY_ADMIN_PIN` ist leer. Admin-Endpunkte sind aus. |
+| 403 | `10002_forbidden` | Authentifiziert, aber ohne Recht. Auch bei eingefrorenem Objekteditor: `POST .../actions` und Bestätigungen für `add_object`, `update_object`, `remove_object`, `add_opening`, `add_connector`, `undo_edit` ohne `MAP_EDITING=1` bzw. `--map-editing`; Detail `{"field": "kind", "code": "map_editing_disabled"}`. |
 | 400 | `20001_validation_failed` | Feldweise `details`. Editor: `code` `invalid` oder `unknown_type` (Typ fehlt im Katalog und keine Kategorie) |
 | 400 | `20010_idempotency_key_required` | POST ohne Schlüssel |
 | 409 | `20011_idempotency_key_mismatch` | Gleicher Schlüssel, anderer Body |

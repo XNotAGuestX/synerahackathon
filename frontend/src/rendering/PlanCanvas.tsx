@@ -3,9 +3,10 @@ import type { PointerEvent as ReactPointerEvent } from 'react'
 import type { Asset, FloorPlan, Opening, Point, Route, Selection } from '../domain/types'
 import type { Connector } from '../domain/types'
 import { interiorPoint, spaceAt } from '../domain/editor'
-import { connectorNoteFromPlan, landmarkIds } from '../domain/live'
+import { openingAccessNote, spaceAccessNote } from '../domain/route-compare'
+import { connectorNoteFromPlan, escapeSpaceIds, landmarkIds, wayfindingRole } from '../domain/live'
 import type { PreviewObjects } from '../domain/presentation'
-import { MapTooltip, assetTip, openingTip, spaceTip } from './MapTooltip'
+import { MapTooltip, assetTip, spaceTip } from './MapTooltip'
 import { WalkPad } from './WalkPad'
 
 export type GhostAsset = { asset: Asset; layer: number }
@@ -33,12 +34,20 @@ export type EditorOverlay = {
 type PlanCanvasProps = {
   plan: FloorPlan | null
   floorName: string
+  /** Shown instead of the plan while it is missing, e.g. during loading. */
+  emptyText?: string
   route: Route | null
+  previousRoute?: Route | null
+  /** Second tape from profile=synera-industrial. The walking route stays the one being followed. */
+  forkliftRoute?: Route | null
+  /** Door and bay notes that explain why the forklift tape differs. */
+  forkliftCompare?: boolean
   spaceReasons: Map<string, string>
   assetIds: Set<string>
   closedIds: string[]
   focusPoint: Point | null
   stepPoint: Point | null
+  /** Index of the direction told by the step player; the route up to it is highlighted. */
   storyIndex: number
   selectionId: string | null
   onSelect: (selection: Selection) => void
@@ -72,6 +81,11 @@ function polygonArea(polygon: Point[]): number {
   return Math.abs(sum) / 2
 }
 
+function centroid(polygon: Point[]): Point {
+  const total = polygon.reduce(([x, y], [px, py]) => [x + px, y + py], [0, 0])
+  return [total[0] / polygon.length, total[1] / polygon.length]
+}
+
 function prefixTo(points: Point[], target: Point | null): Point[] {
   if (!target || points.length < 2) return points
   let best = 0
@@ -84,11 +98,6 @@ function prefixTo(points: Point[], target: Point | null): Point[] {
     }
   })
   return points.slice(0, Math.max(2, best + 1))
-}
-
-function centroid(polygon: Point[]): Point {
-  const total = polygon.reduce(([x, y], [px, py]) => [x + px, y + py], [0, 0])
-  return [total[0] / polygon.length, total[1] / polygon.length]
 }
 
 function containsPoint(polygon: Point[], point: Point): boolean {
@@ -141,9 +150,9 @@ function clamp(value: number, min: number, max: number): number {
 export function PlanCanvas(props: PlanCanvasProps) {
   if (!props.plan) {
     return (
-      <div className="plan-wrap plan-empty" role="status" data-floor="missing">
+      <div className="plan-wrap plan-empty" data-floor="missing">
         <strong>{props.floorName}</strong>
-        <p>No plan fixture for this floor.</p>
+        <p>{props.emptyText ?? 'This floor has no plan yet.'}</p>
       </div>
     )
   }
@@ -154,6 +163,9 @@ function InteractivePlan({
   plan,
   floorName,
   route,
+  previousRoute = null,
+  forkliftRoute = null,
+  forkliftCompare = false,
   spaceReasons,
   assetIds,
   closedIds,
@@ -179,9 +191,15 @@ function InteractivePlan({
   const svgRef = useRef<SVGSVGElement>(null)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState<Point>([0, 0])
+  const [fitRoute, setFitRoute] = useState(true)
   const [hovered, setHovered] = useState<Selection | null>(null)
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 })
-  const [displayMode, setDisplayMode] = useState<'rooms' | 'items' | 'labels'>('items')
+  const [showItems, setShowItems] = useState(true)
+  const [showNumbers, setShowNumbers] = useState(false)
+  // The legend floats over the plan, so it opens on request only.
+  const [legendOpen, setLegendOpen] = useState(false)
+  // One Tab stop for all rooms; arrow keys move between them.
+  const [rovingId, setRovingId] = useState<string | null>(null)
   const gesture = useRef({ pointerId: -1, x: 0, y: 0, panX: 0, panY: 0, moved: false })
   const pointers = useRef(new Map<number, { x: number; y: number }>())
   const pinch = useRef<{ startDistance: number; startZoom: number; anchorX: number; anchorY: number } | null>(null)
@@ -207,11 +225,13 @@ function InteractivePlan({
   useEffect(() => {
     setZoom(1)
     setPan([0, 0])
+    setFitRoute(true)
     pointers.current.clear()
     pinch.current = null
     gesture.current.pointerId = -1
-  }, [plan.floor.id])
+  }, [plan.floor.id, route?.id])
 
+  const exitIds = escapeSpaceIds(plan)
   const reasons = new Map(spaceReasons)
   if (route?.start_space_id && !reasons.has(route.start_space_id)) reasons.set(route.start_space_id, 'selected')
   if (route?.destination_space_id && !reasons.has(route.destination_space_id)) reasons.set(route.destination_space_id, 'selected')
@@ -219,10 +239,20 @@ function InteractivePlan({
     if (reasons.get(spaceId) !== 'preview') reasons.set(spaceId, 'closed')
   }
 
-  const [minX, minY] = plan.bounds.min
-  const [maxX, maxY] = plan.bounds.max
-  // Room for the entrance aprons: the walker and emergency markers can stand 2.5 m outside.
-  const pad = 3.2
+  // A new route opens zoomed to its legs on this floor; "Floor" shows the whole plan again.
+  const routePoints = route?.reachable && fitRoute ? route.legs.filter((leg) => leg.floor_id === plan.floor.id).flatMap((leg) => leg.points) : []
+  const routeBounds = routePoints.length > 0 ? {
+    min: [Math.min(...routePoints.map(([x]) => x)), Math.min(...routePoints.map(([, y]) => y))],
+    max: [Math.max(...routePoints.map(([x]) => x)), Math.max(...routePoints.map(([, y]) => y))],
+  } : null
+  const bounds = routeBounds ?? plan.bounds
+  const margin = routeBounds ? 2 : 0
+  const minX = bounds.min[0] - margin
+  const minY = bounds.min[1] - margin
+  const maxX = bounds.max[0] + margin
+  const maxY = bounds.max[1] + margin
+  // The whole floor leaves room for the entrance aprons: the walker and emergency markers can stand 2.5 m outside.
+  const pad = routeBounds ? 1.2 : 3.2
   const baseX = minX - pad
   const baseY = -(maxY + pad)
   const baseW = maxX - minX + pad * 2
@@ -257,9 +287,12 @@ function InteractivePlan({
     suppressClick.current = false
     return false
   }
-  const legs = route?.reachable ? route.legs.filter((leg) => leg.floor_id === plan.floor.id && leg.points.length > 1) : []
-  const firstLeg = route?.legs[0]
-  const lastLeg = route?.legs.at(-1)
+  const legs = route?.reachable
+    ? route.legs.map((leg, index) => ({ leg, index }))
+      .filter(({ leg }) => leg.floor_id === plan.floor.id && leg.points.length > 1)
+    : []
+  const firstLeg = route?.reachable ? route.legs[0] : null
+  const lastLeg = route?.reachable ? route.legs.at(-1) : null
   const focusedSpaceId = focusPoint ? plan.spaces.find((space) => containsPoint(space.polygon, focusPoint))?.id ?? null : null
   if (focusedSpaceId && !reasons.has(focusedSpaceId)) reasons.set(focusedSpaceId, 'selected')
 
@@ -293,7 +326,7 @@ function InteractivePlan({
   const removedIds = new Set(preview?.removedIds ?? [])
   const fadedIds = new Set([...(editor?.fadedIds ?? []), ...previewAssets.map((asset) => asset.id)])
   const pickedSpaces = new Set(editor?.pickedSpaceIds ?? [])
-  const showAssets = displayMode === 'items' || Boolean(editor) || previewAssets.length > 0 || removedIds.size > 0
+  const showAssets = showItems || Boolean(editor) || previewAssets.length > 0 || removedIds.size > 0
   const orderedAssets = [...plan.assets].sort((left, right) => (layers.get(left.id) ?? 0) - (layers.get(right.id) ?? 0))
   const cursorPoint = editor?.mode === 'place' ? hoverPoint : null
   const wallPoint = editor?.mode === 'wall' ? hoverPoint : null
@@ -301,7 +334,8 @@ function InteractivePlan({
   const updateHover = (event: React.MouseEvent<SVGElement>, selection: Selection) => { const rect = event.currentTarget.ownerSVGElement?.getBoundingClientRect(); if (rect) setHoverPosition({ x: event.clientX - rect.left + 14, y: event.clientY - rect.top + 14 }); setHovered(selection) }
 
   const selectSpace = (space: FloorPlan['spaces'][number]) => {
-    onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNoteFromPlan(plan, space.id) })
+    const note = spaceAccessNote(space.room_type, connectorNoteFromPlan(plan, space.id), forkliftCompare)
+    onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note })
     if (!allowSelect()) return
     onSelect({
       kind: 'space',
@@ -309,13 +343,30 @@ function InteractivePlan({
       name: space.name,
       floorId: plan.floor.id,
       floorName: plan.floor.name,
-      note: connectorNoteFromPlan(plan, space.id),
+      note,
     })
+  }
+
+  const tabbableId = plan.spaces.some((space) => space.id === rovingId) ? rovingId
+    : plan.spaces.some((space) => space.id === selectionId) ? selectionId
+      : plan.spaces[0]?.id ?? null
+  const moveRoving = (event: React.KeyboardEvent<SVGPolygonElement>, index: number) => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key]
+    const target = event.key === 'Home' ? 0 : event.key === 'End' ? plan.spaces.length - 1 : step !== undefined ? (index + step + plan.spaces.length) % plan.spaces.length : null
+    if (target === null) return false
+    // The editor nudges a draggable ghost with the arrows; leave them to it.
+    if (editor?.draggable) return false
+    event.preventDefault()
+    // Keep the walk pad from also reading this arrow key.
+    event.stopPropagation()
+    const next = plan.spaces[target]
+    setRovingId(next.id)
+    svgRef.current?.querySelector<SVGPolygonElement>(`polygon[data-space-id="${CSS.escape(next.id)}"]`)?.focus()
+    return true
   }
 
   return (
     <div className="plan-shell">
-      <div className="map-legend" aria-label="Map legend"><strong>Map legend</strong><span><i className="legend-sample sample-room" /><b>Room</b></span><span><i className="legend-sample sample-equipment" /><b>Equipment</b></span><span><i className="legend-sample sample-opening" /><b>Door / connector</b></span><span><i className="legend-sample sample-route" /><b>Current route</b></span><span><i className="legend-sample sample-closed" /><b>Closed / blocked</b></span><small>Shapes and colors match the map.</small></div>
       <div className="map-canvas-region">
       <div ref={planWrap} className="plan-wrap" aria-label={`${floorName} plan`} data-floor={plan.floor.id}>
       <svg
@@ -436,27 +487,30 @@ function InteractivePlan({
         }}
       >
         <g transform="scale(1 -1)">
-          {plan.spaces.map((space) => {
+          {plan.spaces.map((space, spaceIndex) => {
             const reason = reasons.get(space.id)
             const roomType = (space.room_type || space.type || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-')
+            const role = wayfindingRole(space) ?? (exitIds.has(space.id) ? 'escape' : null)
             const picked = selectionId === space.id
             const [cx, cy] = centroid(space.polygon)
-            const showLabel = displayMode === 'rooms' && polygonArea(space.polygon) >= 28
+            const showLabel = showNumbers && polygonArea(space.polygon) >= 28
             return (
               <g key={space.id}>
                 <polygon
                   points={space.polygon.map(([x, y]) => `${x},${y}`).join(' ')}
-                  className={['space', `room-type-${roomType}`, reason ? `reason-${reason}` : '', picked ? 'picked' : '', pickedSpaces.has(space.id) ? 'editor-picked' : ''].filter(Boolean).join(' ')}
+                  className={['space', `room-type-${roomType}`, role ? `role-${role}` : '', reason ? `reason-${reason}` : '', picked ? 'picked' : '', pickedSpaces.has(space.id) ? 'editor-picked' : ''].filter(Boolean).join(' ')}
                   role="button"
-                  tabIndex={0}
+                  tabIndex={space.id === tabbableId ? 0 : -1}
+                  data-space-id={space.id}
                   aria-label={space.name}
                   aria-pressed={picked}
                   onMouseEnter={(event) => updateHover(event, spaceTip(plan, space))}
                   onMouseLeave={() => setHovered(null)}
-                  onFocus={() => onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNoteFromPlan(plan, space.id) })}
+                  onFocus={() => { setRovingId(space.id); onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNoteFromPlan(plan, space.id) }) }}
                   onBlur={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.ownerSVGElement?.contains(event.relatedTarget)) onFocusSelection(null) }}
                   onClick={() => { if (!pointerMode) selectSpace(space) }}
                   onKeyDown={(event) => {
+                    if (moveRoving(event, spaceIndex)) return
                     if (event.key !== 'Enter' && event.key !== ' ') return
                     event.preventDefault()
                     // Keyboard path for the editor: Enter places into this room or picks it as a stop.
@@ -471,36 +525,33 @@ function InteractivePlan({
               </g>
             )
           })}
-          {plan.openings.map((opening) => (
+          {plan.openings.map((opening) => {
+            const access = openingAccessNote(opening, forkliftCompare)
+            const openingSelection = { kind: 'opening' as const, id: opening.id, name: `${opening.kind}, ${opening.width_m} m`, floorId: plan.floor.id, floorName: plan.floor.name, note: access }
+            return (
             <circle
               key={opening.id}
               cx={opening.position[0]}
               cy={opening.position[1]}
               r={opening.kind === 'entrance' ? 0.72 : 0.42}
-              className={['opening', opening.kind, selectionId === opening.id ? 'picked' : '', opening.step_free ? '' : 'stepped'].filter(Boolean).join(' ')}
+              className={['opening', opening.kind, selectionId === opening.id ? 'picked' : '', opening.step_free ? '' : 'stepped', closedIds.includes(opening.id) ? 'closed' : '', forkliftCompare && opening.width_m < 3 ? 'forklift-narrow' : ''].filter(Boolean).join(' ')}
               role="button"
               tabIndex={-1}
-              onMouseEnter={(event) => updateHover(event, openingTip(plan, opening))}
+              onMouseEnter={(event) => updateHover(event, openingSelection)}
               onMouseLeave={() => setHovered(null)}
-              aria-label={`${opening.kind}, ${opening.width_m} m`}
+              aria-label={`${opening.kind}, ${opening.width_m} m. ${access}`}
               onClick={(event) => {
                 if (pointerMode) return
                 event.stopPropagation()
-                onFocusSelection({ kind: 'opening', id: opening.id, name: `${opening.kind}, ${opening.width_m} m`, floorId: plan.floor.id, floorName: plan.floor.name, note: opening.step_free ? 'Step-free' : 'Has a step' })
+                onFocusSelection(openingSelection)
                 if (!allowSelect()) return
-                onSelect({
-                  kind: 'opening',
-                  id: opening.id,
-                  name: `${opening.kind}, ${opening.width_m} m`,
-                  floorId: plan.floor.id,
-                  floorName: plan.floor.name,
-                  note: opening.step_free ? 'Step-free' : 'Has a step',
-                })
+                onSelect(openingSelection)
               }}
             >
-              <title>{`${opening.kind}, ${opening.width_m} m`}</title>
+              <title>{`${opening.kind}, ${opening.width_m} m. ${access}`}</title>
             </circle>
-          ))}
+            )
+          })}
           {showAssets && orderedAssets.map((asset) => {
             const landmark = landmarkIds(plan, stepPoint).includes(asset.id)
             const highlighted = assetIds.has(asset.id) || landmark
@@ -589,28 +640,40 @@ function InteractivePlan({
             </g>
           )}
           {wallPoint && <circle className="wall-cursor" cx={wallPoint[0]} cy={wallPoint[1]} r={0.45} aria-hidden="true" />}
-          {legs.map((leg) => {
+          {forkliftRoute?.reachable && forkliftRoute.legs.filter((leg) => leg.floor_id === plan.floor.id).map((leg, index) => (
+            <polyline key={`forklift-route-${index}`} points={leg.points.map(([x, y]) => `${x},${y}`).join(' ')} className="route-forklift" />
+          ))}
+          {previousRoute?.reachable && previousRoute.legs.filter((leg) => leg.floor_id === plan.floor.id).map((leg, index) => (
+            <polyline key={`previous-route-${index}`} points={leg.points.map(([x, y]) => `${x},${y}`).join(' ')} className="route-previous" />
+          ))}
+          {route?.reachable && previousRoute?.reachable && route.legs.filter((leg) => leg.floor_id === plan.floor.id).map((leg, index) => {
+            const oldLeg = previousRoute.legs.find((candidate) => candidate.floor_id === leg.floor_id)
+            const point = leg.points.find((candidate) => !oldLeg?.points.some((oldPoint) => Math.hypot(candidate[0] - oldPoint[0], candidate[1] - oldPoint[1]) < 1.5))
+            return point ? <circle key={`route-change-${index}`} className="route-change-node" cx={point[0]} cy={point[1]} r={0.7}><title>Route changed here</title></circle> : null
+          })}
+          {legs.map(({ leg, index }) => {
+            const previous = route?.legs[index - 1]
+            const next = route?.legs[index + 1]
+            const handoffs = [
+              ...(previous && previous.floor_id !== leg.floor_id ? [{ point: leg.points[0], label: 'Arrive from another floor' }] : []),
+              ...(next && next.floor_id !== leg.floor_id ? [{ point: leg.points.at(-1)!, label: 'Continue on another floor' }] : []),
+            ]
             // The whole route is always drawn; the step player only highlights the part already told.
             const told = route?.directions[storyIndex]
             const progress = storyIndex > 0 && told?.floor_id === plan.floor.id ? prefixTo(leg.points, told.at) : null
-            const continues = route ? route.legs.slice(route.legs.indexOf(leg) + 1).some((later) => later.floor_id !== plan.floor.id) : false
-            const handoff = continues ? leg.points.at(-1)! : null
-            const connector = handoff
-              ? plan.connectors.find((item) => item.space_ids.some((spaceId) => {
-                const space = plan.spaces.find((candidate) => candidate.id === spaceId)
-                return space ? containsPoint(space.polygon, handoff) : false
-              }))
-              : null
+            const points = leg.points.map(([x, y]) => `${x},${y}`).join(' ')
             return (
-              <g key={`${leg.floor_id}-${leg.points.length}`}>
-                <polyline points={leg.points.map(([x, y]) => `${x},${y}`).join(' ')} className="route" />
+              <g key={index}>
+                {/* Keep each backend leg separate, including gaps in validated geometry. */}
+                <polyline points={points} className="route-underlay" />
+                <polyline points={points} className="route" />
                 {progress && <polyline points={progress.map(([x, y]) => `${x},${y}`).join(' ')} className="route-progress" />}
-                {handoff && (
-                  <g className="handoff" transform={`translate(${handoff[0]} ${handoff[1]})`}>
+                {handoffs.map(({ point, label }) => (
+                  <g key={label} className="handoff" transform={`translate(${point[0]} ${point[1]})`}>
                     <circle r={1.15} />
-                    <title>{connector?.name ?? 'Change floor'}</title>
+                    <title>{label}</title>
                   </g>
-                )}
+                ))}
               </g>
             )
           })}
@@ -639,9 +702,10 @@ function InteractivePlan({
           </g>}
         </g>
       </svg>
-      <WalkPad svgRef={svgRef} plan={plan} route={route} closedIds={closedIds} stepFree={stepFree} keysPaused={Boolean(editor)} walkerHere={walkerHere} onMove={onWalkerMove} onChangeFloor={onChangeFloor} />
+      <WalkPad svgRef={svgRef} containerRef={planWrap} plan={plan} route={route} closedIds={closedIds} stepFree={stepFree} keysPaused={Boolean(editor)} walkerHere={walkerHere} onMove={onWalkerMove} onChangeFloor={onChangeFloor} />
       {hovered && <MapTooltip item={hovered} x={hoverPosition.x} y={hoverPosition.y} />}
     </div>
+      <div className="map-tools">
       <div
         className="map-controls"
         role="group"
@@ -653,11 +717,34 @@ function InteractivePlan({
         }}
       >
         <button type="button" aria-label="Zoom out" onClick={() => setZoomAroundCenter(zoom / 1.25)} disabled={zoom <= MIN_ZOOM}>-</button>
-        <span aria-live="polite">{Math.round(zoom * 100)}%</span>
+        <span>{Math.round(zoom * 100)}%</span>
         <button type="button" aria-label="Zoom in" onClick={() => setZoomAroundCenter(zoom * 1.25)} disabled={zoom >= MAX_ZOOM}>+</button>
-        <button type="button" aria-label="Reset map to 100 percent" onClick={resetView}>Reset</button>
+        {route?.reachable && <button type="button" onClick={() => { setFitRoute(true); resetView() }}>Fit route</button>}
+        <button type="button" onClick={() => { setFitRoute(false); resetView() }}>Fit floor</button>
       </div>
-      <div className="map-display-mode" role="group" aria-label="Map detail level"><button type="button" aria-pressed={displayMode === 'labels'} onClick={() => setDisplayMode('labels')}>Rooms</button><button type="button" aria-pressed={displayMode === 'items'} onClick={() => setDisplayMode('items')}>Rooms + items</button><button type="button" aria-pressed={displayMode === 'rooms'} onClick={() => setDisplayMode('rooms')}>Rooms + numbers</button></div>
+      <div className="map-display-mode segmented" role="group" aria-label="Map detail">
+        <button type="button" aria-pressed={showItems} onClick={() => setShowItems((value) => !value)}>Items</button>
+        <button type="button" aria-pressed={showNumbers} onClick={() => setShowNumbers((value) => !value)}>Room numbers</button>
+      </div>
+      <div className="map-legend-wrap">
+        <button type="button" className="map-legend-toggle" aria-expanded={legendOpen} aria-controls={legendOpen ? `${plan.floor.id}-legend` : undefined} onClick={() => setLegendOpen((value) => !value)}>Legend</button>
+        {legendOpen && (
+          <div id={`${plan.floor.id}-legend`} className="map-legend" role="group" aria-label="Map legend">
+            <span><i className="legend-sample sample-room" /><b>Room</b></span>
+            <span><i className="legend-sample sample-stairs" /><b>Stairs</b></span>
+            <span><i className="legend-sample sample-lift" /><b>Lift</b></span>
+            <span><i className="legend-sample sample-escape" /><b>Escape route</b></span>
+            <span><i className="legend-sample sample-equipment" /><b>Equipment</b></span>
+            <span><i className="legend-sample sample-opening" /><b>Door / connector</b></span>
+            <span><i className="legend-sample sample-route" /><b>Current route</b></span>
+            {forkliftCompare && <span><i className="legend-sample sample-forklift" /><b>Forklift route</b></span>}
+            <span><i className="legend-sample sample-previous-route" /><b>Previous route</b></span>
+            <span><i className="legend-sample sample-change" /><b>Reroute point</b></span>
+            <span><i className="legend-sample sample-closed" /><b>Closed / blocked</b></span>
+          </div>
+        )}
+      </div>
+      </div>
       </div>
           </div>
   )

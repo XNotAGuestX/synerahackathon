@@ -1,0 +1,564 @@
+INFO:     Started server process [58748]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:55922 - "GET /api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=854d115c-6cfe-422c-b5e4-1f05bc38006b method=GET path=/api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/guidance status=404 duration_ms=27.7 session_id=9485a279-85e1-4e23-8308-7b098f9b4b61
+INFO:     127.0.0.1:55924 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=b8b173df-8130-449c-90f6-aee9aa43098e method=GET path=/api/v1/health status=200 duration_ms=0.9 session_id=-
+INFO:     127.0.0.1:55928 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=1346d637-3928-4346-939f-070f914b5ef7 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.7 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:55932 - "GET /api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=59f3b10f-35a6-472a-a6ea-0968726758db method=GET path=/api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/guidance status=404 duration_ms=1.9 session_id=9485a279-85e1-4e23-8308-7b098f9b4b61
+INFO:     127.0.0.1:55935 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=997f1b10-6654-4f8d-bdfd-1106888f3197 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.6 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:55938 - "GET /api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=ee9f3d83-b6cb-458e-8658-b5086d7142af method=GET path=/api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/guidance status=404 duration_ms=1.6 session_id=9485a279-85e1-4e23-8308-7b098f9b4b61
+INFO:     127.0.0.1:55941 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=a437f0cf-bf69-404e-bf43-f92b0c89be8a method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=2.1 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:55946 - "GET /api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=0d176992-dc7e-4f30-8cd0-bb66de7fd838 method=GET path=/api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/guidance status=404 duration_ms=2.3 session_id=9485a279-85e1-4e23-8308-7b098f9b4b61
+INFO:     127.0.0.1:55949 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=5d327a5c-3d7a-4295-a69b-840530f445b8 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:55952 - "GET /api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=37bdc2ee-5b82-4dc0-ad30-fb829a325362 method=GET path=/api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/guidance status=404 duration_ms=1.0 session_id=9485a279-85e1-4e23-8308-7b098f9b4b61
+INFO:     127.0.0.1:55955 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=90ec5c1f-6e02-4411-b850-3e984249789e method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.7 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:55958 - "PUT /api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=72e786b5-eb52-42f9-8899-e469e628ca31 method=PUT path=/api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/position status=404 duration_ms=6.2 session_id=9485a279-85e1-4e23-8308-7b098f9b4b61
+INFO:     127.0.0.1:55961 - "PUT /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=58c99e62-ce2e-4a46-9f2f-b2fd348aa8a7 method=PUT path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position status=404 duration_ms=2.9 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:55964 - "GET /api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=7311b190-a485-4395-9e01-a454a87ddf5e method=GET path=/api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/guidance status=404 duration_ms=1.8 session_id=9485a279-85e1-4e23-8308-7b098f9b4b61
+INFO:     127.0.0.1:55967 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=9549b5ba-3f70-4c85-a322-2b4eab239b33 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=0.6 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:55971 - "GET /api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=b98752ed-c994-4d85-ad6d-ae130c17a103 method=GET path=/api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/guidance status=404 duration_ms=0.5 session_id=9485a279-85e1-4e23-8308-7b098f9b4b61
+INFO:     127.0.0.1:55975 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=d6cfb1f0-cdad-4169-b177-33a22d91faba method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.9 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:55987 - "PUT /api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=5d465575-3e1f-4e9c-a575-b34fe5e7fdb0 method=PUT path=/api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/position status=404 duration_ms=25.2 session_id=9485a279-85e1-4e23-8308-7b098f9b4b61
+INFO:     127.0.0.1:55990 - "PUT /api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=40d690e0-eae3-42b8-95c2-7c375e943191 method=PUT path=/api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/position status=404 duration_ms=1.4 session_id=9485a279-85e1-4e23-8308-7b098f9b4b61
+INFO:     127.0.0.1:55995 - "PUT /api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=b86c9ad0-0080-4098-b3ae-7d71f8726548 method=PUT path=/api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/position status=404 duration_ms=1.1 session_id=9485a279-85e1-4e23-8308-7b098f9b4b61
+INFO:     127.0.0.1:55998 - "PUT /api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=ca28fd5d-a77d-42e1-ab96-08d7ee17f53e method=PUT path=/api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61/position status=404 duration_ms=1.1 session_id=9485a279-85e1-4e23-8308-7b098f9b4b61
+INFO:     127.0.0.1:56014 - "GET /api/v1/object-types HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=0106b715-65fd-4f4d-a87c-5caaf4a00f55 method=GET path=/api/v1/object-types status=200 duration_ms=9.0 session_id=-
+INFO:     127.0.0.1:56013 - "GET /api/v1/buildings?limit=100 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=4b9a15c5-4646-4725-a6c1-f9d91f2b01ed method=GET path=/api/v1/buildings status=200 duration_ms=37.5 session_id=-
+INFO:     127.0.0.1:56015 - "GET /api/v1/buildings?limit=100&cursor=WyI4ZGMwZGJiNmE2M2VjY2E4ODAxNmE5NjI1Yjc2MjdkOTJiNTUwZTBmMjMwZmFlNGE0MGE3ZmI3YzVlMjI3YWE3IiwxMDBdmu-frDwK65Z2_5KNL7yjxw HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=d5a4e13b-6dde-4ba2-b455-6f65deb118f9 method=GET path=/api/v1/buildings status=200 duration_ms=13.4 session_id=-
+INFO:     127.0.0.1:56016 - "GET /api/v1/buildings?limit=100&cursor=WyI4ZGMwZGJiNmE2M2VjY2E4ODAxNmE5NjI1Yjc2MjdkOTJiNTUwZTBmMjMwZmFlNGE0MGE3ZmI3YzVlMjI3YWE3IiwyMDBdBXm1oWM-pLevq4u4PGdDiw HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=fa52884d-8ff6-4ea6-88de-3d9f07b8b55f method=GET path=/api/v1/buildings status=200 duration_ms=8.7 session_id=-
+INFO:     127.0.0.1:56017 - "GET /api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=fbe83fce-0b00-4f61-9fa2-e264f9c10506 method=GET path=/api/v1/sessions/9485a279-85e1-4e23-8308-7b098f9b4b61 status=404 duration_ms=0.5 session_id=9485a279-85e1-4e23-8308-7b098f9b4b61
+INFO:     127.0.0.1:56018 - "POST /api/v1/sessions HTTP/1.1" 201 Created
+INFO:final_agent.api:trace_id=4c9ce14b-7e8f-4a8d-a447-c0361f27ea95 method=POST path=/api/v1/sessions status=201 duration_ms=28.2 session_id=-
+INFO:     127.0.0.1:56021 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/floors HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=c0097b35-535a-4f40-bcf8-398e9d67e148 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/floors status=200 duration_ms=0.6 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56034 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/floors/osm-way476929995-F-1/plan HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=169fb4fb-6139-4e1b-bc66-0beb44bb36fe method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/floors/osm-way476929995-F-1/plan status=200 duration_ms=3.0 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56035 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/floors/osm-way476929995-F0/plan HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=67fc9a84-867d-465b-94c4-388e4429c295 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/floors/osm-way476929995-F0/plan status=200 duration_ms=4.0 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56036 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/floors/osm-way476929995-F1/plan HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=797d6b22-26f2-4a83-a3d2-843bcae203b3 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/floors/osm-way476929995-F1/plan status=200 duration_ms=3.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56037 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/floors/osm-way476929995-F2/plan HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=ffa74335-1ad6-41f4-bd40-7a5d960a3c86 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/floors/osm-way476929995-F2/plan status=200 duration_ms=5.3 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56038 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/floors/osm-way476929995-F3/plan HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=7af733c7-7d33-4dd7-9eac-610dd945df81 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/floors/osm-way476929995-F3/plan status=200 duration_ms=5.2 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56039 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/floors/osm-way476929995-F4/plan HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=a4a888be-2de9-4a91-879e-a6af5d2cec7a method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/floors/osm-way476929995-F4/plan status=200 duration_ms=5.3 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56052 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=0 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=6c6d6ec9-42a6-46c9-b44c-7038ecfa5954 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=1.0 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56054 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=a60b0d8f-9c83-456d-9ddb-d2a0c3188dea method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=11.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56056 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=80c2d94b-9cc9-4b20-a556-e8631521d807 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=0.7 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56057 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=ce87ca41-9467-4957-94ee-ea1f87a57892 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+WARNING:anthropic.lib.credentials._auth:ANTHROPIC_API_KEY is set and takes precedence over the SDK's profile / federation auto-discovery; unset ANTHROPIC_API_KEY to use the auto-discovered credential.
+INFO:httpx2:HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO:httpx2:HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO:httpx2:HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:56066 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=3dce5bae-2239-4306-8257-d95531adfab0 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:httpx2:HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO:httpx2:HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:56071 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=3dc2d088-2e7c-4b2e-a6ed-71aa9d1727f9 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=4.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56074 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=771cd089-6b4c-40d5-96d0-3bbd707e1292 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.9 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:httpx2:HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:56060 - "POST /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/messages HTTP/1.1" 201 Created
+INFO:final_agent.api:trace_id=68fb1a9c-ec07-47aa-a063-69535310f4be method=POST path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/messages status=201 duration_ms=9887.3 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56053 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=ea0be175-fd23-4a23-b527-dc044af5d3a8 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20004.6 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56080 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=cb04c1dc-159a-49fb-a645-5074341a4145 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.7 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56083 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=b1cc7da4-b624-47a8-a591-35bdba061721 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56086 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=e0c5fa2f-3d49-458f-9e29-1d5b52680c13 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=2.0 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56089 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=c8569c16-749d-4284-b0cc-5a84af868e82 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56093 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=dce991eb-71d5-494c-9a02-ef732923504e method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56096 - "PUT /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=8fb0db0d-b5be-4ce0-8efd-eedc3b4fd6c0 method=PUT path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position status=404 duration_ms=0.9 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56099 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=5100a306-fe8e-4e33-aab3-fd1fa87cbaf3 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.0 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56077 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=ab2eb5b9-3ac1-45da-a793-52f5f1e80ce0 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20007.0 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56105 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=1560e5cc-2d00-4410-acb7-5c6b00f48f6a method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=0.8 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56108 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=53438c48-8cf9-463b-8ae2-20bd9f8fe4f0 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56111 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=a529fa94-40df-42b7-9238-9d503b196cbc method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56114 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=77d61637-63b0-4f5d-8c9b-77f40afd464e method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.6 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56117 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=c72fe64b-b9e7-4924-ba41-6f03b45a1fc7 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=0.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56120 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=a7036053-f025-41f4-84e8-9acb5fa361a3 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.8 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56102 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=41b95939-d366-4de2-8438-aed8f6c15e03 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20008.1 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56126 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=8636dde9-9481-4312-aae0-b75cb8b050ee method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56129 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=9292e675-8ac0-4e98-8569-c5b9bec56918 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56132 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=87311b79-ddec-46d8-90e3-641fb842d0d2 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56135 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=ce2a6a94-9812-4b38-a543-566d1dad488f method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56138 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=16538598-3aba-460e-9876-74aadd0f0073 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.6 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56123 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=1917e6dc-c49d-40fc-b2e6-9a96e0c4626b method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20006.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56145 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=34f8342f-1798-4d58-994c-4b6753a53b70 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56148 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=0df0f241-e422-4599-938e-62918aeb4411 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.7 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56151 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=90ad673e-6513-49ab-9b9f-3e1c940d59d0 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.3 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56154 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=b16f50ff-d7e1-4afe-aeaa-1286c874be34 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.0 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56157 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=bcf7b686-20b4-4446-b3e9-d3fc018ac685 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.2 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56160 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=821b2885-ebf0-4c99-8361-9121e0edbfa2 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56163 - "PUT /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=e82b109c-bf6b-4022-93e4-bea13cb51488 method=PUT path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position status=404 duration_ms=1.3 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56142 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=533c44ba-5693-4dfc-bf42-fda23a11303b method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20005.0 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56169 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=dea0875c-0b53-4d58-a7fe-d366723d1760 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.8 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56172 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=ea109b87-f329-4ba9-89f2-48298250bff5 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.6 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56175 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=6a302edf-2679-475a-a28d-d764e98fdae6 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=3.0 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56178 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=acdd7bf5-8f90-4a43-b754-cbc317bf4f46 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.2 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56181 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=06f2a03b-da6c-4460-b98d-e1e31b907d8d method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.3 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56184 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=31e387eb-3542-4748-920f-3d90b5093377 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=3.0 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56166 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=cedda40c-ff0b-47e3-9775-8de8a5c9a72e method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20002.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56191 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=f4dc35eb-25d7-45c0-84f7-6922ce2eddb7 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.7 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56194 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=789623e4-6022-499a-92bd-0625feb5b2e0 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.7 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56197 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=4ab7c6ce-df5a-43c3-9555-1385aea6318a method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.2 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56200 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=a8660f14-7417-49bf-9579-c08d06124618 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.3 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56205 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=7f1b05d6-12b2-4f49-a0c5-3e3ee3472c30 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.7 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56208 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=227f39ec-ff08-4c43-ae1b-34fcaa03070d method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.4 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56188 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=70ed198c-6a40-4cf0-8f18-9d8ec4f9c799 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20005.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56214 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=21db1f9b-05c2-4c74-9a67-2f8b96d3ab30 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56217 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=0a968bcc-6967-4da5-82d2-d4a7a49c2a7e method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.8 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56220 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=6878495a-58f0-4fcb-9a5d-23e38bba4f11 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=0.7 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56223 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=9755c1c6-d1ca-4048-9b72-32af6b7b3fa0 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.8 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56226 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=391654b7-fbda-4941-a162-620c97291783 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.6 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56229 - "PUT /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=5ea233f4-61e6-4860-abfb-1466169683a2 method=PUT path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position status=404 duration_ms=0.7 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56232 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=3d964809-71b9-4241-a7e7-1337beb5d976 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=0.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56211 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=3349298d-89b8-4454-bfa2-3dfc71c09477 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20004.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56238 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=0840fce6-c695-4022-800e-6e22eafb5544 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56241 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=7d5d0bc7-a978-44f3-aa81-b5172e26cf5d method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56245 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=132dfdb4-3473-46fa-a66e-b2fd84e90ade method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=0.9 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56248 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=1580ef1c-0e76-4d6f-8eb3-b5712438017e method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56251 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=52043e3d-54f0-4104-8479-297ed4283ed8 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.7 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56235 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=f8fba980-c1e7-4122-b0c6-14d003ca4160 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20007.3 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56258 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=e58b1c1d-fc95-4bd0-996a-170e645369fe method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.6 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56261 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=f8064212-70d7-4f09-a87a-48e82ef6dd71 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=3.1 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56264 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=ba6f02ac-fe87-4eb2-98ad-9a8d55f72cd8 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=3.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56267 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=db89c6a1-27be-4d15-b6cc-832f5d85efe7 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.8 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56270 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=ad5de1f7-8ef2-4436-9418-dd7316e0630a method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.6 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56273 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=9cf92bed-b584-4d73-ad16-f45383ed9c20 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.0 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56255 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=62daf9bf-4c78-45d2-b0ce-0ccbd7baff0a method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20003.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56279 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=862c77b6-9f59-40f7-a0d1-9054d1d0930e method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.7 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56282 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=b8622548-b183-4a7b-b357-fd9877940e9f method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.0 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56285 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=5ebc706d-311c-4a41-a75f-a3125e878ff0 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56288 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=d0413ac6-713a-4328-8d72-7e72aba967af method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.6 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56291 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=7abe896a-5f9d-480a-8225-23820506b986 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.6 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56294 - "PUT /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=ad7d8be3-9f79-42f7-a5ec-c1eed360d2af method=PUT path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position status=404 duration_ms=1.1 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56297 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=a1b70a57-d62b-4320-a37f-91bff3127679 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.6 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56276 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=9d8a7a12-f64b-4899-aa50-c8c88e40ba2c method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20003.0 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56303 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=9abcd095-4702-41e0-b07c-7006957af888 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.1 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56306 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=70ad06e5-8842-4888-b61e-f14a6d4297fc method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.1 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56309 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=07a90e25-a09f-4ef9-8f88-a82c2def7d52 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=3.2 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56312 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=44b09c80-5dfd-42a8-a6ae-1b51f5e71c3e method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56316 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=55f17551-1caf-490b-9b62-8e94568993a9 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.0 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56319 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=31fc72da-a0af-4237-a778-6053ae18ecb4 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.0 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56300 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=6593c235-e234-47a3-b720-1d178cbe9352 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20007.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56325 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=4973d806-2732-4925-83bb-42720a9f5c1c method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.8 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56328 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=d36ce6e0-ce96-4dbc-9fac-528d6143ee42 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.3 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56331 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=05c0186f-09fc-4a59-b4af-52b347a54d31 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56335 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=32a3b9ee-dd50-46d8-b5a8-9b7506ffc92c method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=3.2 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56338 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=a684847d-36a9-4fac-a7ed-0384c614192b method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=3.3 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56341 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=d25eeb27-5e05-456f-a780-90dae00b75ff method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56322 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=07256bf5-b0fc-4d7d-91ba-46ef2b3e7591 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20005.0 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56348 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=4fd23e52-6bb1-462e-9e72-3bb9094f7ba1 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.2 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56353 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=36b13f8f-c665-4d0f-a964-6dc6103bda07 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=4.7 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56356 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=e5a9211b-e98c-48f6-83fc-a9570f5d7664 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.0 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56360 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=6c5f8256-6ba8-4cae-b0a3-352ec8f06762 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.7 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56363 - "PUT /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=81ac45c3-7eaa-4b19-8783-3b702bceb175 method=PUT path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position status=404 duration_ms=1.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56366 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=05b966b4-10af-4171-801c-d9aafe32b428 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=3.2 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56369 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=5dcb541f-d4d3-42af-866d-096b899db224 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=2.2 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56344 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=94110c48-5d13-4478-a270-87690ee25dfd method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20004.8 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56375 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=0844c875-4860-4591-b3bc-f0f5e09804f4 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56379 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=5b570281-ed6a-4079-a0da-ed204e0d85ca method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.2 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56382 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=5e68cac2-47ee-4ae9-bb86-7d28d22b280b method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.8 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56385 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=c7c803f3-6e69-4be5-8ae6-63c4ad519002 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=3.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56388 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=4b5500ee-c30d-43dd-9568-a7f4a3ce7a54 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.6 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56372 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=cf2fde65-6fe1-4d4e-abd7-79258c397491 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20006.7 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56394 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=09a9b585-eef8-4eab-8a77-616401ef4977 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56398 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=b50a716d-5819-4413-8ef6-4a8ee3903f12 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56401 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=c372887c-a3c7-42bf-ad8b-7c6174276cd9 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.1 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56404 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=2182eaa0-4d3a-4245-b880-f78f6439e33d method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=2.1 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56391 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=da0e60a1-cc6a-4b45-8db5-e66c67777959 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20007.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56411 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=151ec458-0e81-40c7-a441-b1082d2670b9 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=2.2 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56414 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=592662e4-c919-4f18-af60-c89df96b150c method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=2.2 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56417 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=8e8d11b8-2507-4c6c-89f9-78bd6ee440e7 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.7 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56420 - "PUT /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=a42a4413-c437-47df-9adb-fd1697256715 method=PUT path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position status=404 duration_ms=1.1 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56408 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=7cafaac0-1f1e-47b0-8092-0c73093affa6 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20003.7 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56426 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=ada53764-f356-4f29-8a71-642951047d4b method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=2.2 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56429 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=8d4fdeb7-855f-40c8-87f0-1351c5fc920d method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.9 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56423 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=2a77bfb9-78ba-4520-88bb-ba1eea930b4c method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20007.6 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56435 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=99816be7-5e87-46f7-831b-b9af96587fff method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.8 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56438 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=b97eefb5-fef3-4117-ac71-df1ed65c1a96 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=2.3 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56432 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=f4791841-a8e0-4efa-9b3c-cc092a566e85 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20005.0 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56446 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=965fe3be-fb05-46da-8c33-e42fba3888b1 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=2.3 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56451 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=a7737d5b-a91f-483e-ab26-f5aa50d139db method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56454 - "PUT /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=f6cc9a7e-8393-4034-9d64-dec3e7c127ed method=PUT path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position status=404 duration_ms=1.4 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56441 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=e267f0cc-cac3-42f9-ad2d-6b51cff0521b method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20007.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56463 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=0309c461-b08e-43a8-8f27-98b0cf60d71a method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.7 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56466 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=2bce3dda-5857-4adf-bf4d-8659b31a1891 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=2.1 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56460 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=dd8d9222-6aa4-470b-9b72-3d47ff262eec method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20007.8 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56476 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=604fcf36-9e24-42d0-be35-ed9057734cbd method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=0.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56479 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=42c04cce-d7ee-49de-aabe-08bb6c8b498d method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=3.1 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56473 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=5bc2224f-0d11-403d-b80a-e64324f07d98 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20001.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56486 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=0ddf5e0b-037c-4103-a6b9-177b967e5650 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.6 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56490 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=a9d50d29-7885-458e-b5f2-b0e14315f8be method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=0.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56493 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=dc8e39c2-79ba-4607-ac37-1d44820c9179 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=4.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56496 - "PUT /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=1e7067ae-800a-4e01-bdf4-1a512249a87f method=PUT path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position status=404 duration_ms=1.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56483 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=29cdcc5b-ebbb-4f92-974f-682cdb41220d method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20003.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56506 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=89d3b543-9873-4dcf-a233-c25ae3c6c5e4 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=0.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56509 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=a23a942a-efd3-479d-9af9-d86dd18b70b5 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=0.7 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56501 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=e0ce540c-5cb9-4d42-8152-df9bd373a261 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20006.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56516 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=5259abc6-3d13-472b-b318-6194e7d273d1 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.9 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56519 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=06562e45-ce2f-43fa-93d0-649b791a7a71 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=2.3 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56512 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=f73c6022-6672-4a08-9676-0cbee64c5492 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20007.1 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56525 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=8fc7478e-896c-437b-8c3f-8a038f21db5f method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=0.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56528 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=18cf9187-ac47-4b7c-9bc1-ff0147403b5b method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.7 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56531 - "PUT /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=ee3ce129-3160-49a7-b7dd-0d54e116582f method=PUT path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position status=404 duration_ms=1.4 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56522 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=6581b353-b564-4a60-9056-071a18fe14cf method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20006.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56537 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=05b8e8ce-8ff9-4332-8efc-677823c79875 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=2.2 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56542 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=595e1181-efe3-4e3b-8706-a028d33f8715 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.3 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56534 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=4d91ea2c-2380-40f4-96d2-f465a7adb798 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20005.1 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56548 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=51f68bab-bbde-4738-97d5-ba843887c5eb method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.1 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56551 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=aabb3243-2183-4612-aa9b-2d0dd93b0595 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.0 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56545 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=9f03d962-f3f9-416b-82ac-9e583afa7485 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20006.0 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56557 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=c8994257-78f8-4bc2-b402-09dd85e99e89 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=0.9 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56561 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=1f3bb933-e9fd-4f70-90b4-858a87cac767 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56564 - "PUT /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=83aca8e7-0e3b-40c9-bfe0-0eb9ff161bc3 method=PUT path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position status=404 duration_ms=2.2 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56567 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=b6019069-92ed-4a54-8269-84c024488392 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.2 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56554 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=8ececc33-de59-4ff1-b6da-f4fcfafae261 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20004.2 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56574 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=1deac770-9a9e-429b-a5e6-09108ea9769b method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.6 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56579 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=48499fbb-6d8d-4f9e-8a94-b5dc2520db48 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56570 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=107cd3fc-3f76-48f2-8111-729283c7c992 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20006.2 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56587 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=822be215-aa49-45a8-8e79-d518e5f5673a method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=0.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56582 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=862df577-5d5e-42bd-8149-10cc3773bcb3 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20005.8 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56594 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=2fc5234a-b82e-4681-8225-342b2c2d971d method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.0 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56598 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=2cd3f882-be18-4a53-b38e-d17a2c1cabe1 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.1 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56601 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=b8fade16-ea03-4915-a1a5-8ddb65d6258a method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.1 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56604 - "PUT /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=97bfd8c9-100b-4f2a-a6ed-2d6e5361e880 method=PUT path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position status=404 duration_ms=1.4 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56591 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=ecfb0163-17e9-4267-b01c-11597fe35774 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20005.3 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56610 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=0ad56a40-29c9-49da-96df-6f178d1c49b8 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=5.1 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56613 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=7d41c30d-9680-4e06-b24b-40e0e96ca45b method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=2.0 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56607 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=6667eae4-2bb6-4bbd-af4a-99ee766c786c method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20006.8 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56620 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=bbb025fb-e68d-439d-a8cc-47de93998d95 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.6 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56624 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=e164beaf-e56b-4a4a-90fd-daa6901cb016 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=2.0 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56617 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=bb580d81-28a3-4535-9c5d-292e55de9bae method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20006.6 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56630 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=3c3436b4-e2c5-41c7-af3e-00c27988be0f method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.7 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56635 - "PUT /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=c5c3be5f-343d-45ef-ba12-da66fb6bb1c6 method=PUT path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position status=404 duration_ms=2.8 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56636 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=5b803797-1452-44b5-bd85-565cbfc14f70 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56639 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=0fef1a40-c29c-468e-bd83-d83992ad3b37 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.9 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56627 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=02c839d2-a0e9-4ed4-9503-4a18ceb868e9 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20006.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56645 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=435b748b-503b-4480-aa0b-ef22f0f37083 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56648 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=e1f768c3-79b6-431a-a2de-0903058e04e1 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.6 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56651 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=53c80ab8-16f3-4692-b09b-4a02d9f3fca5 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=2.0 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56642 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=63a889f6-8f44-4f7a-b0fc-0d5720ab1b8f method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20006.2 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56658 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=dfae8362-d41d-4ef1-9dc3-ff2b98bfb35a method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56661 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=a70cbc99-65dc-4c94-a279-b66854043050 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=3.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:httpx2:HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:56668 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=c6732a78-2d53-4ff8-a765-eb26a474aacb method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.9 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:httpx2:HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:56671 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=5c3d170d-9fec-4f31-be11-c73e4cee67ed method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.6 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:httpx2:HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:56664 - "POST /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/messages HTTP/1.1" 201 Created
+INFO:final_agent.api:trace_id=cf77fd89-2c3f-4d5f-9eae-2711f0985cdc method=POST path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/messages status=201 duration_ms=5505.6 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56675 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=149a6576-b1e3-47f9-9136-d522d36e1ef0 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=10.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56654 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=010e8a77-133c-41e3-8bfc-1ad0b77073cc method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20005.3 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56681 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=d6124606-a30c-4731-ac66-c7db736e494c method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.4 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56684 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=7e9d9f5b-d844-4b62-84ed-71f9f431a197 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56687 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=07855a58-0610-43e0-88b1-cd10c9b247cd method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.3 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56690 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=f42bbdd9-2ab3-4e48-8f98-ddb7a23b1476 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56693 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=20b23a7a-4b92-4de6-ab97-0c910b87497e method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.2 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56696 - "PUT /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=a124fa21-0bf9-428b-9f43-171232b06024 method=PUT path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position status=404 duration_ms=7.0 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56699 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=8ee4d45c-491f-405a-b4c8-60e882b497af method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=3.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56678 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=fbfb0d20-39f0-4846-9404-5cd6d6cd6a0a method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20006.3 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56705 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=6c80c245-07e0-46d1-90a5-a02cd07088f2 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.6 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56708 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=c8b78842-02a3-4e15-8ff3-4e4dc4e53ce1 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=2.4 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56711 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=547629cf-3d0d-470e-990a-2bc83a22019e method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56714 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=ace60da1-5e54-4b8c-a659-d58d7e4b3022 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56717 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=c659b41d-9e82-4bbf-a010-6f12be08f379 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56720 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=2a0536f9-a63c-475a-b9eb-5ed583119943 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56702 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=ae2a2c20-b769-4254-b748-f6e7313587c0 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20006.2 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56729 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=b6fe4b38-7081-4a02-bfd7-fbd21f82cdc3 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=0.7 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56732 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=c2936df8-41ce-4d3a-bc60-a613616037de method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.7 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56735 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=2144b6b9-d955-4fc4-a7ba-4b418a0fc6c8 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=3.1 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56738 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=3a060336-c519-4456-8d0b-7f67f5ba75c2 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56742 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=34f392da-414d-46e2-80eb-fd88fb05b22e method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.3 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56745 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=7dd318ef-d5b1-47f6-b919-01c785957933 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56723 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=2005c4d4-a547-4ba9-b991-ce95ef181597 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20005.1 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56752 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=d71ebf35-4160-400b-9627-edee4c89a7a5 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=3.0 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56755 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=fb516440-c0d0-457f-9ddd-c480e3711c29 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.6 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56758 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=a9e22e02-4e5a-43c8-abdd-5275c87c0f74 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.5 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56761 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=02357445-4f14-4037-9156-be11e9929d66 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56764 - "PUT /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=17393491-44c9-44ea-b9b9-812bc44d8610 method=PUT path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/position status=404 duration_ms=1.1 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56767 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=8eba7e28-3f0d-4639-9911-eada7f8dce05 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.7 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56770 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=90fb78cc-f321-452b-854f-be0ca8c640fb method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.4 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56748 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=a508564e-5996-4568-8fd6-b67022a35a2e method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20006.1 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56776 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=f3e121e4-110f-4a28-b943-a2846843530d method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.8 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56779 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=17fd40a5-90bb-44ec-82e2-adb944b6c923 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=0.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56782 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=98f4ec1e-076d-41c7-a203-b02ea58cbb0f method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=0.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56785 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=f4377d73-e375-4b07-863f-64cc24e38497 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.7 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56788 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=006ddb7a-4a6c-457e-8f6d-fc2f951983be method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.2 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56791 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=5001cac6-c356-498a-b59a-590f7e4bbbd5 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56773 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=e5530d94-a9f4-4f49-bdea-efd53eb2db86 method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20006.8 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56798 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=d1068783-4838-47d4-81af-e78a42d2b0df method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=1.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56801 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=42582574-3492-4d7f-a8f1-7a0ad71d07ae method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=0.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56804 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=b0187a78-e3a7-4540-b5f4-9ad72ce92625 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=0.5 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56807 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=1d9d5ac6-08dd-4cbb-a053-c398c2dba315 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=0.9 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56810 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=33d33ec3-c57a-487c-bbcb-79067f4343b9 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=0.8 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56794 - "GET /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance?after=0&wait_s=20 HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=d191cfef-77ae-4add-9118-17585642aede method=GET path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/guidance status=200 duration_ms=20002.3 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56817 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=63162ce9-9a4f-49cf-8e76-ce36d2e4b657 method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.0 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56820 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=2eda7596-c710-4d55-9b55-205514507656 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=0.6 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56823 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=cd2d3916-915c-4db1-a80a-333bee96c583 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.4 session_id=28c5d706-ad41-4e0f-989e-00f50159685a
+INFO:     127.0.0.1:56826 - "GET /api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance?after=0&wait_s=20 HTTP/1.1" 404 Not Found
+INFO:final_agent.api:trace_id=def76f01-5cd4-4eb9-a52a-4cfafd00d0ed method=GET path=/api/v1/sessions/28751075-1b52-467f-adda-e2f386c428e5/guidance status=404 duration_ms=1.6 session_id=28751075-1b52-467f-adda-e2f386c428e5
+INFO:     127.0.0.1:56829 - "PUT /api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position HTTP/1.1" 200 OK
+INFO:final_agent.api:trace_id=62704dc4-d8da-4428-bae1-5a375d97e0d9 method=PUT path=/api/v1/sessions/28c5d706-ad41-4e0f-989e-00f50159685a/position status=200 duration_ms=2.3 session_id=28c5d706-ad41-4e0f-989e-00f50159685a

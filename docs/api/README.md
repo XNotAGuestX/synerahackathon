@@ -10,6 +10,12 @@ uv sync
 uv run python -m final_agent.api
 ```
 
+Web-UI dazu (zweites Terminal): `cd frontend && npm ci && npm run dev`, dann
+`http://localhost:5173` öffnen. Vite leitet `/api` an Port 8000 weiter. Bei einem
+Verbindungsfehler zeigt die UI „Reconnect“; Beispieldaten sind ausdrücklich über
+„More → Open example demo“ (`?demo=1`) wählbar. `VITE_DATA_MODE=fixture` aktiviert
+denselben eingeschränkten Demomodus. Nach diesem Update beide Server neu starten.
+
 Die Standardadresse ist `http://127.0.0.1:8000/api/v1`. Sitzungen leben im Speicher;
 deshalb läuft der Server mit einem Worker. Ein Browser-Reload kann eine Sitzung
 über ihre gespeicherte UUID wieder laden. Ein Server-Neustart beendet sie.
@@ -18,6 +24,30 @@ Gebäudeliste, Suche, Pläne, direkte Routen und Aktionen benötigen keine
 Anthropic-Zugangsdaten. Nur `POST .../messages` nutzt den konfigurierten Agenten.
 Für `.env`-Dateien explizit `uv run --env-file .env python -m final_agent.api`
 verwenden; `.env.example` enthält die unterstützten Umgebungsvariablen.
+
+Der Objekteditor ist standardmäßig eingefroren: Vorschläge und Bestätigungen für
+`add_object`, `update_object`, `remove_object`, `add_opening`, `add_connector` und
+`undo_edit` enden mit `403 10002_forbidden`, und der Agent bekommt diese Werkzeuge
+nicht angeboten. Sperrungen (`set_closed`) und Türen (`add_door`) bleiben erlaubt.
+Für die Entwicklung `uv run python -m final_agent.api --map-editing` oder
+`MAP_EDITING=1` setzen. Der Produktions-Build des Frontends (`npm run build`) enthält
+weder den Karteneditor noch die Debug-Ansicht; beide gibt es nur unter `npm run dev`.
+
+Die Oberfläche führt einen Chatverlauf mit sofort geleertem Eingabefeld, Sendestatus
+und Retry. Ein Retry wiederholt dieselbe Anfrage mit demselben Idempotency-Key.
+`GET .../messages` lädt den Verlauf nach einem Reload; Session und `last_route_id`
+stellen den aktuellen Kartenzustand wieder her. Suche, Import, 3D, Simulation und
+Diagnose liegen in sekundären Ansichten; die Simulation startet ausgeschaltet.
+
+`Session.current_space_id` ist die bestätigte Position. `client_context.current_space_id`
+setzt sie ausdrücklich; `selected_space_id` bleibt eine reine Kartenauswahl.
+`client_context.destination_place_id` übergibt eine konkrete Rückfrage-Auswahl.
+Direkte Routen können ebenfalls `current_space_id` übergeben. Alle IDs werden gegen
+das Sitzungsgebäude geprüft. Sprachliche Standortmeldungen werden im Backend aufgelöst.
+Unvollständige Navigationsanfragen bleiben bis zur Klärung erhalten. „Nearest/closest“
+vergleicht sämtliche passenden Geräte anhand eingeschränkter Gehwege; Vergleiche
+verändern die aktive Route nicht. Anschließend wird der gewählte Weg aktiviert und
+als `draw_route` zurückgegeben. Eine Etage allein legt keinen Startpunkt fest.
 
 `API_TOKEN` aktiviert optional Bearer-Auth. `CORS_ORIGINS` enthält erlaubte
 Origins als kommagetrennte Liste; standardmäßig sind localhost und 127.0.0.1

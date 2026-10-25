@@ -8,4 +8,7 @@ Five minutes. Start the main API with `uv run --env-file .env python -m final_ag
 4. **Closure.** Load “Close the office lift”. Confirm and Cancel are separate. Confirm, then show the closed highlight and the revision note.
 5. **Unreachable.** Load “Unreachable step-free route”. The alert explains the closed lift and the map has no tape.
 
-The app always uses the main API. An API error shows `code`, `message`, `trace_id`, and `X-Request-Id`.
+6. **Campus walkway.** Click Campus walkway in the top bar, or double-click `scripts/run_campus_walkway.cmd`. Both run the same two-building route: 35 m, then 57 m after the short walkway closes, then 35 m again. The ordinary building picker still shows one building at a time.
+7. **3D stack.** Back in the web app, open the floor stack. Floors are placed by their real `elevation_m`, and the focused floor shows that elevation.
+
+The app always uses the main API. An API error shows `code`, `message`, `trace_id`, and `X-Request-Id`. The 25 October live transcript is `docs/DEMO_RUN-2026-10-25.md`.

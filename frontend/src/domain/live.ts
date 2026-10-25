@@ -1,4 +1,46 @@
-import type { FloorPlan, PendingAction, Point, Reply, Selection, ViewEffect } from './types'
+import type { FloorPlan, PendingAction, Point, Reply, Selection, Space, ViewEffect } from './types'
+
+export type WayfindingRole = 'stair' | 'lift' | 'escape'
+
+const STAIR_TYPES = new Set(['stair', 'stairs', 'stairwell', 'staircase'])
+const LIFT_TYPES = new Set(['lift', 'elevator'])
+const ESCAPE_TYPES = new Set(['emergency-exit', 'emergency-corridor', 'escape', 'escape-route', 'fire-exit'])
+
+function typeTokens(space: Pick<Space, 'type' | 'room_type'>): string[] {
+  return [space.type, space.room_type]
+    .map((value) => (value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-'))
+    .filter(Boolean)
+}
+
+/** Stair, lift, or a space whose own type is an escape route. Exit corridors are separate. */
+export function wayfindingRole(space: Pick<Space, 'type' | 'room_type'>): WayfindingRole | null {
+  const tokens = typeTokens(space)
+  if (tokens.some((token) => LIFT_TYPES.has(token))) return 'lift'
+  if (tokens.some((token) => STAIR_TYPES.has(token))) return 'stair'
+  if (tokens.some((token) => ESCAPE_TYPES.has(token))) return 'escape'
+  return null
+}
+
+function isExitCirculation(space: Pick<Space, 'type' | 'room_type'>): boolean {
+  const type = (space.type || '').toLowerCase()
+  const room = (space.room_type || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')
+  return type === 'corridor' || room === 'corridor' || room === 'hallway' || room === 'lobby'
+}
+
+/** Corridors and lobbies that open directly outside. Stairs and lifts keep their own colour. */
+export function escapeSpaceIds(plan: FloorPlan): Set<string> {
+  const byId = new Map(plan.spaces.map((space) => [space.id, space]))
+  const ids = new Set<string>()
+  for (const opening of plan.openings) {
+    if (opening.kind !== 'entrance') continue
+    for (const spaceId of opening.space_ids) {
+      const space = byId.get(spaceId)
+      if (!space || wayfindingRole(space) || !isExitCirculation(space)) continue
+      ids.add(space.id)
+    }
+  }
+  return ids
+}
 
 export function labelFromPlans(plans: FloorPlan[], id: string | null): string {
   if (!id) return 'Not resolved'

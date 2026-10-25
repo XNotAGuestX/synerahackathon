@@ -78,6 +78,22 @@ export type FloorPlan = {
 
 export type Direction = { text: string; floor_id: string; at: Point }
 
+export type Session = {
+  id: string; building_id: string; building_name: string; revision: number; object_revision?: number
+  preferences: { step_free: boolean }; current_space_id?: string | null
+  closed_ids?: string[]; last_route_id?: string | null; pending_action_id?: string | null
+}
+
+export type TranscriptMessage = {
+  id: string; role: 'user' | 'guide'; text: string; created_at: string
+  understood: Understood | null; effects: ViewEffect[]; pending_action_id: string | null
+}
+
+export type ChatMessage = TranscriptMessage & {
+  delivery?: 'sending' | 'sent' | 'failed'; error?: string; reply?: Reply
+  request?: { key: string; text: string; inputMode: 'text' | 'transcript' | 'voice'; context: ClientContext; sessionId: string }
+}
+
 export type Route = {
   id: string
   reachable: boolean
@@ -85,6 +101,8 @@ export type Route = {
   step_free: boolean
   travel_mode?: 'walking' | 'forklift'
   min_width_m?: number
+  /** Omitted by older snapshots. kit-1.1.0 is the walking route; synera-industrial is the forklift route. */
+  profile?: 'kit-1.1.0' | 'synera-industrial'
   via: string[]
   closed_ids: string[]
   start_space_id: string | null
@@ -250,11 +268,14 @@ export type Action = {
   resolved_at?: string | null
 }
 
-/** Sent with each chat message so the guide can resolve "here" and "it". */
+/** Sent with each chat message so the guide can resolve "here", "it" and a picked destination. */
 export type ClientContext = {
-  floor_level: number | null
+  floor_level?: number | null
   selected_space_id?: string | null
   selected_object_id?: string | null
+  current_space_id?: string | null
+  destination_place_id?: string | null
+  preferences?: { step_free: boolean }
 }
 
 export type Selection = {
@@ -278,6 +299,8 @@ export type Reply = {
   pending: PendingAction | null
   speechClipId?: string | null
   speechText?: string | null
+  messages?: TranscriptMessage[]
+  session?: Session
 }
 
 export type PositionSource = 'simulated' | 'wifi' | 'manual'

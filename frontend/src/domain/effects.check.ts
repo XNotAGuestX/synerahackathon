@@ -36,3 +36,12 @@ if (shown.closedIds.join() !== 'v1') throw new Error('closures were dropped')
 if (shown.previewObjects?.assets.map((asset) => asset.id).join() !== 'a9') throw new Error('preview_objects ghosts were dropped or not validated')
 if (shown.previewObjects?.removedIds.join() !== 'a2' || shown.unknownEffectTypes.includes('preview_objects')) throw new Error('preview_objects removals were dropped')
 console.log('effects check ok')
+
+const savedRoute = { id: 'persisted-route', reachable: true, length_m: 10, step_free: false, via: [], closed_ids: [], start_space_id: 's', destination_space_id: 'd', directions: [], legs: [] }
+const baseInput = { guideText: 'Route ready', understood: null, effects: [{ type: 'draw_route', route_id: savedRoute.id }], routes: [savedRoute], pendingSummary: null, decision: null, confirmedEffects: [], confirmedClosedIds: [], confirmedText: '', cancelledText: '' }
+const active = buildPresentation(baseInput)
+const followup = buildPresentation({ ...baseInput, previous: active, guideText: 'The lift is on floor 1.', effects: [], routes: [] })
+if (followup.route !== savedRoute) throw new Error('an explanatory follow-up must retain the active route')
+const cleared = buildPresentation({ ...baseInput, previous: followup, effects: [{ type: 'clear_route' }], routes: [] })
+if (cleared.route !== null) throw new Error('explicit clear must remove the retained route')
+console.log('route persistence check ok')

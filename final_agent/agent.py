@@ -14,6 +14,8 @@ from .run_library import RunIndex
 from .tools import make_emergency_tools, make_recall_tool, make_tools
 
 # --model choices. Haiku is the default: it matched Sonnet's 17/17 on a dev sample at about 1/20 of the cost.
+# Requests send output_config.effort, so every ID here must be a model that supports it
+# (older IDs such as claude-haiku-4-5 reject it with HTTP 400).
 MODELS = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5", "haiku": "claude-haiku-5-5"}
 DEFAULT_MODEL = "haiku"
 MODEL = MODELS[DEFAULT_MODEL]
@@ -239,6 +241,9 @@ omit the coffee report. If the user asks where to get coffee, mention the broken
 
 # Route
 - Resolve endpoints, then call find_route with their IDs.
+- A lift or staircase is a connector. search_building returns connector names.
+  Close or reopen that exact name with set_closed. Do not say it is missing
+  when a connector result matches.
 - Use step_free=true for wheelchairs, prams, trolleys, crutches or "no stairs".
   Follow explicit instructions about whether stairs are permitted.
 - For forklift driving/delivery use travel_mode="forklift" on routes, errands,
@@ -250,6 +255,8 @@ omit the coffee report. If the user asks where to get coffee, mention the broken
 - Forklift production, assembly and additive bays are destinations, never shortcuts.
   A requested delivery/pickup bay can be an explicit stop. Preserve travel_mode on
   follow-ups and reroutes; switch back to walking only when the user requests it.
+- On find_route also pass profile=synera-industrial for a forklift (3 m openings,
+  bays only as stops). Do not use that profile for a pedestrian request.
 - If forklift access is unverified, explain which access designation is missing.
   Do not claim no route exists or guess permission from a room's name or width.
   Step-free alone does not guarantee sufficient width or forklift access.
@@ -444,7 +451,7 @@ class BuildingAgent:
         examples: RunIndex | None = None, model: str = MODEL, workspace=None, emergency: bool = False,
         *, notes_database: Path | None = None, facility_number: str | None = None,
         registered_tools: list | None = None, response_format: type | None = None,
-        turn_context: str = "", request_timeout: float | None = None, effort: str = EFFORT,
+        extra_prompt: str = "", request_timeout: float | None = None, effort: str = EFFORT,
     ) -> None:
         self.effort = effort
         self.map = building_map
@@ -452,7 +459,6 @@ class BuildingAgent:
         self.model = model
         self.response_format = response_format
         self.request_timeout = request_timeout
-        self.turn_context = turn_context
         self.emergency = emergency
         self.workspace = workspace
         if workspace is None:
@@ -483,7 +489,7 @@ class BuildingAgent:
         if examples is not None:
             self.tools.append(make_recall_tool(examples))
             self.extra_prompt += EXAMPLES_PROMPT
-        self.extra_prompt += turn_context
+        self.extra_prompt += extra_prompt
         system_text += self.extra_prompt
         self.system = [{"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}]
         self.messages: list[dict] = []
@@ -494,31 +500,35 @@ class BuildingAgent:
             "cache_creation_input_tokens": 0,
         }
 
-    def ask(self, user_text: str) -> str:
+    def ask(self, user_text: str, turn_context: str = "") -> str:
+        # The system prompt must stay identical across turns: the API binds thinking blocks in the
+        # history to it and rejects them once it changes. Per-turn state goes into the user message.
         if self.workspace is not None:
             self.map = self.workspace.campus.selected_map
             overview = {"buildings": self.workspace.campus.list_buildings(),
                         "selected_building_id": self.workspace.campus.selected_building_id,
                         "current_location": self.workspace.current_location,
                         "preferences": self.workspace.preferences}
-            self.system[0]["text"] = SYSTEM_PROMPT.format(overview=json.dumps(overview, ensure_ascii=False)) + self.extra_prompt
-        # Prior thinking signatures bind to the old system/tools prefix. HTTP position,
-        # guidance and input mode can change each turn. Keep conversational/tool facts,
-        # but remove completed-turn thinking; the current tool loop still replays it intact.
+            turn_context = "Current workspace state: " + json.dumps(overview, ensure_ascii=False) + "\n" + turn_context
+        turn_context = turn_context.strip()
+        content = f"<turn_context>\n{turn_context}\n</turn_context>\n\n{user_text}" if turn_context else user_text
+        # Voice and text turns can use different models, whose thinking signatures do not carry over.
+        # Keep conversational/tool facts, but remove completed-turn thinking; the current tool loop
+        # still replays it intact.
         completed = []
         for message in self.messages:
-            content = message["content"]
-            if message["role"] == "assistant" and isinstance(content, list):
-                content = [block for block in content if
-                           (block.get("type") if isinstance(block, dict) else getattr(block, "type", None))
-                           not in {"thinking", "redacted_thinking"}]
-                if not content:
+            blocks = message["content"]
+            if message["role"] == "assistant" and isinstance(blocks, list):
+                blocks = [block for block in blocks if
+                          (block.get("type") if isinstance(block, dict) else getattr(block, "type", None))
+                          not in {"thinking", "redacted_thinking"}]
+                if not blocks:
                     continue
-                message = {**message, "content": content}
+                message = {**message, "content": blocks}
             completed.append(message)
         self.messages[:] = completed
         history_length = len(self.messages)
-        self.messages.append({"role": "user", "content": user_text})
+        self.messages.append({"role": "user", "content": content})
         try:
             return self.run_tool_loop()
         except TypeError as error:

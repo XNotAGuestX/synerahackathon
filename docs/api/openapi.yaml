@@ -2005,6 +2005,9 @@ components:
           type: array
           items:
             type: string
+        current_space_id:
+          type: [string, "null"]
+          description: Explicitly confirmed user location; selection and destination do not set it.
         last_route_id:
           oneOf:
             - type: string
@@ -2313,6 +2316,9 @@ components:
       additionalProperties: false
       required: [start, destination]
       properties:
+        current_space_id:
+          type: [string, "null"]
+          description: User-confirmed room id, supplied only when the UI knows the user's location.
         start:
           type: string
           minLength: 1
@@ -2339,6 +2345,14 @@ components:
             type: string
             minLength: 1
             maxLength: 200
+        profile:
+          type: string
+          enum: [kit-1.1.0, synera-industrial]
+          description: Fehlt der Wert, gilt kit-1.1.0. synera-industrial ist die Gabelstaplerroute.
+        persist:
+          type: boolean
+          default: true
+          description: false liefert die Route und lässt last_route_id sowie revision unverändert.
 
     Direction:
       type: object
@@ -2407,6 +2421,10 @@ components:
         min_width_m:
           type: number
           minimum: 0
+        profile:
+          type: string
+          enum: [kit-1.1.0, synera-industrial]
+          description: Rechenprofil dieser Route. Ältere Antworten können das Feld weglassen.
         via:
           type: array
           items:
@@ -2743,6 +2761,12 @@ components:
         selected_object_id:
           type: [string, "null"]
           description: Ausgewähltes Objekt, Tür oder Verbinder. Unbekannt ergibt 404 `30013_element_not_found`.
+        current_space_id:
+          type: [string, "null"]
+          description: Ausdrücklich bestätigter aktueller Raum, unabhängig von der Kartenauswahl.
+        destination_place_id:
+          type: [string, "null"]
+          description: Geprüfter Raum oder geprüftes Objekt aus einer Rückfrage zum Ziel.
         preferences:
           oneOf:
             - $ref: "#/components/schemas/Preferences"

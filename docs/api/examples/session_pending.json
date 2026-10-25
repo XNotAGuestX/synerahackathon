@@ -9,6 +9,7 @@
     "step_free": false
   },
   "closed_ids": [],
+  "current_space_id": null,
   "last_route_id": "00000000-0000-0000-0000-000000000002",
   "pending_action_id": "00000000-0000-0000-0000-000000000005",
   "created_at": "2026-10-24T12:00:00Z",

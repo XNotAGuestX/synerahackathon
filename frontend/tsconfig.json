@@ -16,5 +16,5 @@
     "jsx": "react-jsx"
   },
   "include": ["src", "vite.config.ts"],
-  "exclude": ["src/domain/effects.check.ts", "src/domain/walk-field.check.ts", "src/domain/editor.check.ts", "src/domain/emergency.check.ts", "src/rendering/floor-stack-3d/perimeter.check.ts", "src/features/live/position-sync.check.ts", "src/features/voice/vad.check.ts", "src/features/voice/wav.check.ts", "src/features/voice/speech-queue.check.ts"]
+  "exclude": ["src/domain/effects.check.ts", "src/domain/walk-field.check.ts", "src/domain/editor.check.ts", "src/domain/emergency.check.ts", "src/domain/wayfinding.check.ts", "src/domain/route-compare.check.ts", "src/rendering/floor-stack-3d/perimeter.check.ts", "src/features/live/position-sync.check.ts", "src/features/voice/vad.check.ts", "src/features/voice/wav.check.ts", "src/features/voice/speech-queue.check.ts"]
 }
