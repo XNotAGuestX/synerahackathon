@@ -37,6 +37,7 @@ const FloorStack3D = lazy(() => import('../rendering/floor-stack-3d/FloorStack3D
 
 const emptyPresentation = buildPresentation({ guideText: '', understood: null, effects: [], routes: [], pendingSummary: null, decision: null, confirmedEffects: [], confirmedClosedIds: [], confirmedText: catalog.confirmedText, cancelledText: copy.cancelled })
 type Connection = 'connecting' | 'connected' | 'offline' | 'local'
+type MessageRequest = NonNullable<ChatMessage['request']>
 const themeColors = { light: '#f4f6f1', dark: '#0a0d12' }
 
 function initialThemeMode(): ThemeMode {
@@ -148,7 +149,9 @@ export function App() {
     return walker && (emergencyActiveRef.current || walker.floorId === viewedFloorRef.current) ? walker : null
   })
   const speakRef = useRef<(event: GuidanceEvent) => void>(() => undefined)
-  const feed = useGuidanceFeed(sessionId, (event) => speakRef.current(event))
+  // Set only by the --voice-delay-mock prefetch below: guidance it started stays hidden until its reply is shown.
+  const [guidanceHold, setGuidanceHold] = useState<object | null>(null)
+  const feed = useGuidanceFeed(sessionId, (event) => speakRef.current(event), guidanceHold !== null)
   const guidanceActive = feed.guidance?.status === 'active'
   const targetWaypoint = guidanceActive ? feed.guidance?.waypoints.find((waypoint) => waypoint.index === feed.guidance?.target_index) ?? null : null
   const guidanceTarget = targetWaypoint && targetWaypoint.floor_id === floor.id ? targetWaypoint.at : null
@@ -411,11 +414,14 @@ export function App() {
 
   const openLocationPicker = () => { setLocationFloor(floor?.id ?? ''); setLocationFilter(''); setLocationOpen(true) }
 
-  const sendText = async (text: string, context: ClientContext = {}, retry?: ChatMessage): Promise<Reply | null> => {
+  const messageRequest = (text: string, session: Session, context: ClientContext = {}): MessageRequest => ({ text, key: requestId(), inputMode, sessionId: session.id, context: { current_space_id: hereId, selected_space_id: selection?.kind === 'space' ? selection.id : null, selected_object_id: selection && selection.kind !== 'space' ? selection.id : null, floor_level: floor?.level, preferences: { step_free: stepFree }, ...context } })
+
+  /** `prepared` is a request already sent in the background (voice delay mock); its reply is shown like any other. */
+  const sendText = async (text: string, context: ClientContext = {}, retry?: ChatMessage, prepared?: { request: MessageRequest; reply: Promise<Reply> }): Promise<Reply | null> => {
     if (!text.trim() || busyRef.current || !sessionRef.current) return null
     const turn = epoch.current
     const session = sessionRef.current
-    const request = retry?.request ?? { text, key: requestId(), inputMode, sessionId: session.id, context: { current_space_id: hereId, selected_space_id: selection?.kind === 'space' ? selection.id : null, selected_object_id: selection && selection.kind !== 'space' ? selection.id : null, floor_level: floor?.level, preferences: { step_free: stepFree }, ...context } }
+    const request = retry?.request ?? prepared?.request ?? messageRequest(text, session, context)
     const clientId = retry?.id ?? requestId()
     busyRef.current = true; setBusy(true); setLoadError(null)
     if (retry) setMessages((current) => current.map((message) => message.id === clientId ? { ...message, delivery: 'sending', error: undefined } : message))
@@ -423,7 +429,7 @@ export function App() {
     let sent: Reply | null = null
     try {
       let next: Reply
-      try { next = await gateway.sendMessage(request.sessionId, request.text, request.inputMode, request.context, request.key) }
+      try { next = await (prepared?.reply ?? gateway.sendMessage(request.sessionId, request.text, request.inputMode, request.context, request.key)) }
       catch (error) {
         if (toUiError(error).code !== '30002_session_not_found') throw error
         const fresh = await gateway.createSession(buildingId)
@@ -461,7 +467,18 @@ export function App() {
   }
 
   const voice = useVoice({ active: inputMode === 'voice' && Boolean(sessionId), sessionId, busy,
-    send: async (text, signal, onStart) => { if (signal.aborted) return null; onStart(); return sendText(text) } })
+    send: async (text, signal, onStart) => { if (signal.aborted) return null; onStart(); return sendText(text) },
+    // --voice-delay-mock only (just for speed in the demo video): the turn runs on the server while the user still talks.
+    prefetch: (text) => {
+      const session = sessionRef.current
+      if (!session) return null
+      const request = messageRequest(text, session)
+      const reply = gateway.sendMessage(request.sessionId, request.text, request.inputMode, request.context, request.key)
+      const hold = {}
+      setGuidanceHold(hold)
+      return { reply, commit: () => sendText(text, {}, undefined, { request, reply }),
+        release: () => setGuidanceHold((current) => current === hold ? null : current) }
+    } })
   speakRef.current = voice.speakGuidance
 
   invalidateObjectsRef.current = () => {
