@@ -11,6 +11,7 @@ from uuid import uuid4
 from anthropic.lib.tools import BetaFunctionTool, ToolError
 from pydantic import ValidationError
 
+from . import object_edits
 from .building_map import MAX_SEARCH_RESULTS, NEW_DOOR_WIDTH_M, BuildingMap, MapError, RouteResult
 from .emergency import EmergencyError, EmergencyRollCall
 from .run_library import SKILL_BY_KIND, RunIndex, ScoredKind, example_json
@@ -888,11 +889,196 @@ def make_tools(
             step_free: Whether the new door has no step.
             width_m: Positive door width in metres (default 0.9); one shared wall stretch must be this long.
         """
-        opening, saved_path = apply_edit(
-            lambda: building_map.add_door(first_space, second_space, step_free, width_m)
-        )
+        # Through the editor so that undo_last_edit can take the door away again.
+        result, saved_path = apply_edit(lambda: object_edits.apply_edit(building_map, {
+            "kind": "add_opening", "opening_kind": "door", "first_space": first_space,
+            "second_space": second_space, "step_free": step_free, "width_m": width_m,
+        }))
+        opening = result["openings"][0]
         shown = {**opening, "position": [round(value, 3) for value in opening["position"]]}
         return as_json({"added": shown, "saved_to": str(saved_path), **active_route_update()})
+
+    # ---------- object editor ----------
+
+    def floor_id_at(floor_level: int | None) -> str | None:
+        if floor_level is None:
+            return None
+        try:
+            return building_map.floor_by_level(floor_level)["id"]
+        except MapError as error:
+            raise ToolError(str(error)) from error
+
+    def editor_edit(proposal: dict) -> str:
+        """Apply and save one editor proposal; the EditResult plus saved_to and the active route update."""
+        result, saved_path = apply_edit(lambda: object_edits.apply_edit(building_map, proposal))
+        return as_json({**result, "saved_to": str(saved_path), **active_route_update()})
+
+    @register
+    def list_object_types(query: str | None = None) -> str:
+        """List the object and connection types that can be added, with default sizes and heights.
+
+        Items are furniture, equipment, fixture and machine types (action add_object); connections are door
+        and passage (add_opening) and stairs, escalator and lift (add_connector). width_m/depth_m are the
+        dataset's typical footprint in metres, height_m the default height. Use it to pick the `type` for
+        add_object; when several types fit the user's words, ask which one is meant. Nothing is changed.
+
+        Args:
+            query: Optional words that must all appear in the type, its label or category, e.g. "coffee",
+                "table", "machine". Omit to list every type.
+        """
+        types = object_edits.find_object_types(query)
+        return as_json({"matches": len(types), "types": types})
+
+    @register
+    def add_object(
+        type: str, space: str | None = None, name: str | None = None, category: str | None = None,
+        position: list[float] | None = None, floor_level: int | None = None, rotation_deg: float = 0,
+        width_m: float | None = None, depth_m: float | None = None, height_m: float | None = None,
+        on_top_of: list[str] | None = None,
+    ) -> str:
+        """Add an object (furniture, equipment, fixture, machine) to a room or on top of other objects; saves at once.
+
+        Placement: with only `space` the object goes to the room's centre point; with only `on_top_of` it goes on
+        the centre of those objects, in their room; `position` (local metres) needs `space` or `floor_level`.
+        Never invent coordinates: use a room, on_top_of, or a position from a tool result or the user. The
+        footprint must stay inside the room (no crossing walls); stacked objects must rest on what they stand
+        on and stay below the ceiling. Size and height default to the catalog (list_object_types).
+        Returns summary, changed_ids, floor_ids, the new asset (its id and name) and saved_to; an active route
+        is recomputed (active_route or active_route_error). undo_last_edit reverts it. Errors explain the
+        rule that failed (outside_space, crosses_wall, floating, exceeds_ceiling, unknown_type, ...).
+
+        Args:
+            type: Object type id, e.g. "desk", "coffee_machine", "printer" (see list_object_types).
+            space: Room for the object: space id or exact room number/name.
+            name: Display name; default "<Type> <room number>".
+            category: furniture, equipment, fixture or machine; required only for a type the catalog lacks.
+            position: [x, y] centre in the building's local metres, inside the room.
+            floor_level: Floor of `position` when no space is given (0 = ground floor).
+            rotation_deg: Anticlockwise rotation in degrees (default 0).
+            width_m: Footprint width in metres along the unrotated x axis (default: catalog).
+            depth_m: Footprint depth in metres (default: catalog).
+            height_m: Height in metres; set only when the user states one (default: catalog).
+            on_top_of: Objects (ids or exact names) it stands on, all in the same room.
+        """
+        return editor_edit({
+            "kind": "add_object", "type": type, "space": space, "name": name, "category": category,
+            "position": position, "floor_id": floor_id_at(floor_level), "rotation_deg": rotation_deg,
+            "width_m": width_m, "depth_m": depth_m, "height_m": height_m, "on_top_of": on_top_of,
+        })
+
+    @register
+    def update_object(
+        object: str, name: str | None = None, type: str | None = None, category: str | None = None,
+        space: str | None = None, position: list[float] | None = None, floor_level: int | None = None,
+        rotation_deg: float | None = None, width_m: float | None = None, depth_m: float | None = None,
+        height_m: float | None = None, on_top_of: list[str] | None = None, step_free: bool | None = None,
+        opening_kind: Literal["door", "opening"] | None = None,
+    ) -> str:
+        """Change, move, turn, resize or restack an object, or change a door/passage or a lift/staircase; saves at once.
+
+        Only the given arguments change. Objects accept name, type, category, space, position, floor_level,
+        rotation_deg, width_m, depth_m, height_m and on_top_of; doors/passages accept opening_kind, width_m and
+        step_free; stairs/escalators/lifts accept name and step_free (only lifts can be step-free).
+        "Put X on Y" is on_top_of=[Y]; "take X off" / "put it on the floor" is on_top_of=[]. Moving an object
+        to another room without on_top_of puts it on the floor there. Everything standing on a moved object
+        moves with it; turning or shrinking an object that carries others is refused if they would float.
+        height_m sets a custom height (everything on top rises with it; the ceiling is the limit).
+        Returns summary, changed_ids, floor_ids, the changed records and saved_to; an active route is
+        recomputed. undo_last_edit reverts it. Errors name the failed rule.
+
+        Args:
+            object: Object, door or connector to change: id or exact name (asset name, "Lift 1").
+            name: New display name (objects, stairs and lifts).
+            type: New object type id, e.g. "printer".
+            category: New category: furniture, equipment, fixture or machine.
+            space: Move the object to this room (to its centre unless position is given).
+            position: New [x, y] centre in local metres.
+            floor_level: Move to this floor (same x, y unless space or position is given).
+            rotation_deg: New anticlockwise rotation in degrees.
+            width_m: New footprint width in metres (doors: opening width).
+            depth_m: New footprint depth in metres.
+            height_m: New height in metres; only when the user asks for one.
+            on_top_of: Objects it stands on (ids or exact names); [] puts it on the floor.
+            step_free: Doors and lifts: whether it can be used without steps.
+            opening_kind: Doors only: "door" or "opening" (a doorless passage).
+        """
+        return editor_edit({
+            "kind": "update_object", "object_ref": object, "name": name, "type": type, "category": category,
+            "space": space, "position": position, "floor_id": floor_id_at(floor_level),
+            "rotation_deg": rotation_deg, "width_m": width_m, "depth_m": depth_m, "height_m": height_m,
+            "on_top_of": on_top_of, "step_free": step_free, "opening_kind": opening_kind,
+        })
+
+    @register
+    def remove_object(object: str) -> str:
+        """Remove an object together with everything standing on it, or a door/connector added in this session.
+
+        Doors, stairs and lifts from the building data cannot be removed (close them with set_closed instead).
+        Saves at once; the summary says how many objects on top were removed too. undo_last_edit brings them back.
+
+        Args:
+            object: Object, door or connector to remove: id or exact name.
+        """
+        return editor_edit({"kind": "remove_object", "object_ref": object})
+
+    @register
+    def add_opening(
+        opening_kind: Literal["door", "opening"] = "door", first_space: str | None = None,
+        second_space: str | None = None, position: list[float] | None = None, floor_level: int | None = None,
+        width_m: float | None = None, step_free: bool = True,
+    ) -> str:
+        """Add a door or a doorless passage between two neighbouring rooms on one floor; saves at once.
+
+        Give both rooms (the opening goes to the middle of their shared wall), or a position on the wall plus
+        floor_level (the two rooms nearest to that point). The shared wall must be at least as long as the
+        width; a duplicate next to an existing opening between the same rooms is refused. An active route is
+        recomputed. undo_last_edit or remove_object takes it away again.
+
+        Args:
+            opening_kind: "door" (default) or "opening" for a passage without a door.
+            first_space: One room: space id or exact room number/name.
+            second_space: The other room on the same floor.
+            position: [x, y] on the wall in local metres, instead of the rooms.
+            floor_level: Floor of `position` (0 = ground floor).
+            width_m: Width in metres (default 0.9 for doors, the catalog width for passages).
+            step_free: Whether it can be passed without a step (default true).
+        """
+        return editor_edit({
+            "kind": "add_opening", "opening_kind": opening_kind, "first_space": first_space,
+            "second_space": second_space, "position": position, "floor_id": floor_id_at(floor_level),
+            "width_m": width_m, "step_free": step_free,
+        })
+
+    @register
+    def add_connector(
+        connector_kind: Literal["stairs", "escalator", "lift"], spaces: list[str], name: str | None = None,
+        step_free: bool | None = None,
+    ) -> str:
+        """Add stairs, an escalator or a lift between rooms stacked above each other on different floors; saves at once.
+
+        Give one room per floor; consecutive stops must overlap in plan. Stairs and escalators are never
+        step-free (escalators route like stairs); lifts are step-free by default. Routes use it immediately.
+        undo_last_edit or remove_object takes it away again.
+
+        Args:
+            connector_kind: "stairs", "escalator" or "lift".
+            spaces: At least two rooms (ids or exact room numbers/names), each on a different floor.
+            name: Display name; default "Stairs N", "Escalator N" or "Lift N".
+            step_free: Lifts only: false if the lift cannot be used without steps.
+        """
+        return editor_edit({
+            "kind": "add_connector", "connector_kind": connector_kind, "spaces": spaces, "name": name,
+            "step_free": step_free,
+        })
+
+    @register
+    def undo_last_edit() -> str:
+        """Undo the latest map edit (object, door, passage or connector change); current closures stay as they are.
+
+        Up to 20 edits can be undone one after another. Saves at once and recomputes an active route. The
+        summary starts with "Undo:". An error means there is nothing left to undo.
+        """
+        return editor_edit({"kind": "undo_edit"})
 
     # ---------- map display ----------
 
