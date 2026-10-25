@@ -1,5 +1,23 @@
 # Implementation backlog
 
+**Object catalog — 25 October 2026:** all 96 current object types have reasoned
+default heights and local lightweight GLBs, used by the lazily loaded 3D floor
+stack. Accepted plan imports register unfamiliar types with a height estimate and
+grey-block fallback; benchmark reads remain isolated. 36 focused backend checks
+and the frontend build pass, plus a real 505-object browser render. These assets
+are visual estimates/schematics; wall-mounted offsets and general mobile GPU
+performance remain unverified. Independent width/depth preview sliders are browser-verified for a library model and the grey fallback; heights stay unchanged. [Coverage and provenance](docs/OBJECT_MODELS.md).
+
+**3D viewer integration — 25 October 2026:** the redesigned `feat/3d-floor-stack`
+viewer now renders the object catalog inside each animated floor group. Asset
+width/depth and custom-or-default height scale independently in metres; rotation,
+single/all-floor visibility, fading and GPU cleanup are retained. All 96 known
+model types plus custom/unknown instances pass actual mesh-dimension checks within
+0.0001 m. Browser checks cover the real 505-object factory, floor switching,
+expand/reset, 390 px layout, remount and showroom stretching. The production build
+and existing perimeter/effects/walk checks pass. This verifies rendering, not new
+navigation, model interpretation or benchmark accuracy.
+
 Audited 24 October 2026 against commit `9f3f612` and the current source. This is the working backlog; the [README](README.md) retains the challenge specification and source references. The initial audit changed no implementation features. Follow-up rewiring made `final_agent` independent; the current status and completed CORE tasks below reflect that change.
 
 **Main/Wayfinder integration — 25 October 2026:** main `4680cef` and frontend `e26f79c` are reconciled. All 11 conflicts are resolved; the user chose main's agent for all live chat and benchmark answers. The entire `final_agent/` package is retained exactly from main, including routing, tools, reports, retrieval, model controls, campus/plan workspace and emergency mock. The frontend retains room highlighting and walker speed control and uses main's HTTP session contract. Alternative Python/browser interpreters and template answering are removed; static debug previews remain. Both fixture sets regenerate and all 37 examples validate. Final backend verification: 263 tests (260 passed, 3 credential-dependent skips); TypeScript and production build passed. The earlier oracle passed 369/369 with the unchanged main router. No new UI tests, live Claude requests or live scored results are claimed. [Final decisions and verification](MERGE_PREPARATION.md). No backlog feature gate is marked complete by the merge alone.
@@ -164,6 +182,8 @@ Implementation brief: [LEVEL_4_HANDOFF.md](LEVEL_4_HANDOFF.md). Implemented 25 O
 - [ ] **EXT-01 — Choose and finish one extension.** Select one after a usable core: moving equipment (conversation/barcode/RFID), concurrent users, forklift/material logistics, phone capture, richer accessibility, voice/stacked or animated views, or AR with workable positioning. **Done:** implement and demonstrate its full user workflow, state/model changes and relevant checks; explain the added benefit. Basic persistence or an unused spatial index alone does not establish a finished extension. Voice can also contribute to the Interaction score.
 
   **25 October 2026:** merged the emergency-roll-call mock and adapted it to building-scoped interactive sessions; the benchmark path stays separate. Simulated alerts/locations/replies are not real tracking or messaging. No tests were rerun at the user's request, so EXT-01 remains unverified.
+
+- [ ] **EXT-02 — Integrate reusable Audio components into the current app.** [Audio assessment](AUDIO_BRANCH_EVALUATION.md) recommends reusing the ElevenLabs adapter, checkpoint geometry and spoken phrases, while replacing its separate session/HTTP layer with the existing API. **Done:** browser recording → transcription → the existing confirmed-action/message flow → cancellable spoken reply and matching map; one session owns route progress and reports. Reroutes retain remaining stops/constraints and start from the current location; arrival cannot cross walls; deferred positions retain timestamps; mid-walk confirmation options work. Verify provider failures, repeat/stop, unreachable and multi-floor flows. **Assessment evidence, 25 October:** isolated Audio suite 307 run, 304 pass, three skip; all 44 voice/guidance tests pass. Additional resolved-input checks cover 229 routes across 40 dev buildings: 197 match map geometry and finish via confirmations; 32 are unreachable. Seven additional diagnostics reproduce correctness/integration gaps. Two approved live voice-mode text turns pass (step-free guidance and confirmation before a destination change); live STT/TTS is untested. No Audio production code has been merged. Depends on CORE-06, L2-01–04.
 
 ## 12. Suggested delivery milestones
 

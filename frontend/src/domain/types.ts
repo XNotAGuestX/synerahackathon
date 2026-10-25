@@ -36,6 +36,7 @@ export type Asset = {
   name: string
   category: string
   type: string
+  height_m?: number
   space_id: string
   floor_id: string
   position: Point

@@ -287,7 +287,8 @@ class SessionService:
             collections = {
                 "spaces": [project(space, "id floor_id type room_type name ref polygon synthetic") for space in spaces],
                 "openings": [self.opening(item) for item in session.map.openings.values() if item["floor_id"] == floor_id],
-                "assets": [project(item, "id name category type space_id floor_id position footprint source")
+                "assets": [{**project(item, "id name category type space_id floor_id position footprint source"),
+                            **({"height_m": item["height_m"]} if "height_m" in item else {})}
                            for item in session.map.assets.values() if item["floor_id"] == floor_id],
                 "connectors": [project(item, "id kind name floor_ids space_ids step_free synthetic")
                                for item in session.map.connectors.values() if floor_id in item["floor_ids"]],

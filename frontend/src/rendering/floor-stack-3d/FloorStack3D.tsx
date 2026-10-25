@@ -3,8 +3,10 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 import type { FloorPlan, Point, Route, Space } from '../../domain/types'
+import { objectVisual } from '../../domain/object-catalog'
 import { copy } from '../../i18n/en'
 import { perimeterSegments } from './perimeter'
+import { addObjectModels } from './object-models'
 
 type FloorStack3DProps = {
   plans: FloorPlan[]
@@ -48,7 +50,7 @@ type FloorRecord = {
   y: number
   fade: number
   box: { x0: number; x1: number; z0: number; z1: number }
-  exteriorHeight: number
+  contentHeight: number
   rooms: Map<Tone, Fader>
   wall: Fader
   wallTop: Fader
@@ -57,6 +59,7 @@ type FloorRecord = {
   halo: Fader
   facades: Facade[]
   route: Fader[]
+  models: { material: THREE.Material; opacity: number; depthWrite: boolean }[]
   label: HTMLDivElement
 }
 
@@ -257,6 +260,8 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
   useEffect(() => {
     const element = host.current
     if (!element || ordered.length === 0) return
+    element.dataset.modelsReady = 'false'
+    element.dataset.objectCount = '0'
     const reducedMotion = prefersReducedMotion()
     const sceneKey = ordered.map((plan) => plan.floor.id).join('|')
     // Only the first build of a building animates the floors apart; route updates keep the current view.
@@ -310,6 +315,9 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
     controls.maxPolarAngle = Math.PI * 0.49
 
     const floors: FloorRecord[] = []
+    const removeModels: (() => void)[] = []
+    let pendingModels = ordered.length
+    let objectCount = 0
     const pickables: THREE.Object3D[] = []
     const floorIndex = new Map<string, number>()
     const fader = <M extends THREE.Material>(material: M) => ({ material, base: 1 })
@@ -320,6 +328,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
     ordered.forEach((plan, index) => {
       floorIndex.set(plan.floor.id, index)
       const group = new THREE.Group()
+      group.name = `floor:${plan.floor.id}`
       const compactY = plan.floor.elevation_m - baseElevation
       const explodedY = gap * index
       const y = animateIn ? compactY : explodedY
@@ -424,10 +433,35 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       labelObject.position.set(x0, -slabDepth / 2, z1)
       group.add(labelObject)
 
+      // The loader uses dataset metre coordinates. Translate into this floor's
+      // centred frame; the parent owns the animated elevation, never object scale.
+      const objectGroup = new THREE.Group()
+      objectGroup.name = `objects:${plan.floor.id}`
+      objectGroup.position.set(-centerX, -plan.floor.elevation_m, centerY)
+      group.add(objectGroup)
+      const models: FloorRecord['models'] = []
+      removeModels.push(addObjectModels(objectGroup, [plan], (count) => {
+        const materials = new Set<THREE.Material>()
+        objectGroup.traverse((object) => {
+          if (!(object instanceof THREE.InstancedMesh)) return
+          for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material)
+        })
+        for (const material of materials) {
+          models.push({ material, opacity: material.opacity, depthWrite: material.depthWrite })
+          material.transparent = true
+          material.needsUpdate = true
+        }
+        objectCount += count
+        pendingModels -= 1
+        element.dataset.objectCount = String(objectCount)
+        element.dataset.modelsReady = String(pendingModels === 0)
+      }))
+
       floors.push({
         id: plan.floor.id, index, group, compactY, explodedY, y, fade: 1,
-        box: { x0, x1, z0, z1 }, exteriorHeight,
-        rooms, wall, wallTop, slab, slabEdge, halo, facades,
+        box: { x0, x1, z0, z1 },
+        contentHeight: Math.max(exteriorHeight, ...plan.assets.map((asset) => objectVisual(asset).height_m)),
+        rooms, wall, wallTop, slab, slabEdge, halo, facades, models,
         route: [fader(overlay()), fader(overlay()), fader(overlay())],
         label,
       })
@@ -566,7 +600,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       const z0 = Math.min(...visible.map((floor) => floor.box.z0))
       const z1 = Math.max(...visible.map((floor) => floor.box.z1))
       const y0 = Math.min(...visible.map((floor) => floor.explodedY)) - slabDepth
-      const y1 = Math.max(...visible.map((floor) => floor.explodedY + floor.exteriorHeight)) + (stackMode === 'all' ? lift : 0)
+      const y1 = Math.max(...visible.map((floor) => floor.explodedY + floor.contentHeight)) + (stackMode === 'all' ? lift : 0)
       const target = new THREE.Vector3((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2)
       const probe = new THREE.OrthographicCamera(-width / height, width / height, 1, -1, -span * 40, span * 40)
       probe.position.copy(target).addScaledVector(isoDirection, span * 4)
@@ -717,6 +751,12 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
         floor.label.style.visibility = floor.fade > 0.01 ? 'visible' : 'hidden'
         const faders = [...floor.rooms.values(), floor.wall, floor.wallTop, floor.slab, floor.slabEdge, floor.halo, ...floor.route]
         for (const item of faders) item.material.opacity = item.base * floor.fade
+        const focused = stackMode === 'single' || floor.id === viewedFloor || floor.id === hoveredFloor
+        const modelOpacity = floor.fade * (focused ? 1 : 0.42)
+        for (const item of floor.models) {
+          item.material.opacity = item.opacity * modelOpacity
+          item.material.depthWrite = item.depthWrite && modelOpacity > 0.99
+        }
         for (const facade of floor.facades) {
           // Walls facing the camera would hide the rooms, so they thin out like a cutaway.
           const facing = facade.normal.dot(view) > 0.35 ? 0.16 : 1
@@ -797,6 +837,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       canvas.removeEventListener('pointerleave', onPointerLeave)
       canvas.removeEventListener('dblclick', resetView)
       controls.dispose()
+      for (const remove of removeModels) remove()
       scene.traverse((object) => {
         const mesh = object as THREE.Mesh
         mesh.geometry?.dispose()

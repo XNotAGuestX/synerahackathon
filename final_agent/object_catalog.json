@@ -1,0 +1,1584 @@
+{
+  "schema_version": 1,
+  "units": "m",
+  "height_convention": "Overall object height from its local base, including backs/headboards. Estimates for visualization, not measured geometry. Mounting elevation is separate; assets currently sit on their floor.",
+  "defaults": {
+    "height_m": 1.0,
+    "color": "#9a9a9a",
+    "model_path": "/models/objects/unknown.glb",
+    "category_heights_m": {
+      "furniture": 0.9,
+      "fixture": 0.9,
+      "equipment": 1.0,
+      "machine": 1.8
+    }
+  },
+  "estimation_rules": [
+    {
+      "tokens": [
+        "chair",
+        "seat"
+      ],
+      "height_m": 0.9,
+      "reason": "Chair-like object: estimated overall back height."
+    },
+    {
+      "tokens": [
+        "table",
+        "desk"
+      ],
+      "height_m": 0.75,
+      "reason": "Table/desk-like object: typical seated work surface."
+    },
+    {
+      "tokens": [
+        "bench",
+        "workbench",
+        "counter"
+      ],
+      "height_m": 0.9,
+      "reason": "Bench/counter-like object: typical standing work surface."
+    },
+    {
+      "tokens": [
+        "rack",
+        "cabinet",
+        "wardrobe",
+        "locker",
+        "shelf"
+      ],
+      "height_m": 1.8,
+      "reason": "Storage-like object: typical full-height freestanding unit."
+    },
+    {
+      "tokens": [
+        "bed"
+      ],
+      "height_m": 0.95,
+      "reason": "Bed-like object: approximate total height including headboard."
+    },
+    {
+      "tokens": [
+        "sofa",
+        "armchair"
+      ],
+      "height_m": 0.85,
+      "reason": "Lounge seating: approximate overall back height."
+    },
+    {
+      "tokens": [
+        "screen",
+        "board"
+      ],
+      "height_m": 1.0,
+      "reason": "Display/board: approximate panel height, excluding mounting elevation."
+    },
+    {
+      "tokens": [
+        "robot",
+        "machine"
+      ],
+      "height_m": 1.8,
+      "reason": "Industrial equipment: approximate floor-standing enclosure height."
+    }
+  ],
+  "sources": {
+    "kenney_furniture": {
+      "name": "Kenney Furniture Kit",
+      "url": "https://kenney.nl/assets/furniture-kit",
+      "license": "CC0-1.0",
+      "archive_sha256": "e67652d0932cee41683f74711c03d3e192a2af9979ef8e6b237711f5482d46b0",
+      "license_path": "/models/objects/KENNEY_LICENSE.txt"
+    },
+    "project_procedural": {
+      "name": "Talk to Your Building schematic models",
+      "license": "CC0-1.0",
+      "generator": "scripts/build_object_models.py",
+      "description": "Original, texture-free, flat-color meshes supplementing the Kenney furniture style. Schematic, not manufacturer/CAD replicas."
+    }
+  },
+  "objects": {
+    "3d_printer": {
+      "height_m": 0.6,
+      "height_reason": "Enclosed desktop FDM printer; excludes its supporting bench.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/3d_printer.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.6,
+        "depth_m": 0.6
+      }
+    },
+    "armchair": {
+      "height_m": 0.85,
+      "height_reason": "Overall back height of a domestic lounge chair; seat is about 0.45 m.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/armchair.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "loungeChair.glb",
+      "preview_footprint_m": {
+        "width_m": 0.8,
+        "depth_m": 0.8
+      }
+    },
+    "assembly_station": {
+      "height_m": 1.25,
+      "height_reason": "Standing assembly bench including a modest rear tool rail.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/assembly_station.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 2.4,
+        "depth_m": 1.2
+      }
+    },
+    "atm": {
+      "height_m": 1.5,
+      "height_reason": "Freestanding cash machine body and display surround.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/atm.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.6,
+        "depth_m": 0.6
+      }
+    },
+    "bathtub": {
+      "height_m": 0.6,
+      "height_reason": "Typical tub rim height above its base.",
+      "height_status": "estimated",
+      "categories": [
+        "fixture"
+      ],
+      "model_path": "/models/objects/bathtub.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "bathtub.glb",
+      "preview_footprint_m": {
+        "width_m": 1.64,
+        "depth_m": 0.71
+      }
+    },
+    "bed": {
+      "height_m": 1.0,
+      "height_reason": "Double bed including headboard; mattress surface is about 0.55 m.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/bed.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "bedDouble.glb",
+      "preview_footprint_m": {
+        "width_m": 1.6,
+        "depth_m": 2.0
+      }
+    },
+    "bench": {
+      "height_m": 0.85,
+      "height_reason": "Seated bench including backrest; seat is about 0.45 m.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/bench.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "bench.glb",
+      "preview_footprint_m": {
+        "width_m": 1.5,
+        "depth_m": 0.4
+      }
+    },
+    "boiler": {
+      "height_m": 1.6,
+      "height_reason": "Floor-standing plant-room boiler enclosure.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/boiler.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 1.0,
+        "depth_m": 1.0
+      }
+    },
+    "bookshelf": {
+      "height_m": 1.8,
+      "height_reason": "Typical freestanding five-shelf bookcase.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/bookshelf.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "bookcaseOpen.glb",
+      "preview_footprint_m": {
+        "width_m": 0.9,
+        "depth_m": 0.35
+      }
+    },
+    "built_in_wardrobe": {
+      "height_m": 2.4,
+      "height_reason": "Typical near-ceiling fitted wardrobe in a residential room.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/built_in_wardrobe.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "proxy",
+      "source_asset": "bookcaseClosedDoors.glb",
+      "preview_footprint_m": {
+        "width_m": 1.2,
+        "depth_m": 0.6
+      }
+    },
+    "canteen_table": {
+      "height_m": 0.75,
+      "height_reason": "Standard seated dining/work surface height.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/canteen_table.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "table.glb",
+      "preview_footprint_m": {
+        "width_m": 1.8,
+        "depth_m": 0.8
+      }
+    },
+    "chair": {
+      "height_m": 0.85,
+      "height_reason": "Overall dining/visitor chair back height; seat is about 0.45 m.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/chair.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "chair.glb",
+      "preview_footprint_m": {
+        "width_m": 0.5,
+        "depth_m": 0.5
+      }
+    },
+    "chemical_cabinet": {
+      "height_m": 1.95,
+      "height_reason": "Full-height laboratory chemical storage cabinet.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/chemical_cabinet.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 1.0,
+        "depth_m": 0.5
+      }
+    },
+    "cnc_lathe": {
+      "height_m": 1.8,
+      "height_reason": "Typical enclosed small/medium industrial turning centre.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/cnc_lathe.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 3.5,
+        "depth_m": 2.0
+      }
+    },
+    "cnc_mill": {
+      "height_m": 2.3,
+      "height_reason": "Typical enclosed vertical machining centre; excludes building services.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/cnc_mill.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 3.0,
+        "depth_m": 2.5
+      }
+    },
+    "coat_rack": {
+      "height_m": 1.75,
+      "height_reason": "Freestanding coat stand with hooks reachable by most adults.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/coat_rack.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "coatRackStanding.glb",
+      "preview_footprint_m": {
+        "width_m": 0.6,
+        "depth_m": 0.3
+      }
+    },
+    "coffee_machine": {
+      "height_m": 0.4,
+      "height_reason": "Countertop office coffee machine; height excludes the supporting counter.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/coffee_machine.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "kitchenCoffeeMachine.glb",
+      "preview_footprint_m": {
+        "width_m": 0.4,
+        "depth_m": 0.4
+      }
+    },
+    "coffee_table": {
+      "height_m": 0.45,
+      "height_reason": "Low lounge table, approximately sofa seat height.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/coffee_table.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "tableCoffee.glb",
+      "preview_footprint_m": {
+        "width_m": 1.0,
+        "depth_m": 0.6
+      }
+    },
+    "compressor": {
+      "height_m": 1.2,
+      "height_reason": "Workshop compressor with horizontal receiver and motor.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/compressor.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 1.5,
+        "depth_m": 1.0
+      }
+    },
+    "conveyor": {
+      "height_m": 0.9,
+      "height_reason": "Typical waist-height conveyor working surface.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/conveyor.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 6.0,
+        "depth_m": 1.0
+      }
+    },
+    "coordinate_measuring_machine": {
+      "height_m": 2.0,
+      "height_reason": "Bridge CMM including table and probe gantry.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/coordinate_measuring_machine.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 2.0,
+        "depth_m": 1.5
+      }
+    },
+    "curing_oven": {
+      "height_m": 1.8,
+      "height_reason": "Medium floor-standing industrial curing oven.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/curing_oven.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 1.2,
+        "depth_m": 1.0
+      }
+    },
+    "defibrillator": {
+      "height_m": 0.45,
+      "height_reason": "Wall cabinet/device enclosure height; excludes installation elevation.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/defibrillator.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.4,
+        "depth_m": 0.2
+      }
+    },
+    "desk": {
+      "height_m": 0.74,
+      "height_reason": "Typical seated office desktop height; excludes a monitor.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/desk.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "desk.glb",
+      "preview_footprint_m": {
+        "width_m": 1.4,
+        "depth_m": 0.7
+      }
+    },
+    "dining_chair": {
+      "height_m": 0.9,
+      "height_reason": "Dining chair overall back height; seat is about 0.45 m.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/dining_chair.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "chairCushion.glb",
+      "preview_footprint_m": {
+        "width_m": 0.45,
+        "depth_m": 0.45
+      }
+    },
+    "dining_table": {
+      "height_m": 0.75,
+      "height_reason": "Typical seated dining tabletop height.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/dining_table.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "table.glb",
+      "preview_footprint_m": {
+        "width_m": 1.6,
+        "depth_m": 0.9
+      }
+    },
+    "dishwasher": {
+      "height_m": 0.85,
+      "height_reason": "Standard under-counter dishwasher body.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/dishwasher.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.6,
+        "depth_m": 0.6
+      }
+    },
+    "display_screen": {
+      "height_m": 0.7,
+      "height_reason": "Medium wall display including frame; excludes mounting elevation.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/display_screen.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "proxy",
+      "source_asset": "televisionModern.glb",
+      "preview_footprint_m": {
+        "width_m": 1.6,
+        "depth_m": 0.3
+      }
+    },
+    "drill_press": {
+      "height_m": 1.7,
+      "height_reason": "Floor-standing pillar drill including motor head.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/drill_press.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.8,
+        "depth_m": 0.8
+      }
+    },
+    "electrical_panel": {
+      "height_m": 1.2,
+      "height_reason": "Medium distribution enclosure; excludes wall mounting elevation.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/electrical_panel.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 1.0,
+        "depth_m": 0.3
+      }
+    },
+    "eyewash_station": {
+      "height_m": 1.05,
+      "height_reason": "Floor-supported eyewash bowl and pedestal; excludes an emergency shower.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/eyewash_station.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.5,
+        "depth_m": 0.4
+      }
+    },
+    "filing_cabinet": {
+      "height_m": 1.3,
+      "height_reason": "Typical four-drawer upright filing cabinet.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/filing_cabinet.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.5,
+        "depth_m": 0.6
+      }
+    },
+    "fire_extinguisher": {
+      "height_m": 0.6,
+      "height_reason": "Typical portable 6 kg extinguisher including valve and handle.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/fire_extinguisher.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.3,
+        "depth_m": 0.3
+      }
+    },
+    "forklift": {
+      "height_m": 2.2,
+      "height_reason": "Parked forklift overhead guard/mast height with forks lowered.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/forklift.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 2.5,
+        "depth_m": 1.2
+      }
+    },
+    "forklift_charging_station": {
+      "height_m": 1.3,
+      "height_reason": "Floor charger cabinet including connector holder.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/forklift_charging_station.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 1.5,
+        "depth_m": 1.0
+      }
+    },
+    "fridge": {
+      "height_m": 1.8,
+      "height_reason": "Typical full-height office/domestic refrigerator.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/fridge.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "kitchenFridge.glb",
+      "preview_footprint_m": {
+        "width_m": 0.6,
+        "depth_m": 0.65
+      }
+    },
+    "fume_hood": {
+      "height_m": 2.3,
+      "height_reason": "Complete floor-standing laboratory hood including base and upper exhaust housing.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/fume_hood.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 1.5,
+        "depth_m": 0.8
+      }
+    },
+    "hand_dryer": {
+      "height_m": 0.3,
+      "height_reason": "Wall-mounted dryer enclosure; excludes installation elevation.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/hand_dryer.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.3,
+        "depth_m": 0.2
+      }
+    },
+    "hvac_unit": {
+      "height_m": 1.5,
+      "height_reason": "Compact floor/roof air-handling cabinet; installation dependent.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/hvac_unit.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 2.0,
+        "depth_m": 1.2
+      }
+    },
+    "industrial_3d_printer": {
+      "height_m": 2.0,
+      "height_reason": "Floor-standing enclosed industrial additive-manufacturing system.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/industrial_3d_printer.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 1.5,
+        "depth_m": 1.2
+      }
+    },
+    "injection_moulding_machine": {
+      "height_m": 2.0,
+      "height_reason": "Medium horizontal injection moulding machine enclosure.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/injection_moulding_machine.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 5.0,
+        "depth_m": 2.0
+      }
+    },
+    "inspection_bench": {
+      "height_m": 0.9,
+      "height_reason": "Standing inspection worktop; excludes separate instruments.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/inspection_bench.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 2.0,
+        "depth_m": 0.8
+      }
+    },
+    "internal_stairs": {
+      "height_m": 3.0,
+      "height_reason": "Approximate one-storey rise; floor elevations should override this schematic stair asset.",
+      "height_status": "estimated",
+      "categories": [
+        "fixture"
+      ],
+      "model_path": "/models/objects/internal_stairs.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "stairs.glb",
+      "preview_footprint_m": {
+        "width_m": 1.355,
+        "depth_m": 0.955
+      }
+    },
+    "kitchen_counter": {
+      "height_m": 0.9,
+      "height_reason": "Typical finished kitchen worktop height.",
+      "height_status": "estimated",
+      "categories": [
+        "fixture"
+      ],
+      "model_path": "/models/objects/kitchen_counter.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "kitchenCabinet.glb",
+      "preview_footprint_m": {
+        "width_m": 2.345,
+        "depth_m": 0.6
+      }
+    },
+    "lab_bench": {
+      "height_m": 0.9,
+      "height_reason": "Typical standing laboratory work surface.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/lab_bench.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 3.0,
+        "depth_m": 0.8
+      }
+    },
+    "laser_cutter": {
+      "height_m": 1.2,
+      "height_reason": "Enclosed workshop laser cutter including its base.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/laser_cutter.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 1.4,
+        "depth_m": 0.9
+      }
+    },
+    "lectern": {
+      "height_m": 1.15,
+      "height_reason": "Standing lectern reading surface including its raised front edge.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/lectern.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.6,
+        "depth_m": 0.5
+      }
+    },
+    "lecture_seating_row": {
+      "height_m": 0.95,
+      "height_reason": "Overall fixed lecture-seat backs; no tier elevation included.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/lecture_seating_row.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 5.0,
+        "depth_m": 0.8
+      }
+    },
+    "locker": {
+      "height_m": 1.8,
+      "height_reason": "Typical full-height changing-room locker.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/locker.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.9,
+        "depth_m": 0.5
+      }
+    },
+    "meeting_table": {
+      "height_m": 0.75,
+      "height_reason": "Typical seated conference-table work surface.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/meeting_table.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "tableCross.glb",
+      "preview_footprint_m": {
+        "width_m": 2.4,
+        "depth_m": 1.1
+      }
+    },
+    "microscope": {
+      "height_m": 0.45,
+      "height_reason": "Benchtop microscope including eyepiece; excludes bench height.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/microscope.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.5,
+        "depth_m": 0.5
+      }
+    },
+    "microwave": {
+      "height_m": 0.3,
+      "height_reason": "Typical countertop microwave enclosure; excludes supporting counter.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/microwave.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "kitchenMicrowave.glb",
+      "preview_footprint_m": {
+        "width_m": 0.5,
+        "depth_m": 0.4
+      }
+    },
+    "milling_machine": {
+      "height_m": 1.9,
+      "height_reason": "Conventional vertical knee mill including spindle motor.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/milling_machine.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 2.0,
+        "depth_m": 1.8
+      }
+    },
+    "multifunction_printer": {
+      "height_m": 1.15,
+      "height_reason": "Floor-standing office copier/printer with document feeder.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/multifunction_printer.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.8,
+        "depth_m": 0.7
+      }
+    },
+    "nightstand": {
+      "height_m": 0.55,
+      "height_reason": "Bedside cabinet approximately mattress height.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/nightstand.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "cabinetBedDrawer.glb",
+      "preview_footprint_m": {
+        "width_m": 0.45,
+        "depth_m": 0.4
+      }
+    },
+    "office_chair": {
+      "height_m": 1.15,
+      "height_reason": "Overall adjustable office-chair back; seat is about 0.45 m.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/office_chair.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "chairDesk.glb",
+      "preview_footprint_m": {
+        "width_m": 0.6,
+        "depth_m": 0.6
+      }
+    },
+    "oscilloscope_station": {
+      "height_m": 0.5,
+      "height_reason": "Benchtop oscilloscope and stand; excludes laboratory bench.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/oscilloscope_station.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 1.2,
+        "depth_m": 0.7
+      }
+    },
+    "outdoor_chair": {
+      "height_m": 0.85,
+      "height_reason": "Typical patio chair overall back height.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/outdoor_chair.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "chair.glb",
+      "preview_footprint_m": {
+        "width_m": 0.5,
+        "depth_m": 0.5
+      }
+    },
+    "outdoor_table": {
+      "height_m": 0.75,
+      "height_reason": "Typical seated patio tabletop height.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/outdoor_table.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "table.glb",
+      "preview_footprint_m": {
+        "width_m": 0.8,
+        "depth_m": 0.8
+      }
+    },
+    "packing_station": {
+      "height_m": 1.5,
+      "height_reason": "Standing packing bench including an overhead packaging shelf.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/packing_station.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 2.0,
+        "depth_m": 1.0
+      }
+    },
+    "pallet_jack": {
+      "height_m": 1.25,
+      "height_reason": "Overall height to the raised steering handle, not fork height.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/pallet_jack.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 1.6,
+        "depth_m": 0.7
+      }
+    },
+    "pallet_rack": {
+      "height_m": 3.0,
+      "height_reason": "Conservative small industrial rack with three storage levels; actual racks vary widely.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/pallet_rack.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 2.7,
+        "depth_m": 1.1
+      }
+    },
+    "paper_shelf": {
+      "height_m": 1.2,
+      "height_reason": "Medium office paper-storage shelving unit.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/paper_shelf.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "proxy",
+      "source_asset": "bookcaseOpenLow.glb",
+      "preview_footprint_m": {
+        "width_m": 1.0,
+        "depth_m": 0.4
+      }
+    },
+    "plant": {
+      "height_m": 1.2,
+      "height_reason": "Medium indoor floor plant including its pot.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/plant.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "pottedPlant.glb",
+      "preview_footprint_m": {
+        "width_m": 0.4,
+        "depth_m": 0.4
+      }
+    },
+    "powder_station": {
+      "height_m": 1.7,
+      "height_reason": "Compact enclosed powder-handling workstation; highly installation dependent.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/powder_station.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 1.5,
+        "depth_m": 1.0
+      }
+    },
+    "press_brake": {
+      "height_m": 2.5,
+      "height_reason": "Medium industrial sheet-metal press brake frame.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/press_brake.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 4.0,
+        "depth_m": 1.8
+      }
+    },
+    "printer": {
+      "height_m": 0.35,
+      "height_reason": "Desktop office printer including paper feed; excludes supporting desk.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/printer.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.6,
+        "depth_m": 0.5
+      }
+    },
+    "projector": {
+      "height_m": 0.15,
+      "height_reason": "Projector body and feet; excludes ceiling mounting elevation.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/projector.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.4,
+        "depth_m": 0.3
+      }
+    },
+    "projector_screen": {
+      "height_m": 1.5,
+      "height_reason": "Screen panel/drop height; excludes its wall or ceiling installation elevation.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/projector_screen.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 2.4,
+        "depth_m": 0.15
+      }
+    },
+    "reading_table": {
+      "height_m": 0.74,
+      "height_reason": "Typical seated library reading surface.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/reading_table.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "table.glb",
+      "preview_footprint_m": {
+        "width_m": 1.6,
+        "depth_m": 0.8
+      }
+    },
+    "reception_desk": {
+      "height_m": 1.1,
+      "height_reason": "Visitor-facing counter top; internal seated worktop is lower.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/reception_desk.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 2.5,
+        "depth_m": 0.8
+      }
+    },
+    "robot_cell": {
+      "height_m": 2.2,
+      "height_reason": "Guarded industrial robot cell to the top of its safety frame.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/robot_cell.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 4.0,
+        "depth_m": 4.0
+      }
+    },
+    "seminar_table": {
+      "height_m": 0.74,
+      "height_reason": "Typical seated classroom work surface.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/seminar_table.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "table.glb",
+      "preview_footprint_m": {
+        "width_m": 1.4,
+        "depth_m": 0.6
+      }
+    },
+    "server_rack": {
+      "height_m": 2.0,
+      "height_reason": "Typical enclosed 42U server rack including its base.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/server_rack.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.6,
+        "depth_m": 1.2
+      }
+    },
+    "serving_counter": {
+      "height_m": 0.9,
+      "height_reason": "Typical standing food-service counter work surface.",
+      "height_status": "estimated",
+      "categories": [
+        "fixture"
+      ],
+      "model_path": "/models/objects/serving_counter.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "proxy",
+      "source_asset": "kitchenBar.glb",
+      "preview_footprint_m": {
+        "width_m": 4.0,
+        "depth_m": 0.8
+      }
+    },
+    "shelf": {
+      "height_m": 1.8,
+      "height_reason": "Typical freestanding multi-tier storage shelving.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/shelf.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "bookcaseOpen.glb",
+      "preview_footprint_m": {
+        "width_m": 1.0,
+        "depth_m": 0.4
+      }
+    },
+    "shoe_cabinet": {
+      "height_m": 0.9,
+      "height_reason": "Waist-height entrance shoe cabinet.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/shoe_cabinet.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "proxy",
+      "source_asset": "bathroomCabinet.glb",
+      "preview_footprint_m": {
+        "width_m": 0.8,
+        "depth_m": 0.35
+      }
+    },
+    "shower": {
+      "height_m": 2.1,
+      "height_reason": "Complete shower enclosure including its tray.",
+      "height_status": "estimated",
+      "categories": [
+        "fixture"
+      ],
+      "model_path": "/models/objects/shower.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "shower.glb",
+      "preview_footprint_m": {
+        "width_m": 0.9,
+        "depth_m": 0.83
+      }
+    },
+    "single_bed": {
+      "height_m": 0.9,
+      "height_reason": "Single bed including headboard; mattress surface is about 0.5 m.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/single_bed.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "bedSingle.glb",
+      "preview_footprint_m": {
+        "width_m": 0.9,
+        "depth_m": 2.0
+      }
+    },
+    "sink": {
+      "height_m": 0.85,
+      "height_reason": "Pedestal/vanity sink rim height; includes a floor-supported base.",
+      "height_status": "estimated",
+      "categories": [
+        "fixture"
+      ],
+      "model_path": "/models/objects/sink.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "bathroomSink.glb",
+      "preview_footprint_m": {
+        "width_m": 0.6,
+        "depth_m": 0.45
+      }
+    },
+    "sofa": {
+      "height_m": 0.85,
+      "height_reason": "Overall sofa back height; seat is about 0.45 m.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/sofa.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "loungeSofa.glb",
+      "preview_footprint_m": {
+        "width_m": 2.0,
+        "depth_m": 0.9
+      }
+    },
+    "soldering_station": {
+      "height_m": 0.25,
+      "height_reason": "Benchtop soldering control unit and iron stand; excludes workbench.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/soldering_station.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 1.2,
+        "depth_m": 0.6
+      }
+    },
+    "stove": {
+      "height_m": 0.9,
+      "height_reason": "Freestanding cooker top height; excludes a separate extractor hood.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/stove.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "kitchenStoveElectric.glb",
+      "preview_footprint_m": {
+        "width_m": 0.6,
+        "depth_m": 0.6
+      }
+    },
+    "toilet": {
+      "height_m": 0.8,
+      "height_reason": "Overall cistern height; bowl seat is about 0.43 m.",
+      "height_status": "estimated",
+      "categories": [
+        "fixture"
+      ],
+      "model_path": "/models/objects/toilet.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "toilet.glb",
+      "preview_footprint_m": {
+        "width_m": 0.45,
+        "depth_m": 0.66
+      }
+    },
+    "tool_cabinet": {
+      "height_m": 1.0,
+      "height_reason": "Rolling workshop drawer cabinet and worktop.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/tool_cabinet.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 1.0,
+        "depth_m": 0.6
+      }
+    },
+    "tv_stand": {
+      "height_m": 0.55,
+      "height_reason": "Low television/media cabinet; excludes the television.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/tv_stand.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "cabinetTelevision.glb",
+      "preview_footprint_m": {
+        "width_m": 1.5,
+        "depth_m": 0.4
+      }
+    },
+    "ups_unit": {
+      "height_m": 0.65,
+      "height_reason": "Small floor-standing tower UPS; rack UPS dimensions differ.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/ups_unit.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.6,
+        "depth_m": 0.8
+      }
+    },
+    "vending_machine": {
+      "height_m": 1.85,
+      "height_reason": "Full-height floor-standing snack/drink vending machine.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/vending_machine.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.9,
+        "depth_m": 0.8
+      }
+    },
+    "wardrobe": {
+      "height_m": 2.0,
+      "height_reason": "Typical freestanding clothes wardrobe.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/wardrobe.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "proxy",
+      "source_asset": "bookcaseClosedDoors.glb",
+      "preview_footprint_m": {
+        "width_m": 1.2,
+        "depth_m": 0.6
+      }
+    },
+    "washing_machine": {
+      "height_m": 0.85,
+      "height_reason": "Standard front-loading washer; shared between fixture and equipment categories.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment",
+        "fixture"
+      ],
+      "model_path": "/models/objects/washing_machine.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "washer.glb",
+      "preview_footprint_m": {
+        "width_m": 0.6,
+        "depth_m": 0.6
+      }
+    },
+    "waste_basket": {
+      "height_m": 0.35,
+      "height_reason": "Small under-desk waste basket.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/waste_basket.glb",
+      "model_source": "kenney_furniture",
+      "model_kind": "library",
+      "source_asset": "trashcan.glb",
+      "preview_footprint_m": {
+        "width_m": 0.6,
+        "depth_m": 0.6
+      }
+    },
+    "water_dispenser": {
+      "height_m": 1.2,
+      "height_reason": "Freestanding bottled-water cooler including bottle.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/water_dispenser.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 0.4,
+        "depth_m": 0.4
+      }
+    },
+    "waterjet_cutter": {
+      "height_m": 1.6,
+      "height_reason": "Cutting bed and overhead gantry; excludes separate pump.",
+      "height_status": "estimated",
+      "categories": [
+        "machine"
+      ],
+      "model_path": "/models/objects/waterjet_cutter.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 4.0,
+        "depth_m": 3.0
+      }
+    },
+    "welding_station": {
+      "height_m": 1.5,
+      "height_reason": "Compact welder cart including bottle/handle; excludes external screens.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/welding_station.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 2.0,
+        "depth_m": 2.0
+      }
+    },
+    "whiteboard": {
+      "height_m": 1.2,
+      "height_reason": "Board panel height; excludes wall mounting elevation or a mobile stand.",
+      "height_status": "estimated",
+      "categories": [
+        "equipment"
+      ],
+      "model_path": "/models/objects/whiteboard.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 1.8,
+        "depth_m": 0.1
+      }
+    },
+    "workbench": {
+      "height_m": 0.9,
+      "height_reason": "Typical standing workshop work surface.",
+      "height_status": "estimated",
+      "categories": [
+        "furniture"
+      ],
+      "model_path": "/models/objects/workbench.glb",
+      "model_source": "project_procedural",
+      "model_kind": "schematic",
+      "preview_footprint_m": {
+        "width_m": 2.0,
+        "depth_m": 0.8
+      }
+    }
+  }
+}

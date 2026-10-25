@@ -1,5 +1,26 @@
 # Talk to Your Building: Agent-First Indoor Navigation
 
+**Object heights and lightweight 3D assets — 25 October 2026:**
+`final_agent/object_catalog.json` is shared by Python and the frontend and supplies
+reasoned height estimates and local GLBs for all 96 current asset types. The floor
+stack uses 41 Kenney mappings plus 55 original schematics (about 1.1 MB total,
+at most 810 triangles per model). Accepted backend plan imports register unknown
+types with an estimated height and grey block; read-only/benchmark loads do not.
+36 focused backend checks and the production frontend build pass; browser checks
+cover the unknown block and 505 objects in the real factory floor stack.
+The model preview exposes independent width/depth stretching controls (0.25×–3×), with height unchanged.
+The redesigned viewer from `feat/3d-floor-stack` is integrated with these models:
+objects follow floor selection, exploded-floor animation and fading. Each model
+stretches independently to the asset's `footprint.width_m`, `footprint.depth_m`
+and positive `height_m` override (otherwise its shared height estimate), retaining
+its rotation. Camera fitting includes tall custom objects. Integration checks pass
+for all 96 model types, custom heights and the grey fallback; the 505-object factory
+view, expand/reset, floor switching, mobile width and remount were browser-checked.
+The production build and perimeter/effects/walk checks pass.
+[Conventions, provenance, generated types, preview and limitations](docs/OBJECT_MODELS.md).
+[Agent integration handoff](docs/3D_MODELS_HANDOFF.md) explains how to reuse the
+loader, scale individual objects and connect new-object creation.
+
 > **Consolidated project description — 24 October 2026.** This is the project reference for the challenge, existing implementation and open problems; [BACKLOG.md](BACKLOG.md) tracks the remaining implementation work. This document combines the original root README, both agent READMEs, the supplied challenge PDF and the code review. Kit 1.1.0 updates are merged below; the challenge PDF remains preserved as historical source material; the assessment and proposed work are labelled separately. Package READMEs link here.
 
 | Find | Sections |
@@ -16,6 +37,8 @@
 | Full data attribution | [8. Licences](#8-licences), [14. Data sources and licences](#14-data-sources-and-licences) |
 
 **Current status:** `final_agent` is the only agent package; `benchmark.evaluate` runs `final_agent.benchmark:answer` by default with fresh state and temporary outputs per question. The 24 October kit **1.1.0** update is integrated (source commit `dc03c44`): corrected train/dev answers, door-to-door walking with wall clearance, height-based stairs/lifts, direct multi-floor lift rides and no outside shortcut. Tools for all nine scored kinds are present; no live benchmark score or generated test answers are claimed. Sunday output format and release time remain organizer-dependent.
+
+**Audio branch assessment — 25 October 2026:** [Evaluation and reuse decision](AUDIO_BRANCH_EVALUATION.md) reviews `origin/Audio` at `35c0341`. Its isolated suite runs 307 tests (304 pass, three skip); all 44 voice/guidance tests pass. Checkpoint geometry and confirmation completion also work for 197 reachable resolved-input routes across 40 dev buildings (32 other route inputs are unreachable). Two approved live voice-mode text turns start step-free guidance and ask before changing the destination; live speech recognition/playback remains untested. Reuse the speech adapter, geometry and phrasing; rewrite the separate voice session/HTTP integration around the current API and repair navigation progress. Reproduced defects include dropped stops, closure rerouting from the original start, arrival through walls and stale position handling. No audio code is merged by this assessment. See EXT-02 in the backlog.
 
 **Training-run diagnosis — 25 October 2026:** The current retrieved-example library contains 519 saved runs (517 train, two dev): 511 accepted and eight rejected. Re-scoring the saved replies yields 514 correct; three rejections have correct answers but the wrong declared kind, and five ask for clarification because room references are ambiguous. Two ambiguous questions have identical text and conflicting labels. All eight pass offline tools with resolved fixture inputs; the representative runner passes 71/71 plus six format checks. [Per-case causes, required information and reproduction](bench_analsysis/failure_analysis.md). This is saved-run analysis and offline verification; no new model evaluation was run.
 
