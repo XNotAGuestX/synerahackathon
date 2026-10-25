@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
 import { copy } from '../i18n/en'
+import { useDetailsDismiss } from '../ui/useDetailsDismiss'
 
 export type ThemeMode = 'system' | 'light' | 'dark'
 
@@ -13,27 +13,7 @@ type SettingsMenuProps = { themeMode: ThemeMode; onThemeMode: (mode: ThemeMode) 
 
 /** Rarely used preferences live behind one disclosure instead of in the top bar. */
 export function SettingsMenu({ themeMode, onThemeMode }: SettingsMenuProps) {
-  const menuRef = useRef<HTMLDetailsElement>(null)
-
-  useEffect(() => {
-    const close = (event: Event) => {
-      const menu = menuRef.current
-      if (!menu?.open) return
-      if (event instanceof KeyboardEvent) {
-        if (event.key !== 'Escape') return
-        menu.open = false
-        menu.querySelector('summary')?.focus()
-        return
-      }
-      if (event.target instanceof Node && !menu.contains(event.target)) menu.open = false
-    }
-    document.addEventListener('pointerdown', close)
-    document.addEventListener('keydown', close)
-    return () => {
-      document.removeEventListener('pointerdown', close)
-      document.removeEventListener('keydown', close)
-    }
-  }, [])
+  const menuRef = useDetailsDismiss()
 
   return (
     <details ref={menuRef} className="settings-menu">

@@ -69,8 +69,7 @@ export function App() {
   const viewedFloorRef = useRef('')
   const [query, setQuery] = useState('')
   const [comparisonVisible, setComparisonVisible] = useState(true)
-  const [demoOpen, setDemoOpen] = useState(false)
-  const [forkliftOn, setForkliftOn] = useState(true)
+  const [forkliftOn, setForkliftOn] = useState(false)
   const [forkliftRoute, setForkliftRoute] = useState<Route | null>(null)
   const [forkliftPending, setForkliftPending] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -733,9 +732,7 @@ export function App() {
             <div className="map-toolbar-actions">
               {editingEnabled && <button type="button" ref={editButtonRef} className="edit-map-toggle" aria-pressed={editor.open} aria-keyshortcuts="E" title={copy.editor.openHint} onClick={() => { if (!editor.open) showView('map'); editor.toggle() }}><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18"><path d="M4 20h4L19 9l-4-4L4 16v4Z M13.5 6.5l4 4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg><span>{editor.open ? copy.editor.done : copy.editor.open}</span></button>}
               {floors.length > 0 && <div className="floor-rail" role="toolbar" aria-label="Floors">{floors.map((item) => { const inside = insideCounts.get(item.id) ?? 0; return <button type="button" key={item.id} className={item.id === floor.id ? 'active' : undefined} aria-pressed={item.id === floor.id} aria-label={`${copy.showFloor} ${item.name}${inside ? `, ${fill(copy.emergency.floorInside, { count: inside })}` : ''}`} title={item.name} onClick={() => { setFloorId(item.id); setFloorPinned(true) }}>L{item.level}{inside > 0 && <span className="floor-inside-count" aria-hidden="true">{inside}</span>}</button> })}</div>}
-              <button type="button" className="demo-toggle" aria-pressed={demoOpen} onClick={() => setDemoOpen((open) => !open)}>Demo</button>
               <button type="button" className="stack-toggle" aria-pressed={stackOpen} onClick={() => setStackOpen((open) => !open)}>{copy.stackToggle}</button>
-              {debugEnabled && <button type="button" className="dev-toggle" aria-label={copy.debug} aria-pressed={activePanel === 'debug' && mapFocusActive} onClick={() => { setMapFocusActive(true); setActivePanel('debug'); showView('guide') }}>{copy.debugTitle}</button>}
             </div>
           </div>
           <PlaceDiscovery plans={stackPlans} floors={floors} busyId={routingId} onFocus={focusDiscoveryPlace} onRoute={(place) => { void routeToPlace(place) }} />
@@ -746,7 +743,6 @@ export function App() {
           </div>
         </div>
         {stackOpen && <Suspense fallback={<p className="stack-loading">Loading 3D view…</p>}><FloorStack3D plans={stackPlans} previewPlans={editor.previewPlans} route={route} previousRoute={previousRoute} forkliftRoute={forkliftOn ? forkliftRoute : null} storyIndex={directionIndex} activeFloorId={floor.id} startSpaceId={hereId} onRequestStart={openLocationPicker} onSelectFloor={(id) => { setFloorId(id); setFloorPinned(true) }} onSelect={selectOnMap} selectedId={selection?.id ?? null} /></Suspense>}
-        {demoOpen && <section className="demo-strip" aria-label="Demo mode"><div><span className="eyebrow">Demo mode</span><strong>Building response replay</strong></div><ol><li className={route ? 'is-done' : ''}>Locate target</li><li className={route?.reachable ? 'is-done' : ''}>Validate route</li><li className={route?.closed_ids.length ? 'is-done' : ''}>Close a connector</li><li className={route?.closed_ids.length && previousRoute ? 'is-done' : ''}>Compare reroute</li></ol><button type="button" className="small-action" onClick={() => setDemoOpen(false)}>Close demo</button></section>}
       <div className="map-footer">
           <PlanImport onApply={(imported) => { const id = `imported:${imported.floor.id}`; setImportedPlans((current) => new Map(current).set(id, imported)); setBuildings((current) => current.some((item) => item.id === id) ? current : [...current, { id, name: `${copy.importedSession}: ${imported.floor.name}`, floors: 1, has_lift: imported.connectors.some((item) => item.kind === 'lift'), has_step_free_entrance: imported.openings.some((item) => item.kind === 'entrance' && item.step_free) }]); setBuildingId(id) }} />
           <p className="revision-note"><span className="eyebrow">{copy.revision}</span><span className="mono">{revision}</span></p>
