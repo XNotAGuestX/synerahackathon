@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Callable
 
 from .building_map import DOOR_PREFIX, BuildingMap
+from .narration import render
 from .navigator import Fix, NavEvent, Navigator
 from .waypoints import RouteWalk, route_walk, space_containing
 
@@ -21,8 +22,15 @@ def iso(value: datetime) -> str:
 class LiveState:
     STALE_S = 15.0
 
-    def __init__(self, clock: Callable[[], datetime], new_id: Callable[[], str]) -> None:
+    def __init__(self, clock: Callable[[], datetime], new_id: Callable[[], str], *,
+                 narrate: Callable[[BuildingMap, RouteWalk], dict[int, str]] | None = None,
+                 prewarm: Callable[[list[str]], None] | None = None, first_wait_s: float = 2.5) -> None:
         self.clock, self.new_id = clock, new_id
+        self._narrate, self._prewarm, self._first_wait_s = narrate, prewarm, first_wait_s
+        self._nav_gen = 0
+        self._gen = 0  # bumped by start/stop/close so a late narration result is discarded
+        self._texts: dict[int, str] = {}
+        self._narrated = threading.Event()
         self._cond = threading.Condition(threading.Lock())
         self._fix: Fix | None = None
         self._events: deque[dict] = deque(maxlen=EVENT_RING)
@@ -89,7 +97,18 @@ class LiveState:
             fix = self._fix
             fresh = fix is not None and (self.clock() - fix.measured_at).total_seconds() <= self.STALE_S
             start_point = fix.point if fresh and fix.space_id == route_result.start_space_id else None
-            self._walk = route_walk(building_map, route_result, start_point)
+            walk = route_walk(building_map, route_result, start_point)
+            self._gen += 1
+            gen = self._gen
+            self._texts, self._narrated = {}, threading.Event()
+            narrated = self._narrated
+        if self._narrate is not None:
+            threading.Thread(target=self._narrate_walk, args=(gen, building_map, walk, spoken), daemon=True).start()
+            narrated.wait(self._first_wait_s)  # the first instruction waits briefly for the narrator
+        with self._cond:
+            if self._gen != gen:
+                return  # stopped or closed meanwhile
+            self._walk = walk
             self._route_id = route_id
             self._destination_id = route_record["destination_space_id"]
             self._destination_name = building_map.spaces[self._destination_id]["name"]
@@ -98,12 +117,33 @@ class LiveState:
                 | set(route_result.edge_path) | set(route_result.space_path))
             self.spoken = spoken
             self._status = "active"
-            self._nav = Navigator(self._walk, self._destination_name, clock=self.clock)
+            self._nav_gen = gen
+            self._nav = Navigator(walk, self._destination_name, texts=self._texts, clock=self.clock)
             for event in self._nav.start():
                 self._emit(event.kind, event.text, event.waypoint_index)
 
+    def _narrate_walk(self, gen: int, building_map: BuildingMap, walk: RouteWalk, spoken: bool) -> None:
+        try:
+            texts = self._narrate(building_map, walk)
+        except Exception:
+            texts = {}
+        with self._cond:
+            if self._gen != gen:
+                return
+            self._texts = dict(texts)
+            if self._nav is not None and self._nav_gen == gen:
+                self._nav.set_texts(texts)
+            self._narrated.set()
+        if spoken and self._prewarm is not None:
+            try:
+                self._prewarm([texts.get(w.index) or render(w) for w in walk.waypoints])
+            except Exception:
+                pass  # pre-warming is best effort
+
     def stop(self, reason: str, text: str | None = None) -> None:
         with self._cond:
+            if reason == "cancelled" or self._status == "active":
+                self._gen += 1
             if reason == "cancelled":
                 self._status, self._route_id, self._walk, self._nav = "idle", None, None, None
                 self._destination_id = self._destination_name = None
@@ -118,6 +158,7 @@ class LiveState:
 
     def close(self) -> None:
         with self._cond:
+            self._gen += 1
             self._closed = True
             self._cond.notify_all()
         self.stop("closed")

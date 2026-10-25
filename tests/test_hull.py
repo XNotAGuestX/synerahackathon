@@ -90,14 +90,22 @@ class ScriptedRunner:
 class ScriptedClient:
     """Stands in for anthropic.Anthropic: each tool_runner() call replays the next scripted turn."""
 
-    def __init__(self, turns: list[list]) -> None:
+    def __init__(self, turns: list[list], parsed: list | None = None) -> None:
         self.turns = list(turns)
+        self.parsed = list(parsed or [])  # scripted parse() outputs; an Exception instance is raised
+        self.parse_requests: list[dict] = []
         self.results: list[tuple[str, bool, str]] = []
         self.history_lengths: list[int] = []
         self.beta = SimpleNamespace(messages=SimpleNamespace(tool_runner=self.tool_runner, parse=self.parse))
 
     def parse(self, **request) -> SimpleNamespace:
-        """A scripted structuring request: the model returns no schema-valid reply."""
+        """A scripted structuring request: the next queued output, else no schema-valid reply."""
+        self.parse_requests.append(request)
+        if self.parsed:
+            output = self.parsed.pop(0)
+            if isinstance(output, Exception):
+                raise output
+            return SimpleNamespace(parsed_output=output, stop_reason="end_turn", usage=reply().usage)
         return SimpleNamespace(parsed_output=None, stop_reason="end_turn", usage=reply().usage)
 
     def tool_runner(self, **request) -> ScriptedRunner:

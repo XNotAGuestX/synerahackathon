@@ -18,9 +18,10 @@ import anthropic
 from anthropic.lib.tools import BetaBuiltinFunctionTool, ToolError
 from pydantic import BaseModel, ConfigDict
 
-from .agent import EFFORT, VOICE_PROMPT, BuildingAgent, MissingCredentialsError
+from .agent import EFFORT, MODELS, VOICE_PROMPT, BuildingAgent, MissingCredentialsError
 from .building_map import BuildingMap, MapError, RouteResult
 from .live import LiveState
+from .narration import landmark_candidates, narrate
 from .speech import ClipCache, SpeechError, SpeechProvider
 from .storage import RoomNoteStore
 from .tools import ArgumentCheckedTool, as_json, make_tools, route_json
@@ -150,6 +151,7 @@ class SessionService:
         speech: SpeechProvider | None = None,
     ) -> None:
         self.speech, self.clips = speech, ClipCache()
+        self.first_instruction_wait_s = 2.5
         self.data_directory = Path(data_directory).resolve()
         self.output_directory = Path(output_directory)
         self.notes_database = Path(notes_database) if notes_database is not None else Path("agent_output/room_notes.sqlite3")
@@ -227,10 +229,34 @@ class SessionService:
     def create(self, building_id: str, preferences: dict) -> dict:
         now = timestamp(self.clock())
         session = SessionState(self.new_id(), BuildingMap(copy.deepcopy(self.building_data(building_id))), now, now, preferences,
-                               live=LiveState(self.clock, self.new_id))
+                               live=self.new_live())
         with self._lock:
             self.sessions[session.id] = session
         return self.view(session)
+
+    def new_live(self) -> LiveState:
+        return LiveState(self.clock, self.new_id, narrate=self.narrate_route, prewarm=self.prewarm,
+                         first_wait_s=self.first_instruction_wait_s)
+
+    def narrate_route(self, building_map: BuildingMap, walk) -> dict[int, str]:
+        client = self.client_factory()
+        try:
+            candidates = {w.index: landmark_candidates(building_map, w) for w in walk.waypoints}
+            return narrate(client, MODELS["haiku"], walk, candidates)
+        finally:
+            if hasattr(client, "close"):
+                client.close()
+
+    def prewarm(self, texts: list[str]) -> None:
+        """Synthesize guidance texts into the clip cache so the first spoken step has no delay."""
+        speech = self.speech
+        if speech is None:
+            return
+        for text in dict.fromkeys(texts):
+            try:
+                self.clips.get_or_make((speech.voice_id, speech.tts_model, "mp3_44100_64", text), lambda: speech.synthesize(text))
+            except SpeechError:
+                return
 
     def get(self, session_id: str) -> SessionState:
         with self._lock:
