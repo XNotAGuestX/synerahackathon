@@ -2434,6 +2434,9 @@ components:
         speech_clip_id:
           type: [string, "null"]
           description: Clip der Guide-Antwort für `get_speech_clip`, nur bei Eingabe per Sprache (input_mode voice), sonst null.
+        speech_text:
+          type: [string, "null"]
+          description: Kurze gesprochene Zusammenfassung; guide_message.text enthält die vollständige Antwort. Bei Texteingabe null.
         session:
           $ref: "#/components/schemas/Session"
         user_message:

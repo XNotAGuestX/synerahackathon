@@ -569,7 +569,8 @@ class BuildingMap:
                     graph.add_edge(first, second, weight=round(length, LENGTH_DECIMALS), space=space_id)
         levels = {floor_id: floor["level"] for floor_id, floor in self.floors.items()}
         for connector in self.connectors.values():
-            if connector["id"] in closed or (step_free and not connector["step_free"]):
+            # A mistaken accessibility flag must never make a staircase step-free.
+            if connector["id"] in closed or (step_free and (connector["kind"] == "stairs" or not connector["step_free"])):
                 continue
             stops = sorted(
                 zip(connector["floor_ids"], connector["space_ids"], strict=True),

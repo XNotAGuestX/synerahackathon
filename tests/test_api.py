@@ -696,7 +696,7 @@ class ApiTests(unittest.TestCase):
     def test_voice_turn_uses_voice_prompt_haiku_high_effort_live_position_and_speech_clip(self):
         session = self.session()
         self.fix(session, -2, 0)
-        result = self.turn(session, [reply(answer("Hi."))], input_mode="voice")
+        result = self.turn(session, [reply(answer("Hi.", speech_text="Hi."))], input_mode="voice")
         request = self.model.requests[0]
         system = request["system"][0]["text"]
         self.assertIn("# Voice turn", system)
@@ -709,13 +709,25 @@ class ApiTests(unittest.TestCase):
         session = self.session()
         result = self.turn(session, [reply(answer("Hi."))])
         self.assertIsNone(result["speech_clip_id"])
+        self.assertIsNone(result["speech_text"])
         self.assertNotIn("# Voice turn", self.model.requests[0]["system"][0]["text"])
         self.assertEqual(self.model.requests[0]["output_config"], {"effort": "medium"})
+
+    def test_voice_to_text_followup_keeps_facts_but_drops_old_thinking(self):
+        session = self.session()
+        self.turn(session, [reply(SimpleNamespace(type="thinking", thinking="old reasoning", signature="bound-to-old-system"),
+                                  answer("Printer is in Left.", speech_text="Printer is in Left."))], input_mode="voice")
+        result = self.turn(session, [reply(answer("The printer is still in Left."))])
+        self.assertEqual(result["guide_message"]["text"], "The printer is still in Left.")
+        blocks = [block for message in self.model.requests[0]["messages"]
+                  if isinstance(message["content"], list) for block in message["content"]]
+        self.assertNotIn("thinking", [getattr(block, "type", None) for block in blocks])
+        self.assertTrue(any("Printer is in Left." in getattr(block, "text", "") for block in blocks))
 
     def test_start_guidance_after_find_route_from_live_room_begins_guidance(self):
         session = self.session()
         self.fix(session, -2, 0)
-        self.turn(session, self.GUIDE, input_mode="voice")
+        self.turn(session, [*self.GUIDE[:-1], reply(answer("Going upstairs.", speech_text="Heading upstairs by lift."))], input_mode="voice")
         feed = self.client.get(self.path(session) + "/guidance").json()
         self.assertEqual((feed["guidance"]["status"], feed["events"][0]["kind"]), ("active", "instruction"))
 
@@ -723,12 +735,38 @@ class ApiTests(unittest.TestCase):
         session = self.session()
         self.fix(session, -2, 0)
         script = [reply(call("find_route", start="left", destination="upstairs")),
-                  reply(answer("Go through the door, take the stairs up, then turn right into Upstairs.", intent="route"))]
+                  reply(answer("Go through the door, take the lift up, then enter Upstairs.", intent="route",
+                               speech_text="Shall I start spoken guidance?"))]
         result = self.turn(session, script, input_mode="voice")
         feed = self.client.get(self.path(session) + "/guidance").json()
         self.assertEqual((feed["guidance"]["status"], feed["events"][0]["kind"]), ("active", "instruction"))
         clip = self.client.get(self.path(session) + "/speech-clips/" + result["speech_clip_id"])
         self.assertTrue(clip.content.startswith(b"ID3Heading to "), clip.content)
+        self.assertIn("Go through the door", result["guide_message"]["text"])
+        self.assertNotEqual(result["guide_message"]["text"], result["speech_text"])
+        self.assertNotIn("?", result["speech_text"])
+
+    def test_voice_summary_preserves_warning_when_guidance_starts(self):
+        session = self.session()
+        self.fix(session, -2, 0)
+        detail = "Wet floor reported in Upstairs. Go to the lift, ride upstairs, and enter the room."
+        spoken = "Caution: wet floor reported upstairs. Heading to Upstairs, 18 metres."
+        script = [reply(call("find_route", start="left", destination="upstairs")),
+                  reply(answer(detail, intent="route", speech_text=spoken,
+                               speech_warning="Caution: wet floor reported upstairs."))]
+        result = self.turn(session, script, input_mode="voice")
+        self.assertEqual(result["guide_message"]["text"], detail)
+        self.assertEqual(result["speech_text"], spoken)
+        clip = self.client.get(self.path(session) + "/speech-clips/" + result["speech_clip_id"])
+        self.assertEqual(clip.content, b"ID3" + spoken.encode())
+
+    def test_voice_clarification_is_spoken_and_does_not_start_guidance(self):
+        session = self.session()
+        question = "Where are you starting?"
+        result = self.turn(session, [reply(answer(question, intent="clarify", missing=["start"],
+                                                question=question, speech_text=question))], input_mode="voice")
+        self.assertEqual(result["speech_text"], question)
+        self.assertEqual(self.client.get(self.path(session) + "/guidance").json()["guidance"]["status"], "idle")
 
     def test_start_guidance_from_another_room_is_a_tool_error(self):
         session = self.session()
@@ -743,6 +781,17 @@ class ApiTests(unittest.TestCase):
         self.fix(session, -2, 0)
         self.turn(session, self.GUIDE)
         self.turn(session, [reply(call("stop_guidance")), reply(answer("Stopped."))], text="Stop guiding me.")
+        self.assertEqual(self.client.get(self.path(session) + "/guidance").json()["guidance"]["status"], "stopped")
+
+    def test_voice_stop_does_not_repeat_an_old_route_lead_in(self):
+        session = self.session()
+        self.fix(session, -2, 0)
+        self.turn(session, self.GUIDE)
+        result = self.turn(session, [reply(call("stop_guidance")),
+                                    reply(answer("Guidance was started earlier.", speech_text="Heading upstairs."))],
+                           text="Stop guiding me.", input_mode="voice")
+        self.assertEqual(result["speech_text"], "Guidance stopped.")
+        self.assertEqual(result["guide_message"]["text"], "Guidance stopped.")
         self.assertEqual(self.client.get(self.path(session) + "/guidance").json()["guidance"]["status"], "stopped")
 
     def test_unreachable_route_cannot_be_guided(self):

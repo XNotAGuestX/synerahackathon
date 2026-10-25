@@ -235,7 +235,7 @@ In Array-Reihenfolge anwenden. Unbekannter `type`: dieses Element überspringen.
 
 ### Auth, Limit, CSRF
 
-v1 nutzt keine Cookies und damit kein CSRF-Token. Cross-Origin steuert das Backend über `CORS_ORIGINS`. Über dem Limit: 429 und `Retry-After`. JSON-Bodies höchstens 64 KiB. Kein Upload.
+v1 nutzt keine Cookies und damit kein CSRF-Token. Cross-Origin steuert das Backend über `CORS_ORIGINS`. Über dem Limit: 429 und `Retry-After`. JSON-Bodies höchstens 64 KiB; rohe Audio-Uploads an `transcriptions` höchstens 2 MiB.
 
 Logs auf Info: `trace_id`, Methode, Pfad, Status, Dauer, `session_id`. Der originale Nutzersatz nur auf Debug. Kein Authorization-Header im Log.
 
@@ -244,12 +244,12 @@ Logs auf Info: `trace_id`, Methode, Pfad, Status, Dauer, `session_id`. Der origi
 - M1: v1-Vertrag und dev-Mock. Das Frontend entwickelt dagegen.
 - M2: Backend implementiert buildings, sessions, plan, places, routes, actions.
 - M3: Backend hängt messages an den Agenten. Fällt das Modell aus, bleiben die M2-Endpunkte nutzbar.
-- Später: Sprache über `input_mode: transcript`, Streaming, Entwurfsgebäude, mehrere Häuser. `input_mode` fehlt es, gilt `text`.
+- Sprachmodus: WAV an `POST transcriptions`, den erkannten Text mit `input_mode: voice` an messages. `guide_message.text` bleibt ausführlich; `speech_text` enthält die kurze gesprochene Antwort und `speech_clip_id` ihren Clip. `input_mode: transcript` bleibt reine Texteingabe; ohne input_mode gilt `text`. Führung nutzt den bestehenden Long-Poll-Feed (ADR-0003). Der Browser nutzt keine direkten Provider-WebSockets mehr; der Token-Endpunkt bleibt kompatibel verfügbar.
 
 ## 9. Offene Punkte
 
 - Ob ein Gebäude aus einem Plan eine Sitzung ohne Datensatz-Id bekommen darf. v1 unterstützt das nicht.
-- Wer Sprache in Text wandelt. Die API nimmt nur schon vorhandenen `text` an.
+- Physisches Mikrofon, Echo und iPhone Safari sind noch nicht gerätegeprüft. Implementierung und fokussierte Browserprüfungen: [VOICE_AUDIO_HANDOFF.md](VOICE_AUDIO_HANDOFF.md).
 
 ## 10. Änderungsmatrix
 

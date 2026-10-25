@@ -17,7 +17,7 @@ from uuid import uuid4
 
 import anthropic
 from anthropic.lib.tools import BetaBuiltinFunctionTool, ToolError
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from . import object_edits
 from .agent import EFFORT, MODEL, MODELS, VOICE_EFFORT, VOICE_MODEL, VOICE_PROMPT, BuildingAgent, MissingCredentialsError
@@ -152,12 +152,18 @@ class ApiReply(BaseModel):
     options: list[AskChoice]
 
 
+class VoiceReply(ApiReply):
+    speech_text: str = Field(min_length=1)
+    speech_warning: str | None = Field(default=None, description="Essential tool-backed safety/access warning or unverified constraint for this route, otherwise null.")
+
+
 API_PROMPT = """
 
 # HTTP session mode (overrides examples about immediate edits and PNG display)
 Finish the turn with your normal reply; afterwards the application asks you to restate it in
 its response schema. In that schema, text is the normal short user-facing reply, in their language. summary describes what you understood. The application
 generates verified resolved ids, counts, map effects and route references from tool results.
+Do not append benchmark Answer: lines to HTTP replies.
 Use intent clarify and missing slots when information is needed. question/options are only for
 actual clarification; offer tool-backed place ids, never invented locations. Otherwise use
 question=null, options=[] and missing=[]. Room-report tasks use intent unknown (the HTTP
@@ -762,20 +768,31 @@ class SessionService:
             client = self.client_factory()
             agent = BuildingAgent(
                 work.map, self.output_directory / session.id, client=client,
-                registered_tools=bridge.tools, response_format=ApiReply,
+                registered_tools=bridge.tools, response_format=VoiceReply if voice else ApiReply,
                 turn_context=turn_context + "\nCurrent turn context: " + json.dumps({**context, "step_free_default": step_free, **live_context}),
                 request_timeout=self.model_timeout, effort=VOICE_EFFORT if voice else EFFORT, model=VOICE_MODEL if voice else MODEL,
             )
             agent.messages = work.history
-            reply = ApiReply.model_validate_json(agent.ask(body["text"]))
-            spoken = reply.text
+            reply = (VoiceReply if voice else ApiReply).model_validate_json(agent.ask(body["text"]))
+            spoken = reply.speech_text.strip() if isinstance(reply, VoiceReply) else None
+            if voice and not spoken:
+                raise ValueError("Voice reply contained no spoken summary.")
             # A voice route request means "walk me there": guide it even if the model forgot start_guidance,
             # and speak a one-line lead-in instead of reading every direction at once.
             if voice and reply.intent == "route" and bridge.guidance_request is None and bridge.guidance_problem() is None:
                 bridge.guidance_request = ("start", bridge.guided_route_id)
             if voice and bridge.guidance_request is not None and bridge.guidance_request[0] == "start":
                 record = work.routes[bridge.guidance_request[1]]
-                spoken = f"Heading to {work.map.spaces[record['destination_space_id']]['name']}, {spoken_distance(record['length_m'])}."
+                warning = (reply.speech_warning or "").strip()
+                constraint = "step-free, " if record["step_free"] else ""
+                lead_in = f"Heading to {work.map.spaces[record['destination_space_id']]['name']}, {constraint}{spoken_distance(record['length_m'])}."
+                spoken = f"{warning} {lead_in}".strip()
+            stop_only = body["text"].strip().casefold().rstrip(".!?").removeprefix("please ") in {
+                "stop", "stop guiding me", "stop guidance", "stop navigation", "cancel guidance", "cancel navigation",
+            }
+            if voice and stop_only and bridge.guidance_request is not None and bridge.guidance_request[0] == "stop":
+                # The committed stop is authoritative; don't repeat the previous route's lead-in.
+                reply.text = spoken = "Guidance stopped."
             effects = bridge.effects
             if reply.intent == "locate" and not any(effect["type"] == "highlight_spaces" for effect in effects):
                 if bridge.space_ids:
@@ -829,6 +846,7 @@ class SessionService:
                     "pending_action": copy.deepcopy(work.actions[work.pending_action_id]) if work.pending_action_id else None,
                     "usage": project(agent.usage, "input_tokens output_tokens"),
                     "speech_clip_id": None,
+                    "speech_text": spoken,
                 }
                 # Validate JSON before committing session state. Room reports are already saved
                 # per tool call; a retry cannot add votes because each chat counts once.

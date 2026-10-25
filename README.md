@@ -1,5 +1,14 @@
 # Talk to Your Building: Agent-First Indoor Navigation
 
+**Voice reliability — 25 October 2026:** voice now sends WAV recordings through the
+backend, with automatic silence detection and **Finish speaking**, visible progress,
+serialized typed/spoken requests, interruption and session cleanup. Written answers
+retain their detail; `speech_text` supplies a brief spoken summary and automatic
+waypoint guidance remains available. Focused checks pass: 40 API, five speech and
+nine navigator tests, frontend voice checks/build, and four fake-microphone Chrome
+scenarios. Sampled live STT/agent/TTS, clarification, step-free guidance and stop checks pass; physical microphone/iPhone Safari remain unverified.
+[Current voice handoff and verification limits](VOICE_AUDIO_HANDOFF.md).
+
 **Object heights and lightweight 3D assets — 25 October 2026:**
 `final_agent/object_catalog.json` is shared by Python and the frontend and supplies
 reasoned height estimates and local GLBs for all 96 current asset types. The floor

@@ -29,6 +29,7 @@ const FloorStack3D = lazy(() => import('../rendering/floor-stack-3d/FloorStack3D
 
 const emptyPresentation = buildPresentation({ guideText: '', understood: null, effects: [], routes: [], pendingSummary: null, decision: null, confirmedEffects: [], confirmedClosedIds: [], confirmedText: catalog.confirmedText, cancelledText: copy.cancelled })
 type ThemeMode = 'system' | 'light' | 'dark'
+type MessageJob = { text: string; destination: string | null; sessionId: string; mode: InputMode; signal?: AbortSignal; onStart?: () => void }
 
 const themeModes: ThemeMode[] = ['system', 'light', 'dark']
 
@@ -42,6 +43,8 @@ export function App() {
   const editButtonRef = useRef<HTMLButtonElement>(null)
   const announcedPoint = useRef<Point | null>(null)
   const sessionRef = useRef('')
+  const messageTailRef = useRef<Promise<unknown>>(Promise.resolve())
+  const executeMessageRef = useRef<(job: MessageJob) => Promise<Reply | null>>(async () => null)
   const walkerRef = useRef<Walker | null>(null)
   const jumpSeqRef = useRef(0)
   const viewedFloorRef = useRef('')
@@ -66,6 +69,7 @@ export function App() {
   const [buildings, setBuildings] = useState<BuildingSummary[]>([])
   const [buildingId, setBuildingId] = useState(() => window.localStorage.getItem('wayfinder-building') ?? 'proc-factory-dev-003')
   const [loading, setLoading] = useState(false)
+  const [queuedMessages, setQueuedMessages] = useState(0)
   const [loadError, setLoadError] = useState<UiError | null>(null)
   const [booting, setBooting] = useState(true)
   const [revision, setRevision] = useState(1)
@@ -196,6 +200,13 @@ export function App() {
   }, [buildingId, importedPlans])
 
   sessionRef.current = sessionId
+
+  useEffect(() => {
+    // A slow request from an old building must not hold up the new session.
+    messageTailRef.current = Promise.resolve()
+    setQueuedMessages(0)
+    setLoading(false)
+  }, [sessionId])
 
   const openFreshSession = async (): Promise<string> => {
     clearRecovery()
@@ -382,6 +393,7 @@ export function App() {
     setLoadError(null)
     try {
       const route = await gateway.createRoute(liveSessionId, { start_space_id: start, destination_space_id: place.id, step_free: stepFree })
+      if (sessionRef.current !== liveSessionId) return
       setLiveReply({
         id: route.reachable ? 'accepted' : 'unreachable',
         userText: null,
@@ -424,15 +436,21 @@ export function App() {
 
   const placeName = (id: string | null) => labelFromPlans([...plans.values()], id)
 
-  const sendText = async (text: string, destination: string | null = pendingDestination): Promise<Reply | null> => {
-    if (!text.trim() || loading) return null
+  executeMessageRef.current = async (job: MessageJob): Promise<Reply | null> => {
+    const { text, destination, sessionId: originalSession, mode, signal, onStart } = job
+    const valid = () => originalSession === sessionRef.current && !signal?.aborted
+    if (!valid()) return null
+    onStart?.()
     let sent: Reply | null = null
     setSampleId(null)
     setLoading(true); setLoadError(null); setMissed(false)
     let routeFrom: string | null = null
     try {
       const context = clientContext()
-      const next = withStartOptions(await withLiveSession((id) => gateway.sendMessage(id, text, inputMode, context)), [...plans.values()])
+      // Let an already-dispatched model turn finish before the next same-session turn.
+      // Aborting fetch cannot cancel the server's tool work; ignore its UI result instead.
+      const next = withStartOptions(await gateway.sendMessage(originalSession, text, mode, context), [...plans.values()])
+      if (!valid()) return null
       sent = next
       setLiveReply(next); setReplyId(next.id); setDecision(next.pending ? 'pending' : null); setDirectionIndex(0); setFloorPinned(false)
       // A stated location becomes UI context only after the main agent resolves it.
@@ -452,16 +470,48 @@ export function App() {
         window.localStorage.setItem('wayfinder-step-free', String(next.understood.constraints.step_free))
       }
     } catch (error: unknown) {
-      setLoadError(toUiError(error))
-    } finally { setLoading(false) }
+      if (valid()) {
+        setLoadError(toUiError(error))
+        if (toUiError(error).code === '30002_session_not_found') await openFreshSession()
+      }
+    } finally { if (originalSession === sessionRef.current) setLoading(false) }
     // The guide only records the start. Finish the route that was asked for.
     const place = routeFrom && destination ? placeById([...plans.values()], floors, destination) : null
-    if (routeFrom && place) await routeToPlace(place, routeFrom)
+    if (valid() && routeFrom && place) await routeToPlace(place, routeFrom)
     return sent
   }
 
-  const voice = useVoice({ active: inputMode === 'voice', sessionId, send: (text) => sendText(text) })
+  const sendText = (text: string, destination: string | null = pendingDestination,
+    options: { signal?: AbortSignal; onStart?: () => void } = {}): Promise<Reply | null> => {
+    if (!text.trim()) return Promise.resolve(null)
+    const originalSession = sessionRef.current
+    if (!originalSession || originalSession.startsWith('local-')) {
+      setLoadError({ message: copy.voiceSessionRequired, code: null, traceId: null, requestId: null })
+      return Promise.resolve(null)
+    }
+    const job = { text, destination, sessionId: originalSession, mode: inputMode, ...options }
+    setQueuedMessages((count) => count + 1)
+    const result = messageTailRef.current.then(() => executeMessageRef.current(job))
+    messageTailRef.current = result.catch(() => undefined)
+    return result.finally(() => {
+      if (sessionRef.current === originalSession) setQueuedMessages((count) => Math.max(0, count - 1))
+    })
+  }
+
+  const voice = useVoice({ active: inputMode === 'voice' && Boolean(sessionId) && !sessionId.startsWith('local-'), sessionId,
+    busy: loading || queuedMessages > 0, send: (text, signal, onStart) => sendText(text, pendingDestination, { signal, onStart }) })
   speakRef.current = voice.speakGuidance
+
+  const changeInputMode = (mode: InputMode) => {
+    if (mode === 'voice') {
+      if (!sessionId || sessionId.startsWith('local-')) {
+        setLoadError({ message: copy.voiceSessionRequired, code: null, traceId: null, requestId: null })
+        return
+      }
+      voice.enable()
+    }
+    setInputMode(mode)
+  }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -566,7 +616,7 @@ export function App() {
           <button type="button" role="tab" aria-selected={activePanel === 'guide'} className={activePanel === 'guide' ? 'active' : undefined} onClick={() => { setActivePanel('guide') }}>Your Guide</button>
           {debugEnabled && <button type="button" role="tab" aria-selected={activePanel === 'debug'} className={activePanel === 'debug' ? 'active' : undefined} onClick={() => { setActivePanel('debug') }}>Debug</button>}
         </div>}
-        {!mapFocusActive || activePanel === 'guide' ? <GuidePanel query={query} presentation={presentation} loading={loading} directionIndex={directionIndex} onQuery={setQuery} onSubmit={submit} onChoose={(option) => { void chooseOption(option) }} onConfirm={confirm} onCancel={cancel} onReplay={() => { setDirectionIndex(0); setPlaying(true) }} onAskText={(text) => { void sendText(text) }} onReopen={() => { const ids = appliedClosed ?? presentation.closedIds; const named = ids[0] ? placeName(ids[0]) : ''; void sendText(named && named !== ids[0] ? `Reopen ${named}` : ids[0] ? `Reopen ${ids[0]}` : copy.reopen) }} onShowFloor={(nextFloor) => { setFloorId(nextFloor); setFloorPinned(true) }} hereName={hereId ? placeName(hereId) : null} inputMode={inputMode} onInputMode={setInputMode} voice={voice} guidanceActive={guidanceActive} onStopGuidance={() => { void stopGuidance() }} inputRef={inputRef} label={placeName} floors={floors} /> : <DebugPanel selection={selection} presentation={presentation} effects={visibleEffects} facts={plan && selection ? selectionFacts(plan, selection) : null} markerArmed={markerArmed} onArmMarker={() => setMarkerArmed((armed) => !armed)} onLoad={loadReply} onLeavePreview={() => setSampleId(null)} />}
+        {!mapFocusActive || activePanel === 'guide' ? <GuidePanel query={query} presentation={presentation} loading={loading} queuedMessages={queuedMessages} directionIndex={directionIndex} onQuery={setQuery} onSubmit={submit} onChoose={(option) => { void chooseOption(option) }} onConfirm={confirm} onCancel={cancel} onReplay={() => { setDirectionIndex(0); setPlaying(true) }} onAskText={(text) => { void sendText(text) }} onReopen={() => { const ids = appliedClosed ?? presentation.closedIds; const named = ids[0] ? placeName(ids[0]) : ''; void sendText(named && named !== ids[0] ? `Reopen ${named}` : ids[0] ? `Reopen ${ids[0]}` : copy.reopen) }} onShowFloor={(nextFloor) => { setFloorId(nextFloor); setFloorPinned(true) }} hereName={hereId ? placeName(hereId) : null} inputMode={inputMode} onInputMode={changeInputMode} voice={voice} guidanceActive={guidanceActive} onStopGuidance={() => { void stopGuidance() }} inputRef={inputRef} label={placeName} floors={floors} /> : <DebugPanel selection={selection} presentation={presentation} effects={visibleEffects} facts={plan && selection ? selectionFacts(plan, selection) : null} markerArmed={markerArmed} onArmMarker={() => setMarkerArmed((armed) => !armed)} onLoad={loadReply} onLeavePreview={() => setSampleId(null)} />}
         </>}
       </div>
     </section>

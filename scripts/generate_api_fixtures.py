@@ -40,7 +40,7 @@ def generate(data: Path, output: Path) -> list[dict]:
                                 "resolved": {"start_space_id": route["start_space_id"], "destination_space_id": route["destination_space_id"],
                                              "space_ids": route["space_path"], "asset_ids": [], "count": None}, "missing": []}}
         accepted = {"schema_version": 1, "session": service.view(state), "user_message": user, "guide_message": guide,
-                    "routes": [route], "pending_action": None, "usage": None, "speech_clip_id": None}
+                    "routes": [route], "pending_action": None, "usage": None, "speech_clip_id": None, "speech_text": None}
         examples = {
             "health": ("Health", {"schema_version": 1, "status": "ok", "api_version": "1"}),
             "buildings": ("BuildingPage", service.buildings("dev", None, 20)),

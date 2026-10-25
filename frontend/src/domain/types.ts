@@ -275,6 +275,7 @@ export type Reply = {
   routes: Route[]
   pending: PendingAction | null
   speechClipId?: string | null
+  speechText?: string | null
 }
 
 export type PositionSource = 'simulated' | 'wifi' | 'manual'

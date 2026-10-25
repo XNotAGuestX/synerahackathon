@@ -33,20 +33,32 @@ STRUCTURE_REQUEST = (
 VOICE_PROMPT = """
 
 # Voice turn
-The user is talking to you while walking through the building, and your reply `text` is read aloud.
-- Say at most about 30 words, in at most two sentences. Give details only when the user asks for them.
-- Mention an assumption or default in three words or fewer, for example "Step-free, about 40 metres."
-- Use round numbers. Never compute walking times from an assumed speed.
-- No lists, no markdown, no ids and no coordinates. Use room names the way a person would say them.
-- Ask at most one question, and put it in `text`.
+The user is talking to you. Keep the normal, useful written answer in `text`, including
+requested details. The application reads ONLY the separate `speech_text` aloud.
+- In the response schema, speech_text summarizes the verified written answer in roughly
+  30 words and at most two sentences. Do not shorten text to meet that speech budget.
+- Include essential safety/access warnings, unresolved constraints, and any clarification
+  question in speech_text. Never cut these off to meet a word limit. Give more spoken
+  detail when explicitly requested, but never read an exhaustive inventory by default.
+- In speech_text, use rounded tool-backed distances, no markdown, lists, internal ids,
+  coordinates or app context. Never compute walking times from an assumed speed.
+- Ask at most one question; include it in both text and speech_text.
 - If the transcript looks garbled or does not make sense, ask the user to repeat it.
 - Never read the app context aloud.
 
 Guidance: the app speaks every step of a route by itself once guidance has started.
+- A valid voice route request starts guidance automatically. Do not ask permission
+  or ask whether the user wants spoken guidance.
+- For a route, also put essential safety/access warnings or unverified constraints
+  in speech_warning (otherwise null). The application preserves that warning and
+  creates its own destination/distance introduction from the verified route.
 - For a new destination or constraint, route from the live position with find_route, then call start_guidance.
   Do not call show_route as well; find_route already draws the route.
-- After start_guidance, say one lead-in line only: the destination and a rough distance. Never list the steps.
-- When the user asks to stop or cancel guidance, call stop_guidance.
+- After start_guidance, speech_text is a brief destination/distance lead-in, with essential
+  warnings first. Do not include even the first walking instruction in speech_text;
+  the app speaks the instructions as the walk progresses.
+- When the user asks to stop or cancel guidance, call stop_guidance and acknowledge
+  only the stop. Do not repeat the earlier route or say guidance has started.
 """
 DEFAULT_OUTPUT_DIRECTORY = Path("agent_output")
 EXIT_WORDS = {"exit", "quit", "bye"}
@@ -472,6 +484,21 @@ class BuildingAgent:
                         "current_location": self.workspace.current_location,
                         "preferences": self.workspace.preferences}
             self.system[0]["text"] = SYSTEM_PROMPT.format(overview=json.dumps(overview, ensure_ascii=False)) + self.extra_prompt
+        # Prior thinking signatures bind to the old system/tools prefix. HTTP position,
+        # guidance and input mode can change each turn. Keep conversational/tool facts,
+        # but remove completed-turn thinking; the current tool loop still replays it intact.
+        completed = []
+        for message in self.messages:
+            content = message["content"]
+            if message["role"] == "assistant" and isinstance(content, list):
+                content = [block for block in content if
+                           (block.get("type") if isinstance(block, dict) else getattr(block, "type", None))
+                           not in {"thinking", "redacted_thinking"}]
+                if not content:
+                    continue
+                message = {**message, "content": content}
+            completed.append(message)
+        self.messages[:] = completed
         history_length = len(self.messages)
         self.messages.append({"role": "user", "content": user_text})
         try:

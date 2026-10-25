@@ -48,7 +48,10 @@ Gebäudemetadaten bzw. `building.id`; `--notes-db` ändert den Speicherpfad.
 Sitzungsneustarts löschen diese Meldungen nicht. Jede Meldung wird sofort pro
 Tool-Aufruf gespeichert und bleibt auch bei einem späteren HTTP-Modellfehler
 erhalten; ein Retry zählt nicht doppelt, weil jeder Chat nur einmal zählt. `input_mode: transcript` nimmt Text des
-Voice-Clients entgegen; Audio-Upload und SSE sind nicht Teil von v1.
+Voice-Clients entgegen. `input_mode: voice` erzeugt zusätzlich `speech_text` und
+`speech_clip_id`: die gesprochene Kurzfassung und ihren Clip, während
+`guide_message.text` die ausführliche Antwort enthält. Der Browser lädt WAV über
+`POST /sessions/{id}/transcriptions` hoch (bis 2 MiB); SSE wird nicht verwendet.
 
 ## Beispiele erzeugen und prüfen
 
@@ -98,3 +101,63 @@ Satz; `backend-session.json` und `backend-route.json` ergänzen die Backend-Beis
 `ANTHROPIC_API_KEY` bzw. eine SDK-Anmeldung authentifiziert Claude-Anfragen.
 Claude-Aufrufe verwenden den Standard-SDK-Client von main.
 `API_TOKEN` schützt unabhängig davon die lokale HTTP-API.
+
+## Voice mode
+
+Desktop: load a building at `http://localhost:5173`, tap **Voice**, allow the
+microphone, and speak. Silence sends the utterance automatically; **Finish speaking**
+sends it sooner. **Mute** releases capture. **Resume voice** retries capture or a
+failed spoken clip. Switching modes/buildings clears old audio; returning from the
+background requires Resume voice. The language is English and the page must remain
+in the foreground. Use headphones if speaker echo interrupts the guide.
+
+For iPhone, use a trusted HTTPS origin that proxies `/api` to the backend. Vite can
+terminate local TLS using `VOICE_TLS_CERT` and `VOICE_TLS_KEY`. Both must be exported
+before starting Vite; these paths are not browser credentials.
+
+If you do not already have a trusted certificate, this OpenSSL recipe creates a
+short-lived local development CA and server certificate. Replace the example LAN
+IP with the computer's address on the same Wi-Fi as the phone:
+
+```bash
+mkdir -p /private/tmp/wayfinder-tls
+cat > /private/tmp/wayfinder-tls/openssl.cnf <<'CONFIG'
+[req]
+distinguished_name = dn
+x509_extensions = ca
+prompt = no
+[dn]
+CN = Wayfinder local demo CA
+[ca]
+basicConstraints = critical,CA:TRUE
+keyUsage = critical,keyCertSign,cRLSign
+[server]
+basicConstraints = critical,CA:FALSE
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @names
+[names]
+DNS.1 = localhost
+IP.1 = 127.0.0.1
+IP.2 = 192.168.1.42
+CONFIG
+openssl req -x509 -newkey rsa:2048 -nodes -days 30 -config /private/tmp/wayfinder-tls/openssl.cnf -keyout /private/tmp/wayfinder-tls/ca.key -out /private/tmp/wayfinder-tls/ca.crt
+openssl req -new -newkey rsa:2048 -nodes -subj '/CN=Wayfinder demo' -keyout /private/tmp/wayfinder-tls/server.key -out /private/tmp/wayfinder-tls/server.csr
+openssl x509 -req -days 7 -in /private/tmp/wayfinder-tls/server.csr -CA /private/tmp/wayfinder-tls/ca.crt -CAkey /private/tmp/wayfinder-tls/ca.key -CAcreateserial -extfile /private/tmp/wayfinder-tls/openssl.cnf -extensions server -out /private/tmp/wayfinder-tls/server.crt
+openssl x509 -in /private/tmp/wayfinder-tls/ca.crt -outform der -out /private/tmp/wayfinder-tls/ca.cer
+export VOICE_TLS_CERT=/private/tmp/wayfinder-tls/server.crt
+export VOICE_TLS_KEY=/private/tmp/wayfinder-tls/server.key
+# From frontend/:
+npm run dev
+```
+
+Transfer only `ca.cer` to the iPhone, install its certificate profile, and enable
+trust at **Settings → General → About → Certificate Trust Settings**, following
+[Apple's certificate instructions](https://support.apple.com/en-us/102390).
+Open `https://192.168.1.42:5173` using the address in the certificate and allow the
+microphone. The existing Vite `/api` proxy keeps the backend on loopback. Keep
+private keys outside the repository; remove the demo certificate profile afterwards.
+A certificate-warning bypass alone is not a trusted microphone origin.
+
+See [voice handoff](../../VOICE_AUDIO_HANDOFF.md) for focused checks and remaining
+physical-device/provider verification limits.

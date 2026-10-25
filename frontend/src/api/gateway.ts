@@ -49,12 +49,9 @@ export interface BuildingGateway {
   getGuidance(sessionId: string, after: number, waitS: number, signal?: AbortSignal): Promise<GuidanceFeed>
   startGuidance(sessionId: string, routeId: string): Promise<Guidance | null>
   stopGuidance(sessionId: string): Promise<void>
-  transcribe(sessionId: string, wav: Blob): Promise<{ text: string }>
-  createTranscriptionToken(sessionId: string): Promise<TranscriptionToken>
-  fetchSpeechClip(sessionId: string, clipId: string): Promise<Blob>
+  transcribe(sessionId: string, wav: Blob, signal?: AbortSignal): Promise<{ text: string }>
+  fetchSpeechClip(sessionId: string, clipId: string, signal?: AbortSignal): Promise<Blob>
 }
-
-export type TranscriptionToken = { token: string; url: string; sample_rate: number }
 
 export type RequestOptions = { idempotencyKey?: string; signal?: AbortSignal; responseType?: 'json' | 'blob' }
 
@@ -89,7 +86,7 @@ function mapPlace(item: Place & { asset_type?: string | null }): Place {
 }
 
 function normalizeReply(value: unknown): Reply {
-  const envelope = value as { user_message?: { id?: string; text?: string }; guide_message?: { id?: string; text?: string; understood?: Reply['understood']; effects?: Reply['effects']; pending_action_id?: string | null }; routes?: Route[]; pending_action?: Reply['pending']; speech_clip_id?: string | null }
+  const envelope = value as { user_message?: { id?: string; text?: string }; guide_message?: { id?: string; text?: string; understood?: Reply['understood']; effects?: Reply['effects']; pending_action_id?: string | null }; routes?: Route[]; pending_action?: Reply['pending']; speech_clip_id?: string | null; speech_text?: string | null }
   if (!envelope.guide_message) return value as Reply
   return {
     id: envelope.guide_message.effects?.some((effect) => effect.type === 'ask') ? 'clarify' : envelope.pending_action ? 'pending' : 'accepted',
@@ -100,6 +97,7 @@ function normalizeReply(value: unknown): Reply {
     routes: envelope.routes ?? [],
     pending: envelope.pending_action ?? null,
     speechClipId: envelope.speech_clip_id ?? null,
+    speechText: envelope.speech_text ?? null,
   }
 }
 
@@ -176,14 +174,11 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
       return result && 'guidance' in result ? result.guidance ?? null : (result as Guidance | undefined) ?? null
     },
     async stopGuidance(sessionId) { await request<unknown>(config, `/sessions/${sessionId}/guidance`, { method: 'DELETE' }) },
-    async transcribe(sessionId, wav) {
-      const result = await request<{ text?: string }>(config, `/sessions/${sessionId}/transcriptions`, { method: 'POST', body: wav, headers: { 'Content-Type': 'audio/wav' } }, requestId())
+    async transcribe(sessionId, wav, signal) {
+      const result = await request<{ text?: string }>(config, `/sessions/${sessionId}/transcriptions`, { method: 'POST', body: wav, headers: { 'Content-Type': 'audio/wav' } }, { idempotencyKey: requestId(), signal })
       return { text: result.text ?? '' }
     },
-    async createTranscriptionToken(sessionId) {
-      return request<TranscriptionToken>(config, `/sessions/${sessionId}/transcription-tokens`, { method: 'POST' }, requestId())
-    },
-    async fetchSpeechClip(sessionId, clipId) { return request<Blob>(config, `/sessions/${sessionId}/speech-clips/${clipId}`, undefined, { responseType: 'blob' }) },
+    async fetchSpeechClip(sessionId, clipId, signal) { return request<Blob>(config, `/sessions/${sessionId}/speech-clips/${clipId}`, undefined, { responseType: 'blob', signal }) },
   }
 }
 
