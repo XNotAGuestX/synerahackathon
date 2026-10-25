@@ -2031,3 +2031,50 @@ button.next-distance:focus-visible { outline-color: var(--color-bar-accent); }
   stroke: var(--color-destination);
   stroke-width: 0.34;
 }
+
+.voice-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.voice-bar button {
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xs);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  font: var(--font-weight-medium) var(--font-size-caption) var(--font-family-mono);
+}
+
+.voice-pill {
+  padding: 4px var(--space-3);
+  border-radius: 999px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font: var(--font-weight-medium) var(--font-size-caption) var(--font-family-mono);
+}
+
+.voice-pill.hearing,
+.voice-pill.speaking { background: var(--color-primary); color: var(--color-on-primary); }
+
+.voice-meter {
+  flex: 1;
+  min-width: 48px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.voice-meter > span {
+  display: block;
+  height: 100%;
+  background: var(--color-primary);
+  transform-origin: left;
+  transition: transform 80ms linear;
+}

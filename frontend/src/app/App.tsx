@@ -11,11 +11,12 @@ import { closureHighlights, distance, labelFromPlans, pendingReply, selectionFac
 import type { DiscoveryPlace } from '../domain/discovery'
 import { buildPresentation, formatMetres } from '../domain/presentation'
 import type { Decision } from '../domain/presentation'
-import type { AskOption, FloorPlan, FloorSummary, Point, Reply, ReplyId, Selection, ViewEffect } from '../domain/types'
+import type { AskOption, FloorPlan, FloorSummary, GuidanceEvent, Point, Reply, ReplyId, Selection, ViewEffect } from '../domain/types'
 import { DebugPanel } from '../features/debug/DebugPanel'
 import { PlaceDiscovery } from '../features/discovery/PlaceDiscovery'
 import { GuidePanel } from '../features/guide/GuidePanel'
 import { useGuidanceFeed } from '../features/live/useGuidanceFeed'
+import { useVoice } from '../features/voice/useVoice'
 import { usePositionSync } from '../features/live/usePositionSync'
 import type { Walker } from '../features/live/usePositionSync'
 import { copy } from '../i18n/en'
@@ -237,7 +238,8 @@ export function App() {
     const walker = walkerRef.current
     return walker && walker.floorId === viewedFloorRef.current ? walker : null
   })
-  const feed = useGuidanceFeed(sessionId)
+  const speakRef = useRef<(event: GuidanceEvent) => void>(() => undefined)
+  const feed = useGuidanceFeed(sessionId, (event) => speakRef.current(event))
   const guidanceActive = feed.guidance?.status === 'active'
   const targetWaypoint = guidanceActive ? feed.guidance?.waypoints.find((waypoint) => waypoint.index === feed.guidance?.target_index) ?? null : null
   const guidanceTarget = targetWaypoint && targetWaypoint.floor_id === floor.id ? targetWaypoint.at : null
@@ -372,13 +374,15 @@ export function App() {
 
   const placeName = (id: string | null) => labelFromPlans([...plans.values()], id)
 
-  const sendText = async (text: string, destination: string | null = pendingDestination) => {
-    if (!text.trim() || loading) return
+  const sendText = async (text: string, destination: string | null = pendingDestination): Promise<Reply | null> => {
+    if (!text.trim() || loading) return null
+    let sent: Reply | null = null
     setSampleId(null)
     setLoading(true); setLoadError(null); setMissed(false)
     let routeFrom: string | null = null
     try {
       const next = withStartOptions(await withLiveSession((id) => gateway.sendMessage(id, text, inputMode)), [...plans.values()])
+      sent = next
       setLiveReply(next); setReplyId(next.id); setDecision(next.pending ? 'pending' : null); setDirectionIndex(0); setFloorPinned(false)
       // A stated location becomes UI context only after the main agent resolves it.
       const resolved = next.understood?.resolved
@@ -402,7 +406,11 @@ export function App() {
     // The guide only records the start. Finish the route that was asked for.
     const place = routeFrom && destination ? placeById([...plans.values()], floors, destination) : null
     if (routeFrom && place) await routeToPlace(place, routeFrom)
+    return sent
   }
+
+  const voice = useVoice({ active: inputMode === 'voice', sessionId, send: (text) => sendText(text) })
+  speakRef.current = voice.speakGuidance
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -503,7 +511,7 @@ export function App() {
           <button type="button" role="tab" aria-selected={activePanel === 'guide'} className={activePanel === 'guide' ? 'active' : undefined} onClick={() => { setActivePanel('guide') }}>Your Guide</button>
           {debugEnabled && <button type="button" role="tab" aria-selected={activePanel === 'debug'} className={activePanel === 'debug' ? 'active' : undefined} onClick={() => { setActivePanel('debug') }}>Debug</button>}
         </div>}
-        {!mapFocusActive || activePanel === 'guide' ? <GuidePanel query={query} presentation={presentation} directionIndex={directionIndex} onQuery={setQuery} onSubmit={submit} onChoose={(option) => { void chooseOption(option) }} onConfirm={confirm} onCancel={cancel} onReplay={() => { setDirectionIndex(0); setPlaying(true) }} onAskText={(text) => { void sendText(text) }} onReopen={() => { const ids = appliedClosed ?? presentation.closedIds; const named = ids[0] ? placeName(ids[0]) : ''; void sendText(named && named !== ids[0] ? `Reopen ${named}` : ids[0] ? `Reopen ${ids[0]}` : copy.reopen) }} onShowFloor={(nextFloor) => { setFloorId(nextFloor); setFloorPinned(true) }} hereName={hereId ? placeName(hereId) : null} inputMode={inputMode} onInputMode={setInputMode} inputRef={inputRef} label={placeName} floors={floors} /> : <DebugPanel selection={selection} presentation={presentation} effects={visibleEffects} facts={plan && selection ? selectionFacts(plan, selection) : null} markerArmed={markerArmed} onArmMarker={() => setMarkerArmed((armed) => !armed)} onLoad={loadReply} onLeavePreview={() => setSampleId(null)} />}
+        {!mapFocusActive || activePanel === 'guide' ? <GuidePanel query={query} presentation={presentation} directionIndex={directionIndex} onQuery={setQuery} onSubmit={submit} onChoose={(option) => { void chooseOption(option) }} onConfirm={confirm} onCancel={cancel} onReplay={() => { setDirectionIndex(0); setPlaying(true) }} onAskText={(text) => { void sendText(text) }} onReopen={() => { const ids = appliedClosed ?? presentation.closedIds; const named = ids[0] ? placeName(ids[0]) : ''; void sendText(named && named !== ids[0] ? `Reopen ${named}` : ids[0] ? `Reopen ${ids[0]}` : copy.reopen) }} onShowFloor={(nextFloor) => { setFloorId(nextFloor); setFloorPinned(true) }} hereName={hereId ? placeName(hereId) : null} inputMode={inputMode} onInputMode={setInputMode} voice={voice} guidanceActive={guidanceActive} onStopGuidance={() => { void stopGuidance() }} inputRef={inputRef} label={placeName} floors={floors} /> : <DebugPanel selection={selection} presentation={presentation} effects={visibleEffects} facts={plan && selection ? selectionFacts(plan, selection) : null} markerArmed={markerArmed} onArmMarker={() => setMarkerArmed((armed) => !armed)} onLoad={loadReply} onLeavePreview={() => setSampleId(null)} />}
       </div>
     </section>
     <footer className="next-bar"><div><span className="eyebrow">{copy.nextStep}</span><strong>{loading ? copy.working : guidanceActive && feed.latestInstruction ? feed.latestInstruction.text : checkpointNote ?? nextText}</strong></div>{guidanceActive ? <button type="button" className="next-distance" onClick={() => { void stopGuidance() }}>{copy.stopGuidance}</button> : presentation.route?.reachable && !sessionId.startsWith('local-') && <button type="button" className="next-distance" onClick={() => { void guideMe() }}>{copy.guideMe}</button>}<button type="button" className="next-distance" onClick={() => setPlaying((value) => !value)} disabled={!presentation.route?.reachable} aria-pressed={playing}>{playing ? copy.pause : copy.play}</button><button type="button" className="next-distance" onClick={advance} disabled={!presentation.route?.reachable}>{presentation.route?.reachable ? `${formatMetres(presentation.route.length_m)} ->` : `${copy.noRoute} ->`}</button></footer>

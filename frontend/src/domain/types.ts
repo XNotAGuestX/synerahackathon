@@ -134,6 +134,7 @@ export type Reply = {
   effects: ViewEffect[]
   routes: Route[]
   pending: PendingAction | null
+  speechClipId?: string | null
 }
 
 export type PositionSource = 'simulated' | 'wifi' | 'manual'

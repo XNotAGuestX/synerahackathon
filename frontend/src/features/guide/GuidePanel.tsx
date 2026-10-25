@@ -4,6 +4,24 @@ import { assumptionLines, formatMetres } from '../../domain/presentation'
 import type { Presentation } from '../../domain/presentation'
 import type { AskOption, FloorSummary } from '../../domain/types'
 import { copy } from '../../i18n/en'
+import type { VoiceState } from '../voice/useVoice'
+
+export type VoicePanelState = {
+  state: VoiceState
+  level: number
+  muted: boolean
+  setMuted: (muted: boolean) => void
+  error: string | null
+}
+
+const voiceLabels: Record<VoiceState, string> = {
+  off: copy.voiceOff,
+  listening: copy.voiceListening,
+  hearing: copy.voiceHearing,
+  transcribing: copy.voiceTranscribing,
+  thinking: copy.voiceThinking,
+  speaking: copy.voiceSpeaking,
+}
 
 type SpeechResultEvent = {
   results: ArrayLike<ArrayLike<{ transcript: string }>>
@@ -57,8 +75,11 @@ type GuidePanelProps = {
   onReopen: () => void
   onShowFloor: (floorId: string) => void
   hereName: string | null
-  inputMode: 'text' | 'transcript'
-  onInputMode: (mode: 'text' | 'transcript') => void
+  inputMode: 'text' | 'transcript' | 'voice'
+  onInputMode: (mode: 'text' | 'transcript' | 'voice') => void
+  voice: VoicePanelState
+  guidanceActive: boolean
+  onStopGuidance: () => void
   inputRef: RefObject<HTMLInputElement | null>
   label: (id: string | null) => string
   floors: FloorSummary[]
@@ -80,6 +101,9 @@ export function GuidePanel({
   hereName,
   inputMode,
   onInputMode,
+  voice,
+  guidanceActive,
+  onStopGuidance,
   inputRef,
   label,
   floors,
@@ -161,8 +185,18 @@ export function GuidePanel({
       <div className="input-mode" role="group" aria-label="Input mode">
         <button type="button" aria-pressed={inputMode === 'text'} onClick={() => onInputMode('text')}>{copy.textMode}</button>
         <button type="button" aria-pressed={inputMode === 'transcript'} onClick={() => onInputMode('transcript')}>{copy.transcriptMode}</button>
+        <button type="button" aria-pressed={inputMode === 'voice'} onClick={() => onInputMode('voice')}>{copy.voiceMode}</button>
       </div>
-      <p className="guide-text">{transcript ? copy.transcriptModeHint : copy.textModeHint}</p>
+      <p className="guide-text">{transcript ? copy.transcriptModeHint : inputMode === 'voice' ? copy.voiceModeHint : copy.textModeHint}</p>
+      {inputMode === 'voice' && (
+        <div className="voice-bar">
+          <span className={`voice-pill ${voice.muted ? 'muted' : voice.state}`} role="status">{voice.muted ? copy.voiceMuted : voiceLabels[voice.state]}</span>
+          <span className="voice-meter" aria-hidden="true"><span style={{ transform: `scaleX(${voice.muted ? 0 : voice.level})` }} /></span>
+          <button type="button" aria-pressed={voice.muted} onClick={() => voice.setMuted(!voice.muted)}>{voice.muted ? copy.voiceUnmute : copy.voiceMute}</button>
+          {guidanceActive && <button type="button" onClick={onStopGuidance}>{copy.stopGuidance}</button>}
+        </div>
+      )}
+      {inputMode === 'voice' && voice.error && <p className="guide-text" role="alert">{voice.error}</p>}
       <form onSubmit={onSubmit} className="composer">
         {transcript && (
           <button type="button" className="listen-button" aria-pressed={listening} onClick={listen}>
