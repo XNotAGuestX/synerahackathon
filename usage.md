@@ -13,7 +13,8 @@ print the money spent so far after every question (an estimate at list prices).
 - `--output DIR`: where route images and edits go (default `agent_output`)
 - `--model NAME`: `opus`, `sonnet` or `haiku` (default)
 
-**Share a route (app):** generate a route, click **Share route**, and send the copied
+**Share a route (app):** generate a route, then click **Share route** directly below
+**Show on map** in the route card in the chat, and send the copied
 link. It opens the building, map and directions in a separate session, preserving
 ordered stops, step-free/width/travel-mode constraints and closures. If clipboard
 access is unavailable, copy from the displayed link field. The recipient needs

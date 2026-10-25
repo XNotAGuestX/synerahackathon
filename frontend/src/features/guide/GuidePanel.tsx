@@ -6,6 +6,7 @@ import { copy } from '../../i18n/en'
 import { useDetailsDismiss } from '../../ui/useDetailsDismiss'
 import type { VoiceState } from '../voice/useVoice'
 import { RichText, hasNumberedSteps } from './RichText'
+import { RouteShare } from './RouteShare'
 
 export type VoicePanelState = {
   state: VoiceState
@@ -75,6 +76,7 @@ type GuidePanelProps = {
   suggestions: string[]
   stepFree: boolean
   activeRoute: Route | null
+  shareUrl: string | null
   activeMessageId: string | null
   pendingActionId: string | null
   directionIndex: number
@@ -122,7 +124,7 @@ function destructive(proposal: ActionProposal | undefined): boolean {
 
 const COMPOSER_MAX_PX = 160
 
-export function GuidePanel({ comparisonVisible = false, onClearComparison, query, messages, busy, ready, connection, suggestions, stepFree, activeRoute, activeMessageId,
+export function GuidePanel({ comparisonVisible = false, onClearComparison, query, messages, busy, ready, connection, suggestions, stepFree, activeRoute, shareUrl, activeMessageId,
   pendingActionId, onQuery, onSubmit, onChoose, onRetry, onConfirm, onCancel,
   onShowMap, onShowFloor, onAllowStairs, onChooseStart, inputMode, onInputMode, voice, guidanceActive, onStopGuidance, inputRef, floors, forklift, onToggleStepFree, onToggleForklift }: GuidePanelProps) {
   const feedRef = useRef<HTMLDivElement>(null)
@@ -239,6 +241,7 @@ export function GuidePanel({ comparisonVisible = false, onClearComparison, query
             </div>}
             {isCurrentRoute && comparisonVisible && previousRoute && onClearComparison && <button type="button" className="route-clear-comparison" onClick={onClearComparison}>Clear previous route</button>}
             {isCurrentRoute && route.reachable && <button type="button" className="route-show" onClick={onShowMap}>{copy.showRoute}</button>}
+            {isCurrentRoute && shareUrl && <RouteShare key={shareUrl} url={shareUrl} />}
             {isCurrentRoute && !route.reachable && <div className="chat-route-recovery">
               {stepFree && <button type="button" className="small-action is-primary" disabled={busy} onClick={onAllowStairs}>{copy.allowStairs}</button>}
               <button type="button" className="small-action" disabled={busy} onClick={onChooseStart}>{copy.chooseStart}</button>

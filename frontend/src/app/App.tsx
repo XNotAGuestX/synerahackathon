@@ -14,7 +14,7 @@ import { editedFloors } from '../domain/editor'
 import { insideByFloor, markersOnFloor } from '../domain/emergency'
 import { buildPresentation, formatMetres } from '../domain/presentation'
 import type { Presentation } from '../domain/presentation'
-import { readRouteLink } from '../domain/route-link'
+import { createRouteLink, readRouteLink } from '../domain/route-link'
 import type { AskOption, ChatMessage, ClientContext, FloorPlan, FloorSummary, GuidanceEvent, PendingAction, Point, Reply, ReplyId, Route, Selection, Session, TranscriptMessage } from '../domain/types'
 import { DebugPanel } from '../features/debug/DebugPanel'
 import { EmergencyAdminPanel } from '../features/emergency/EmergencyAdminPanel'
@@ -164,6 +164,7 @@ export function App() {
     return () => { cancelled = true }
   }, [sessionId, guidedRouteId])
   const route = mapView.route ?? (guidedRouteId && guidedRoute?.id === guidedRouteId ? guidedRoute : null)
+  const shareUrl = ready && sessionId && route ? createRouteLink(window.location.href, buildingId, route) : null
   const previousRoute = useMemo(() => {
     if (!comparisonVisible || !route?.reachable || route.closed_ids.length === 0) return null
     return messages.flatMap((message) => message.reply?.routes ?? []).reverse().find((item) => item.reachable && item.id !== route.id && item.length_m !== null && item.profile !== 'synera-industrial') ?? null
@@ -771,7 +772,7 @@ export function App() {
           <button type="button" role="tab" aria-selected={activePanel === 'guide'} className={activePanel === 'guide' ? 'active' : undefined} onClick={() => { setActivePanel('guide') }}>Your Guide</button>
           {debugEnabled && <button type="button" role="tab" aria-selected={activePanel === 'debug'} className={activePanel === 'debug' ? 'active' : undefined} onClick={() => { setActivePanel('debug') }}>Debug</button>}
         </div>}
-        {!(debugEnabled && mapFocusActive && activePanel === 'debug') ? <GuidePanel comparisonVisible={Boolean(previousRoute)} onClearComparison={() => setComparisonVisible(false)} query={query} messages={messages} busy={busy} ready={ready} connection={connection} suggestions={suggestions} stepFree={stepFree} activeRoute={route} activeMessageId={activeMessageId} pendingActionId={pendingAction?.id ?? null} directionIndex={directionIndex} onQuery={setQuery} onSubmit={submit} onChoose={(option, role) => { void choose(option, role) }} onRetry={(message) => { void sendText(message.text, {}, message) }} onConfirm={() => { void finishAction(true) }} onCancel={() => { void finishAction(false) }} onShowMap={showMap} onShowFloor={(id) => { setFloorId(id); setFloorPinned(true); showMap() }} onAllowStairs={() => { void toggleStepFree() }} onChooseStart={openLocationPicker} inputMode={inputMode} onInputMode={changeInputMode} voice={voice} guidanceActive={guidanceActive} onStopGuidance={() => { void stopGuidance() }} inputRef={inputRef} floors={floors} forklift={forkliftOn} onToggleStepFree={() => { void toggleStepFree() }} onToggleForklift={() => setForkliftOn((value) => !value)} /> : <DebugPanel selection={selection} presentation={mapView} effects={latestReply?.effects ?? []} facts={plan && selection ? selectionFacts(plan, selection) : null} markerArmed={markerArmed} onArmMarker={() => setMarkerArmed((armed) => !armed)} onLoad={preview} onLeavePreview={() => { setActivePanel('guide'); setReload((value) => value + 1) }} />}
+        {!(debugEnabled && mapFocusActive && activePanel === 'debug') ? <GuidePanel comparisonVisible={Boolean(previousRoute)} onClearComparison={() => setComparisonVisible(false)} query={query} messages={messages} busy={busy} ready={ready} connection={connection} suggestions={suggestions} stepFree={stepFree} activeRoute={route} shareUrl={shareUrl} activeMessageId={activeMessageId} pendingActionId={pendingAction?.id ?? null} directionIndex={directionIndex} onQuery={setQuery} onSubmit={submit} onChoose={(option, role) => { void choose(option, role) }} onRetry={(message) => { void sendText(message.text, {}, message) }} onConfirm={() => { void finishAction(true) }} onCancel={() => { void finishAction(false) }} onShowMap={showMap} onShowFloor={(id) => { setFloorId(id); setFloorPinned(true); showMap() }} onAllowStairs={() => { void toggleStepFree() }} onChooseStart={openLocationPicker} inputMode={inputMode} onInputMode={changeInputMode} voice={voice} guidanceActive={guidanceActive} onStopGuidance={() => { void stopGuidance() }} inputRef={inputRef} floors={floors} forklift={forkliftOn} onToggleStepFree={() => { void toggleStepFree() }} onToggleForklift={() => setForkliftOn((value) => !value)} /> : <DebugPanel selection={selection} presentation={mapView} effects={latestReply?.effects ?? []} facts={plan && selection ? selectionFacts(plan, selection) : null} markerArmed={markerArmed} onArmMarker={() => setMarkerArmed((armed) => !armed)} onLoad={preview} onLeavePreview={() => { setActivePanel('guide'); setReload((value) => value + 1) }} />}
         </>}
       </div>
     </main>

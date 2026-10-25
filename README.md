@@ -7,6 +7,8 @@ are recomputed against current building data. The frontend build and two-browser
 checks pass, including clipboard fallback, 390 px layout, same-tab links and
 invalid/unreachable cases. Recipients need access to the same app; session-only
 structural edits are excluded. [Usage](usage.md).
+The chat redesign's missing button was restored below **Show on map** in the
+active route card; the build and desktop/phone copy-and-open browser checks pass.
 
 **3D wall clipping fix — 25 October 2026:** room boundaries now split into interior
 walls and exterior facades, removing overlapping surfaces that caused striped
