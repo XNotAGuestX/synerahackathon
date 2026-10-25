@@ -1,16 +1,16 @@
 import { ApiError } from './errors'
-import type { FloorPlan, FloorSummary, Reply, ReplyId, Route } from '../domain/types'
+import type { ClientContext, FloorPlan, FloorSummary, Reply, ReplyId, Route, Session, TranscriptMessage } from '../domain/types'
+export type { Session } from '../domain/types'
 
 export type InputMode = 'text' | 'transcript'
 
 export type GatewayConfig = { baseUrl: string }
 export type BuildingSummary = { id: string; name: string; floors: number; has_lift: boolean; has_step_free_entrance: boolean }
-export type Session = { id: string; building_id: string; building_name: string; revision: number; preferences: { step_free: boolean }; closed_ids?: string[]; last_route_id?: string | null; pending_action_id?: string | null }
 export type Place = { id: string; kind: string; name: string; floor_id: string; floor_level: number; space_id: string | null; position: [number, number] | null }
 type CursorPage<T> = { items: T[]; next_cursor?: string | null }
-export type RouteRequest = { start_space_id: string; destination_space_id: string; step_free?: boolean; via?: string[] }
+export type RouteRequest = { start_space_id: string; destination_space_id: string; step_free?: boolean; via?: string[]; current_space_id?: string | null }
 export type ActionResult = { summary: string; closed_ids: string[]; id?: string; status?: string; proposal?: { kind: string; element_ref?: string; closed?: boolean } }
-function requestId(): string {
+export function requestId(): string {
   const browserCrypto = globalThis.crypto
   if (typeof browserCrypto?.randomUUID === 'function') return browserCrypto.randomUUID()
   if (typeof browserCrypto?.getRandomValues === 'function') {
@@ -31,13 +31,14 @@ export interface BuildingGateway {
   listBuildings(): Promise<BuildingSummary[]>
   createSession(buildingId: string): Promise<Session>
   getSession(sessionId: string): Promise<Session>
+  listMessages(sessionId: string): Promise<TranscriptMessage[]>
   listFloors(sessionId: string): Promise<FloorSummary[]>
   getFloorPlan(sessionId: string, floorId: string): Promise<FloorPlan>
   searchPlaces(sessionId: string, query: string, page?: number): Promise<{ items: Place[]; total: number }>
   createRoute(sessionId: string, input: RouteRequest): Promise<Route>
   getRoute(sessionId: string, routeId: string): Promise<Route>
   updatePreferences(sessionId: string, preferences: { step_free: boolean }): Promise<Session>
-  sendMessage(sessionId: string, text: string, inputMode?: InputMode): Promise<Reply>
+  sendMessage(sessionId: string, text: string, inputMode?: InputMode, context?: ClientContext, key?: string): Promise<Reply>
   confirmAction(sessionId: string, actionId: string): Promise<ActionResult>
   cancelAction(sessionId: string, actionId: string): Promise<ActionResult>
   getAction(sessionId: string, actionId: string): Promise<ActionResult & { id: string; status: string }>
@@ -67,7 +68,7 @@ function mapPlace(item: Place & { asset_type?: string | null }): Place {
 }
 
 function normalizeReply(value: unknown): Reply {
-  const envelope = value as { user_message?: { id?: string; text?: string }; guide_message?: { id?: string; text?: string; understood?: Reply['understood']; effects?: Reply['effects']; pending_action_id?: string | null }; routes?: Route[]; pending_action?: Reply['pending'] }
+  const envelope = value as { user_message?: TranscriptMessage; guide_message?: TranscriptMessage; routes?: Route[]; pending_action?: Reply['pending']; session?: Session }
   if (!envelope.guide_message) return value as Reply
   return {
     id: envelope.guide_message.effects?.some((effect) => effect.type === 'ask') ? 'clarify' : envelope.pending_action ? 'pending' : 'accepted',
@@ -77,6 +78,8 @@ function normalizeReply(value: unknown): Reply {
     effects: envelope.guide_message.effects ?? [],
     routes: envelope.routes ?? [],
     pending: envelope.pending_action ?? null,
+    messages: [envelope.user_message, envelope.guide_message].filter((message): message is TranscriptMessage => Boolean(message)),
+    session: envelope.session,
   }
 }
 
@@ -101,6 +104,16 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
     },
     async createSession(buildingId) { return request<Session>(config, '/sessions', json({ building_id: buildingId }), requestId()) },
     async getSession(sessionId) { return request<Session>(config, `/sessions/${sessionId}`) },
+    async listMessages(sessionId) {
+      const items: TranscriptMessage[] = []
+      let cursor: string | null = null
+      do {
+        const page: CursorPage<TranscriptMessage> = await request(config, `/sessions/${sessionId}/messages?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
+        items.push(...page.items)
+        cursor = page.next_cursor ?? null
+      } while (cursor)
+      return items
+    },
     async listFloors(sessionId) { const result = await request<{ floors: FloorSummary[] }>(config, `/sessions/${sessionId}/floors`); return result.floors },
     async getFloorPlan(sessionId, floorId) { return request<FloorPlan>(config, `/sessions/${sessionId}/floors/${floorId}/plan`) },
     async searchPlaces(sessionId, query, page = 1) {
@@ -120,13 +133,14 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
         destination: input.destination_space_id,
         step_free: input.step_free,
         via: input.via ?? [],
+        current_space_id: input.current_space_id ?? null,
       }), requestId())
     },
     async getRoute(sessionId, routeId) { return request<Route>(config, `/sessions/${sessionId}/routes/${routeId}`) },
     async updatePreferences(sessionId, preferences) {
       return request<Session>(config, `/sessions/${sessionId}/preferences`, { method: 'PUT', body: JSON.stringify(preferences) })
     },
-    async sendMessage(sessionId, text, inputMode = 'text') { const result = await request<unknown>(config, `/sessions/${sessionId}/messages`, json({ text, input_mode: inputMode }), requestId()); return normalizeReply(result) },
+    async sendMessage(sessionId, text, inputMode = 'text', context = {}, key = requestId()) { const result = await request<unknown>(config, `/sessions/${sessionId}/messages`, json({ text, input_mode: inputMode, client_context: context }), key); return normalizeReply(result) },
     async confirmAction(sessionId, actionId) { return normalizeAction(await request<ActionResult>(config, `/sessions/${sessionId}/actions/${actionId}/confirmations`, json({}), requestId())) },
     async cancelAction(sessionId, actionId) { return normalizeAction(await request<ActionResult>(config, `/sessions/${sessionId}/actions/${actionId}/cancellations`, json({}), requestId())) },
     async getAction(sessionId, actionId) { return request<ActionResult & { id: string; status: string }>(config, `/sessions/${sessionId}/actions/${actionId}`) },

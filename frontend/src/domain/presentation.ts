@@ -32,6 +32,8 @@ export type Presentation = {
 }
 
 type BuildInput = {
+  // Earlier view state: a follow-up reply without new map effects keeps the route and highlights.
+  previous?: Presentation
   guideText: string
   understood: Understood | null
   effects: ViewEffect[]
@@ -68,15 +70,15 @@ export function buildPresentation(input: BuildInput): Presentation {
     : input.decision === 'cancelled'
       ? []
       : input.effects
-  const spaceReasons = new Map<string, string>()
-  const assetIds = new Set<string>()
+  const spaceReasons = new Map<string, string>(effects.some((effect) => effect.type === 'highlight_spaces') ? [] : input.previous?.spaceReasons)
+  const assetIds = new Set<string>(effects.some((effect) => effect.type === 'highlight_assets') ? [] : input.previous?.assetIds)
   const asks: AskEffect[] = []
   const effectTypes: string[] = []
   const unknownEffectTypes: string[] = []
-  let route: Route | null = null
+  let route: Route | null = input.previous?.route ?? null
   let focusFloorId: string | null = null
   let focusPoint: Point | null = null
-  let closedIds: string[] = []
+  let closedIds: string[] = input.previous?.closedIds ?? []
   let patchedFloorIds: string[] = []
 
   for (const effect of effects) {

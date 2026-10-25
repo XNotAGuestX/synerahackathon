@@ -66,6 +66,27 @@ export type FloorPlan = {
 
 export type Direction = { text: string; floor_id: string; at: Point }
 
+export type Session = {
+  id: string; building_id: string; building_name: string; revision: number
+  preferences: { step_free: boolean }; current_space_id?: string | null
+  closed_ids?: string[]; last_route_id?: string | null; pending_action_id?: string | null
+}
+
+export type ClientContext = {
+  floor_level?: number; selected_space_id?: string | null; current_space_id?: string | null
+  destination_place_id?: string | null; preferences?: { step_free: boolean }
+}
+
+export type TranscriptMessage = {
+  id: string; role: 'user' | 'guide'; text: string; created_at: string
+  understood: Understood | null; effects: ViewEffect[]; pending_action_id: string | null
+}
+
+export type ChatMessage = TranscriptMessage & {
+  delivery?: 'sending' | 'sent' | 'failed'; error?: string; reply?: Reply
+  request?: { key: string; text: string; inputMode: 'text' | 'transcript'; context: ClientContext; sessionId: string }
+}
+
 export type Route = {
   id: string
   reachable: boolean
@@ -135,4 +156,6 @@ export type Reply = {
   effects: ViewEffect[]
   routes: Route[]
   pending: PendingAction | null
+  messages?: TranscriptMessage[]
+  session?: Session
 }

@@ -332,6 +332,63 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(next_page.json()["items"][0]["text"], "Take me upstairs.")
         self.assertEqual(list((self.root / "output").rglob("*.png")), [])
 
+    def test_navigation_clarification_retains_request_and_confirmed_location(self):
+        self.model.turns = [
+            [reply(answer("Where are you?", "route", navigation={"asset_type": "desk", "floor_level": 1, "step_free": True}))],
+            [reply(answer("Location received.", confirmed_location="left"))],
+            [reply(answer("The lift connects both floors."))],
+        ]
+        session = self.session()
+        path = self.path(session)
+        waiting = self.post(path + "/messages", {"text": "I need the nearest desk on floor 1."}, schema="MessageAccepted").json()
+        self.assertEqual(waiting["guide_message"]["understood"]["missing"], ["start"])
+        routed = self.post(path + "/messages", {"text": "I am in Left."}, key="resume-nearest", schema="MessageAccepted").json()
+        retried = self.post(path + "/messages", {"text": "I am in Left."}, key="resume-nearest", schema="MessageAccepted").json()
+        self.assertEqual(retried, routed)
+        self.assertEqual(len(self.client.get(path + "/messages").json()["items"]), 4)
+        self.assertEqual(routed["session"]["current_space_id"], "left")
+        self.assertEqual(routed["routes"][0]["destination_space_id"], "upstairs")
+        self.assertTrue(routed["routes"][0]["step_free"])
+        self.assertIn("desk", routed["guide_message"]["understood"]["resolved"]["asset_ids"])
+        followup = self.post(path + "/messages", {"text": "Which lift is that?"}, schema="MessageAccepted").json()
+        self.assertEqual(followup["session"]["last_route_id"], routed["session"]["last_route_id"])
+        self.assertNotIn("clear_route", [effect["type"] for effect in followup["guide_message"]["effects"]])
+
+    def test_nearest_asset_uses_complete_candidates_constraints_and_stable_ties(self):
+        building = BuildingMap(api_building())
+        building.assets["near"] = {**building.assets["desk"], "id": "near", "name": "Z desk", "space_id": "left", "floor_id": "F0"}
+        building.assets["near-a"] = {**building.assets["near"], "id": "near-a", "name": "Another desk"}
+        for index in range(20):
+            building.assets[f"far-{index}"] = {**building.assets["desk"], "id": f"far-{index}", "name": f"A distant desk {index}"}
+        selected, route = building.nearest_asset_route("left", "desk", step_free=True)
+        self.assertEqual(selected["id"], "near")
+        self.assertEqual(route.length_m, 0)
+        self.assertIsNone(building.last_route)
+        selected, route = building.nearest_asset_route("left", "desk", floor_level=1, step_free=True)
+        self.assertEqual(selected["id"], "desk")
+        building.set_closed("lift", True)
+        with self.assertRaisesRegex(Exception, "reachable"):
+            building.nearest_asset_route("left", "desk", floor_level=1, step_free=True)
+
+    def test_explicit_ui_location_and_destination_choice_are_distinct_from_selection(self):
+        self.model.turns = [
+            [reply(answer("Need a start.", "route", navigation={"destination": "desk"}))],
+            [reply(answer("Okay."))],
+            [reply(answer("You are there.", "route", navigation={"destination": "printer"}))],
+        ]
+        session = self.session()
+        path = self.path(session)
+        waiting = self.post(path + "/messages", {"text": "Take me to the desk.", "client_context": {"selected_space_id": "left"}}, schema="MessageAccepted").json()
+        self.assertIsNone(waiting["session"]["current_space_id"])
+        self.assertEqual(waiting["guide_message"]["understood"]["missing"], ["start"])
+        routed = self.post(path + "/messages", {"text": "Use this room.", "client_context": {"current_space_id": "left"}}, schema="MessageAccepted").json()
+        self.assertTrue(routed["routes"][0]["reachable"])
+        same = self.post(path + "/messages", {"text": "Take me to the printer."}, schema="MessageAccepted").json()
+        self.assertEqual(same["routes"][0]["length_m"], 0)
+        self.assertIn("already", same["guide_message"]["text"])
+        other = self.session()
+        self.assertIsNone(other["current_space_id"])
+
     def test_chat_proposes_before_edit_and_preserves_persistent_reports(self):
         self.model.turns = [
             [reply(call("set_closed", element="lift", closed=True)), reply(answer("Please confirm the lift closure.", "close"))],

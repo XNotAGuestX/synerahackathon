@@ -243,10 +243,12 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
     if (!pad) return
     const width = pad.offsetWidth
     const height = pad.offsetHeight
+    // First placement: the map's lower-left corner, so the pad does not cover the chat column.
+    const map = svgRef.current?.getBoundingClientRect()
     setPlace((current) => {
       const origin = placeReady.current
         ? current
-        : { ...current, x: window.innerWidth - width - 16, y: window.innerHeight - height - 16 }
+        : { ...current, x: (map?.left ?? 0) + 16, y: window.innerHeight - height - 88 }
       placeReady.current = true
       const next = clampToViewport(origin.x, origin.y, width, height)
       if (next.x === current.x && next.y === current.y) return current

@@ -33,3 +33,12 @@ if (shown.patchedFloorIds.join() !== 'f0') throw new Error('building_patched was
 if (!shown.unknownEffectTypes.includes('unknown_widget')) throw new Error('unknown effect should be recorded and skipped')
 if (shown.closedIds.join() !== 'v1') throw new Error('closures were dropped')
 console.log('effects check ok')
+
+const savedRoute = { id: 'persisted-route', reachable: true, length_m: 10, step_free: false, via: [], closed_ids: [], start_space_id: 's', destination_space_id: 'd', directions: [], legs: [] }
+const baseInput = { guideText: 'Route ready', understood: null, effects: [{ type: 'draw_route', route_id: savedRoute.id }], routes: [savedRoute], pendingSummary: null, decision: null, confirmedEffects: [], confirmedClosedIds: [], confirmedText: '', cancelledText: '' }
+const active = buildPresentation(baseInput)
+const followup = buildPresentation({ ...baseInput, previous: active, guideText: 'The lift is on floor 1.', effects: [], routes: [] })
+if (followup.route !== savedRoute) throw new Error('an explanatory follow-up must retain the active route')
+const cleared = buildPresentation({ ...baseInput, previous: followup, effects: [{ type: 'clear_route' }], routes: [] })
+if (cleared.route !== null) throw new Error('explicit clear must remove the retained route')
+console.log('route persistence check ok')
