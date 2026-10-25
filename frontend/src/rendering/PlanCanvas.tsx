@@ -581,10 +581,11 @@ function InteractivePlan({
           )}
           {wallPoint && <circle className="wall-cursor" cx={wallPoint[0]} cy={wallPoint[1]} r={0.45} aria-hidden="true" />}
           {legs.map((leg) => {
+            // The whole route is always drawn; the step player only highlights the part already told.
             const told = route?.directions[storyIndex]
-            const revealed = told?.floor_id === plan.floor.id ? prefixTo(leg.points, told.at) : leg.points
-            const laterFloor = route?.directions.slice(storyIndex + 1).find((direction) => direction.floor_id !== plan.floor.id)
-            const handoff = laterFloor && revealed.length > 0 ? revealed.at(-1)! : null
+            const progress = storyIndex > 0 && told?.floor_id === plan.floor.id ? prefixTo(leg.points, told.at) : null
+            const continues = route ? route.legs.slice(route.legs.indexOf(leg) + 1).some((later) => later.floor_id !== plan.floor.id) : false
+            const handoff = continues ? leg.points.at(-1)! : null
             const connector = handoff
               ? plan.connectors.find((item) => item.space_ids.some((spaceId) => {
                 const space = plan.spaces.find((candidate) => candidate.id === spaceId)
@@ -593,7 +594,8 @@ function InteractivePlan({
               : null
             return (
               <g key={`${leg.floor_id}-${leg.points.length}`}>
-                <polyline points={revealed.map(([x, y]) => `${x},${y}`).join(' ')} className="route" />
+                <polyline points={leg.points.map(([x, y]) => `${x},${y}`).join(' ')} className="route" />
+                {progress && <polyline points={progress.map(([x, y]) => `${x},${y}`).join(' ')} className="route-progress" />}
                 {handoff && (
                   <g className="handoff" transform={`translate(${handoff[0]} ${handoff[1]})`}>
                     <circle r={1.15} />
@@ -603,6 +605,9 @@ function InteractivePlan({
               </g>
             )
           })}
+          {route?.reachable && route.directions.map((direction, index) => direction.at && direction.floor_id === plan.floor.id && index > 0 && (
+            <circle key={`step-${index}`} className="route-step" cx={direction.at[0]} cy={direction.at[1]} r={0.45}><title>{direction.text}</title></circle>
+          ))}
           {firstLeg && firstLeg.floor_id === plan.floor.id && firstLeg.points.length > 0 && (
             <circle className="start" cx={firstLeg.points[0][0]} cy={firstLeg.points[0][1]} r={0.72} />
           )}
