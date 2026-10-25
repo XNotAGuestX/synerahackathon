@@ -469,6 +469,8 @@ class PlanDraft:
         if expected != self.current_revision: raise PlanError("Draft is stale; revalidate against the current revision.")
         errors=[i for i in self.validate() if i["severity"]=="error"]
         if errors: raise PlanError("Cannot apply invalid draft: " + "; ".join(x["reason"] for x in errors))
+        from .building_map import require_navigation_records
+        require_navigation_records(self.data)
         warnings=[i for i in self.validate() if i["severity"]=="warning"]
         if warnings and not (acknowledge_warnings or self.acknowledged_warnings):
             raise PlanError("Draft has warnings; review them and pass acknowledge_warnings=True to apply.")

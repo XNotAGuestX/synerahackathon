@@ -40,6 +40,11 @@ SHARED_WALL_TOLERANCE_M = 0.35
 NEW_DOOR_WIDTH_M = 0.9
 MAX_INSPECTED_ASSET_IDS = 50
 KIT_DISTANCE_MODEL = "kit-1.1.0"
+INDUSTRIAL_PROFILE = "synera-industrial"
+ROUTE_PROFILES = (KIT_DISTANCE_MODEL, INDUSTRIAL_PROFILE)
+FORKLIFT_MIN_WIDTH_M = 3.0
+# Production bays may be a start or a delivery stop. They are not corridors.
+DESTINATION_ONLY_ROOM_TYPES = frozenset({"production_zone", "additive_zone", "assembly_zone"})
 GEOMETRY_EPSILON = 1e-9
 UNDO_LIMIT = 20
 
@@ -163,6 +168,79 @@ def normalize_type(value: str) -> str:
     return "_".join(value.strip().lower().replace("-", " ").replace("_", " ").split())
 
 
+def canonical_profile(value: str | None) -> str:
+    """Accept only the labelled route profiles. The default stays the kit model."""
+    profile = KIT_DISTANCE_MODEL if value is None or not str(value).strip() else str(value).strip()
+    if profile not in ROUTE_PROFILES:
+        raise MapError(
+            f"Unknown route profile '{value}'. Use one of: {', '.join(ROUTE_PROFILES)}.",
+            reason="invalid_field", field="profile",
+        )
+    return profile
+
+
+def _finite_pair(value: object) -> bool:
+    return (
+        isinstance(value, (list, tuple)) and len(value) >= 2
+        and all(isinstance(item, (int, float)) and not isinstance(item, bool) and math.isfinite(item) for item in value[:2])
+    )
+
+
+def require_navigation_records(data: dict) -> None:
+    """Reject duplicate IDs, non-finite metre coordinates and cross-floor openings before indexing.
+
+    Benchmark loads keep the permissive kit loader. Interactive registration and this check
+    run first so a malformed import cannot become a navigable map.
+    """
+    problems: list[str] = []
+    floors = {row.get("id"): row for row in data.get("floors", []) if isinstance(row, dict)}
+    spaces = {row.get("id"): row for row in data.get("spaces", []) if isinstance(row, dict)}
+    for label, rows in (
+        ("floor", data.get("floors", [])),
+        ("space", data.get("spaces", [])),
+        ("opening", data.get("openings", [])),
+        ("connector", data.get("vertical_connectors", [])),
+        ("asset", data.get("assets", [])),
+    ):
+        seen: set[str] = set()
+        for row in rows:
+            if not isinstance(row, dict) or not isinstance(row.get("id"), str) or not row["id"].strip():
+                problems.append(f"A {label} record needs a nonempty string id.")
+                continue
+            if row["id"] in seen:
+                problems.append(f"Duplicate {label} ID '{row['id']}'.")
+            seen.add(row["id"])
+    for floor in floors.values():
+        elevation = floor.get("elevation_m")
+        if isinstance(elevation, bool) or not isinstance(elevation, (int, float)) or not math.isfinite(elevation):
+            problems.append(f"Floor '{floor.get('id')}' needs a finite elevation_m.")
+    for space in spaces.values():
+        polygon = space.get("polygon")
+        if not isinstance(polygon, list) or len(polygon) < 3 or any(not _finite_pair(point) for point in polygon):
+            problems.append(f"Space '{space.get('id')}' needs a polygon of finite metre coordinates.")
+    for opening in data.get("openings", []):
+        if not isinstance(opening, dict):
+            continue
+        opening_id = opening.get("id")
+        if not _finite_pair(opening.get("position")):
+            problems.append(f"Opening '{opening_id}' needs a finite metre position.")
+        width = opening.get("width_m")
+        if isinstance(width, bool) or not isinstance(width, (int, float)) or not math.isfinite(width) or width <= 0:
+            problems.append(f"Opening '{opening_id}' needs a positive finite width_m.")
+        floor_id = opening.get("floor_id")
+        for space_id in opening.get("space_ids", []):
+            if space_id == OUTSIDE:
+                continue
+            space = spaces.get(space_id)
+            if space is not None and space.get("floor_id") != floor_id:
+                problems.append(f"Opening '{opening_id}' joins '{space_id}' on a different floor.")
+    for asset in data.get("assets", []):
+        if isinstance(asset, dict) and not _finite_pair(asset.get("position")):
+            problems.append(f"Asset '{asset.get('id')}' needs a finite metre position.")
+    if problems:
+        raise MapError(" ".join(problems), reason="invalid_field")
+
+
 @dataclass
 class RouteResult:
     """A computed route. Lengths are unrounded; round only when presenting.
@@ -188,6 +266,7 @@ class RouteResult:
     min_width_m: float = 0.0
     entrance: str | None = None
     distance_model: str = KIT_DISTANCE_MODEL
+    route_profile: str = KIT_DISTANCE_MODEL
 
 
 class BuildingMap:
@@ -389,6 +468,15 @@ class BuildingMap:
             "floor_level": floor["level"], "floor": floor["name"],
         }
 
+    def connector_record(self, connector: dict) -> dict:
+        """Search-result identity of a stair or lift. Closures use this id."""
+        first = connector["floor_ids"][0]
+        return {
+            "kind": "connector", "id": connector["id"], "name": connector.get("name") or connector["id"],
+            "type": connector["kind"], "step_free": connector["step_free"],
+            "floor_level": self.floor_level(first), "floors": [self.floor_name(floor_id) for floor_id in connector["floor_ids"]],
+        }
+
     def asset_record(self, asset: dict) -> dict:
         """Search-result identity of an asset: its own id and the space that contains it."""
         return {
@@ -419,8 +507,8 @@ class BuildingMap:
             raise MapError(f"query must be text, got {query!r}.")
         words = [word for word in query.lower().replace("_", " ").split() if word]
         kind = normalize_type(kind) if isinstance(kind, str) else kind
-        if kind not in ("all", "space", "asset"):
-            raise MapError(f"kind must be all, space or asset, got {kind!r}.")
+        if kind not in ("all", "space", "asset", "connector"):
+            raise MapError(f"kind must be all, space, asset or connector, got {kind!r}.")
         if isinstance(floor_level, bool) or not (floor_level is None or isinstance(floor_level, int)):
             raise MapError(f"floor_level must be an integer, got {floor_level!r}.")
         room_type = self.type_filter("room_type", room_type)
@@ -454,6 +542,16 @@ class BuildingMap:
                 text = f"{asset['name']} {asset['type'].replace('_', ' ')} {asset['id']}"
                 if self.matches(text, words, asset["floor_id"], floor_level):
                     results.append(self.asset_record(asset))
+        if kind in ("all", "connector") and not (asset_type or room_type or space_type):
+            for connector in self.connectors.values():
+                text = f"{connector.get('name') or ''} {connector['kind']} {connector['id']}"
+                if words and not all(word in text.lower() for word in words):
+                    continue
+                if floor_level is not None and floor_level not in {
+                    self.floors[floor_id]["level"] for floor_id in connector["floor_ids"]
+                }:
+                    continue
+                results.append(self.connector_record(connector))
         results.sort(key=lambda item: (item["kind"], item["floor_level"], item["name"], item["id"]))
         if any(result["kind"] == "asset" for result in results):
             self.located_asset_ids = [result["id"] for result in results if result["kind"] == "asset"]
@@ -502,11 +600,18 @@ class BuildingMap:
         ]
         if len(exact_spaces) == 1:
             return exact_spaces[0]
-        exact_assets = [
-            asset["space_id"] for asset in self.assets.values() if asset["name"].lower() == lowered
-        ]
+        exact_assets = [asset for asset in self.assets.values() if asset["name"].lower() == lowered]
+        if len(exact_spaces) + len(exact_assets) > 1:
+            labels = [f"{space_id} ({self.spaces[space_id]['name']})" for space_id in exact_spaces]
+            labels += [f"{asset['id']} ({asset['name']})" for asset in exact_assets]
+            raise MapError(
+                f"'{reference}' matches more than one room or asset. Use one of these ids: " + "; ".join(labels),
+                reason="ambiguous",
+                candidates=[{"id": space_id, "name": self.spaces[space_id]["name"], "kind": "space"} for space_id in exact_spaces]
+                + [{"id": asset["id"], "name": asset["name"], "kind": "asset"} for asset in exact_assets],
+            )
         if len(exact_assets) == 1:
-            return exact_assets[0]
+            return exact_assets[0]["space_id"]
         candidates = self.search(reference)[:MAX_SEARCH_RESULTS]
         if not candidates:
             raise MapError(f"No place matches '{reference}'. Try search_building with fewer words.", reason="not_found")
@@ -543,15 +648,29 @@ class BuildingMap:
             ]
         return self.walks[space_id]
 
+    def destination_only(self, space_id: str) -> bool:
+        """True for production bays that may be delivered to but not crossed."""
+        space = self.spaces.get(space_id)
+        if space is None:
+            return False
+        return normalize_type(str(space.get("room_type") or "")) in DESTINATION_ONLY_ROOM_TYPES
+
     def graph(
-        self, step_free: bool = False, min_width_m: float = 0.0, extra_closed: Iterable[str] = ()
+        self, step_free: bool = False, min_width_m: float = 0.0, extra_closed: Iterable[str] = (),
+        profile: str = KIT_DISTANCE_MODEL, terminal_spaces: Iterable[str] = (),
     ) -> nx.MultiGraph:
         """Kit 1.1.0 routing graph without closed elements, steps (if step_free) or openings narrower than min_width_m.
 
         Connectors have no width: only the doors that give access to them are filtered by width.
         extra_closed adds query-only closures on top of self.closed, which stays untouched.
+        synera-industrial keeps the same walk lengths, requires 3 m openings, and omits door-to-door
+        edges inside production bays. Pedestrian doors fail the 3 m rule, so they are not a second filter.
         """
+        profile = canonical_profile(profile)
+        terminals = set(terminal_spaces)
         min_width_m = check_number("min_width_m", min_width_m, 0)
+        if profile == INDUSTRIAL_PROFILE:
+            min_width_m = max(min_width_m, FORKLIFT_MIN_WIDTH_M)
         closed = self.closed | set(extra_closed)
         # MultiGraph: a stair and a lift may join the same two spaces; both edges must be kept.
         graph = nx.MultiGraph()
@@ -564,7 +683,12 @@ class BuildingMap:
         open_spaces = [space_id for space_id in self.spaces if space_id not in closed]
         graph.add_nodes_from(open_spaces)
         for space_id in open_spaces:
+            bay = profile == INDUSTRIAL_PROFILE and self.destination_only(space_id)
+            if bay and space_id not in terminals:
+                continue
             for first, second, length in self.space_walks(space_id):
+                if bay and first != space_id and second != space_id:
+                    continue
                 if (first == space_id or first in open_doors) and second in open_doors:
                     graph.add_edge(first, second, weight=round(length, LENGTH_DECIMALS), space=space_id)
         levels = {floor_id: floor["level"] for floor_id, floor in self.floors.items()}
@@ -588,11 +712,14 @@ class BuildingMap:
                 graph.add_edge(low_space, high_space, weight=round(cost, LENGTH_DECIMALS), via=connector["id"])
         return graph
 
-    def constraints_text(self, step_free: bool, min_width_m: float, entrance: str | None) -> str:
+    def constraints_text(
+        self, step_free: bool, min_width_m: float, entrance: str | None,
+        profile: str = KIT_DISTANCE_MODEL,
+    ) -> str:
         """Every requested route constraint, repeated in failure messages."""
         return (
             f"Constraints: step_free={step_free}, min_width_m={min_width_m:g}, "
-            f"entrance={entrance or 'any'}, closed={sorted(self.closed)}."
+            f"entrance={entrance or 'any'}, profile={profile}, closed={sorted(self.closed)}."
         )
 
     def entrances_into(self, space_id: str) -> list[dict]:
@@ -682,15 +809,19 @@ class BuildingMap:
 
     def compute_route(
         self, start: str, destination: str, step_free: bool = False, via: list[str] | None = None,
-        min_width_m: float = 0.0, entrance: str | None = None,
+        min_width_m: float = 0.0, entrance: str | None = None, profile: str = KIT_DISTANCE_MODEL,
     ) -> RouteResult:
         """Shortest kit 1.1.0 route through the stops in order. Pure: changes no state, so it is safe for comparisons.
 
         entrance, if given, must be a usable entrance into the start space (see validate_entrance).
+        profile=synera-industrial uses the same lengths but forklift eligibility.
         """
+        profile = canonical_profile(profile)
         min_width_m = check_number("min_width_m", min_width_m, 0)
+        if profile == INDUSTRIAL_PROFILE:
+            min_width_m = max(min_width_m, FORKLIFT_MIN_WIDTH_M)
         stops = [self.resolve_space(reference) for reference in [start, *(via or []), destination]]
-        constraints = self.constraints_text(step_free, min_width_m, entrance)
+        constraints = self.constraints_text(step_free, min_width_m, entrance, profile)
         for stop in stops:
             if stop in self.closed:
                 raise MapError(f"{self.describe_space(stop)} is closed. {constraints}", reason="unreachable")
@@ -699,19 +830,22 @@ class BuildingMap:
                 self.validate_entrance(entrance, stops[0], step_free, min_width_m)
             except MapError as error:
                 raise MapError(f"{error} {constraints}") from error
-        graph = self.graph(step_free, min_width_m)
+        graph = None if profile == INDUSTRIAL_PROFILE else self.graph(step_free, min_width_m, profile=profile)
         legs: list[dict] = []
         nodes: list[str] = []
         edges: list[tuple[str, float]] = []
         for number, (leg_start, leg_end) in enumerate(itertools.pairwise(stops), start=1):
+            leg_graph = graph if graph is not None else self.graph(
+                step_free, min_width_m, profile=profile, terminal_spaces=(leg_start, leg_end),
+            )
             try:
-                leg_length, leg_nodes = nx.single_source_dijkstra(graph, leg_start, leg_end, weight="weight")
+                leg_length, leg_nodes = nx.single_source_dijkstra(leg_graph, leg_start, leg_end, weight="weight")
             except nx.NetworkXNoPath as error:
                 raise MapError(
                     f"No route from {self.describe_space(leg_start)} to {self.describe_space(leg_end)} "
                     f"(leg {number} of {len(stops) - 1}). {constraints}", reason="unreachable",
                 ) from error
-            leg_edges = self.select_edges(graph, leg_nodes)
+            leg_edges = self.select_edges(leg_graph, leg_nodes)
             legs.append({
                 "from_space_id": leg_start, "to_space_id": leg_end, "length_m": leg_length,
                 "space_path": self.spaces_passed(leg_nodes, leg_edges),
@@ -736,6 +870,7 @@ class BuildingMap:
             floor_segments=self.floor_segments(space_path),
             min_width_m=min_width_m,
             entrance=entrance,
+            route_profile=profile,
         )
 
     def nearest_asset_route(
@@ -761,16 +896,17 @@ class BuildingMap:
 
     def route(
         self, start: str, destination: str, step_free: bool = False, via: list[str] | None = None,
-        min_width_m: float = 0.0, entrance: str | None = None,
+        min_width_m: float = 0.0, entrance: str | None = None, profile: str = KIT_DISTANCE_MODEL,
     ) -> RouteResult:
         """compute_route, then make the result the active route. Any earlier route is cleared first."""
         self.last_route = None
         self.active_request = None
-        result = self.compute_route(start, destination, step_free, via, min_width_m, entrance)
+        result = self.compute_route(start, destination, step_free, via, min_width_m, entrance, profile)
         self.last_route = result
         self.active_request = {
             "start": start, "destination": destination, "step_free": step_free,
             "via": list(via) if via else None, "min_width_m": min_width_m, "entrance": entrance,
+            "profile": profile,
         }
         return result
 

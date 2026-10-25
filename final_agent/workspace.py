@@ -15,7 +15,7 @@ from pathlib import Path
 
 from anthropic.lib.tools import ToolError
 
-from .building_map import BuildingMap, MapError
+from .building_map import BuildingMap, MapError, require_navigation_records
 from .campus import Campus
 from .plan_build import Calibration, PlanDraft, PlanError, extract_plan, observations_to_building
 from .storage import JsonBuildingStore
@@ -104,7 +104,9 @@ class Workspace:
         return self.campus.buildings[building_id]
 
     def register(self, path: str, *, facility_number: str | None = None) -> dict:
-        source = BuildingMap.load(Path(path))
+        raw_path = Path(path)
+        require_navigation_records(JsonBuildingStore.load(raw_path))
+        source = BuildingMap.load(raw_path)
         bid = safe_id(source.data["building"]["id"])
         if facility_number is not None and not str(facility_number).strip():
             raise ValueError("Give a non-empty facility number.")
