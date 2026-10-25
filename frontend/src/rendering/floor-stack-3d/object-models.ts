@@ -61,8 +61,11 @@ export function addObjectModels(parent: THREE.Object3D, plans: FloorPlan[], onRe
     }
     if (disposed) { disposeParts(parts); return }
     templates.push(parts)
+    // A raycast hit's instanceId indexes this, so picking resolves to the asset.
+    const assetIds = assets.map(({ asset }) => asset.id)
     for (const part of parts) {
       const mesh = new THREE.InstancedMesh(part.geometry, part.material, assets.length)
+      mesh.userData.assetIds = assetIds
       const matrix = new THREE.Matrix4()
       for (const [index, { asset, elevation }] of assets.entries()) {
         const { width_m, depth_m, rotation_deg } = asset.footprint

@@ -200,11 +200,11 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
     focus('search')
   }
 
-  const openEditor = () => {
+  const openEditor = (target: Selection | null = selection) => {
     setOpen(true)
     setError(null)
     setConfirming(null)
-    const name = loadDetails(selection, plans)
+    const name = loadDetails(target, plans)
     if (name) {
       focus('heading')
       announce(fill(text.opened, { name }))
@@ -238,6 +238,11 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
   }
 
   const toggle = () => (open ? requestClose() : openEditor())
+
+  /** Clicking an item on the map opens it in the editor. Once open, the selection effect below switches the form. */
+  const editItem = (target: Selection) => {
+    if (!open) openEditor(target)
+  }
 
   const confirmDiscard = () => {
     setConfirming(null)
@@ -690,6 +695,7 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
     canRemove,
     canSave,
     toggle,
+    editItem,
     requestClose,
     escape,
     chooseType,

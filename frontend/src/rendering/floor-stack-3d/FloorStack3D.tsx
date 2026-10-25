@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
-import type { FloorPlan, Point, Route, Space } from '../../domain/types'
+import type { Asset, FloorPlan, Point, Route, Selection, Space } from '../../domain/types'
 import { objectVisual } from '../../domain/object-catalog'
 import { copy } from '../../i18n/en'
+import { MapTooltip, assetTip, spaceTip } from '../MapTooltip'
 import { perimeterSegments } from './perimeter'
 import { addObjectModels } from './object-models'
 
@@ -13,6 +14,8 @@ type FloorStack3DProps = {
   route: Route | null
   activeFloorId: string
   onSelectFloor?: (floorId: string) => void
+  /** Clicked items, and clicked rooms of the single-floor view. */
+  onSelect?: (selection: Selection) => void
 }
 
 /** `single` shows only the viewed floor; `all` is the exploded overview of every floor. */
@@ -60,6 +63,8 @@ type FloorRecord = {
   facades: Facade[]
   route: Fader[]
   models: { material: THREE.Material; opacity: number; depthWrite: boolean }[]
+  /** What hover and click resolve against: rooms and, once loaded, items. The slab only blocks floors below. */
+  targets: THREE.Object3D[]
   label: HTMLDivElement
 }
 
@@ -228,7 +233,7 @@ function LayersIcon() {
   )
 }
 
-export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activeFloorId, onSelectFloor }: FloorStack3DProps) {
+export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activeFloorId, onSelectFloor, onSelect }: FloorStack3DProps) {
   const plans = useStableItems(incomingPlans)
   const route = useStableRoute(incomingRoute)
   const host = useRef<HTMLDivElement>(null)
@@ -236,6 +241,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
   const savedView = useRef<{ key: string; view: View; atHome: boolean } | null>(null)
   const expandButton = useRef<HTMLButtonElement>(null)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [tip, setTip] = useState<{ item: Selection; x: number; y: number } | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [mode, setMode] = useState<StackMode>('single')
   // The floor shown in the stack. It follows the plan's floor, and picking a floor here updates the plan too.
@@ -253,6 +259,8 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
   }
   const selectRef = useRef(selectFloor)
   selectRef.current = selectFloor
+  const onSelectRef = useRef(onSelect)
+  onSelectRef.current = onSelect
 
   const ordered = useMemo(() => [...plans].sort((left, right) => left.floor.elevation_m - right.floor.elevation_m), [plans])
   const routeFloors = useMemo(() => new Set((route?.legs ?? []).filter((leg) => leg.points.length > 0).map((leg) => leg.floor_id)), [route])
@@ -320,6 +328,12 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
     let objectCount = 0
     const pickables: THREE.Object3D[] = []
     const floorIndex = new Map<string, number>()
+    const spaces = new Map<string, { plan: FloorPlan; space: Space }>()
+    const assets = new Map<string, { plan: FloorPlan; asset: Asset }>()
+    for (const plan of ordered) {
+      for (const space of plan.spaces) spaces.set(space.id, { plan, space })
+      for (const asset of plan.assets) assets.set(asset.id, { plan, asset })
+    }
     const fader = <M extends THREE.Material>(material: M) => ({ material, base: 1 })
 
     // The route layer ignores depth so walls never chop it into dashes.
@@ -354,6 +368,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       const slabMesh = new THREE.Mesh(slabGeometry, slab.material)
       slabMesh.userData.floorId = plan.floor.id
       pickables.push(slabMesh)
+      const targets: THREE.Object3D[] = [slabMesh]
       const slabEdge = fader(new THREE.LineBasicMaterial({ transparent: true }))
       group.add(slabMesh, new THREE.LineSegments(new THREE.EdgesGeometry(slabGeometry), slabEdge.material))
 
@@ -382,7 +397,9 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
         const mesh = new THREE.Mesh(geometry, material.material)
         mesh.position.y = 0.02
         mesh.userData.floorId = plan.floor.id
+        mesh.userData.spaceId = space.id
         pickables.push(mesh)
+        targets.push(mesh)
         group.add(mesh)
         polygons.push(space.polygon)
       }
@@ -444,6 +461,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
         const materials = new Set<THREE.Material>()
         objectGroup.traverse((object) => {
           if (!(object instanceof THREE.InstancedMesh)) return
+          targets.push(object)
           for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material)
         })
         for (const material of materials) {
@@ -461,7 +479,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
         id: plan.floor.id, index, group, compactY, explodedY, y, fade: 1,
         box: { x0, x1, z0, z1 },
         contentHeight: Math.max(exteriorHeight, ...plan.assets.map((asset) => objectVisual(asset).height_m)),
-        rooms, wall, wallTop, slab, slabEdge, halo, facades, models,
+        rooms, wall, wallTop, slab, slabEdge, halo, facades, models, targets,
         route: [fader(overlay()), fader(overlay()), fader(overlay())],
         label,
       })
@@ -689,32 +707,76 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
     const raycaster = new THREE.Raycaster()
     const pointer = new THREE.Vector2()
     let downAt: { x: number; y: number } | null = null
-    const pick = (event: PointerEvent): string | null => {
+    let tipKey = ''
+    const aim = (event: PointerEvent) => {
       const rect = renderer.domElement.getBoundingClientRect()
       pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1)
       raycaster.setFromCamera(pointer, camera)
+      return rect
+    }
+    const pick = (): string | null => {
       for (const hit of raycaster.intersectObjects(pickables, false)) {
         const floorId = hit.object.userData.floorId as string | undefined
         if (floorId && floors[floorIndex.get(floorId)!].fade > 0.5) return floorId
       }
       return null
     }
+    // The nearest room or item on a shown floor. Facades never block it (those facing the camera are cutaways).
+    const thingAt = (): Selection | null => {
+      const [hit] = raycaster.intersectObjects(floors.filter((floor) => floor.fade > 0.5).flatMap((floor) => floor.targets), false)
+      if (!hit) return null
+      const assetIds = hit.object.userData.assetIds as string[] | undefined
+      const item = assetIds && hit.instanceId !== undefined ? assets.get(assetIds[hit.instanceId]) : undefined
+      if (item) return assetTip(item.plan, item.asset)
+      const room = spaces.get(hit.object.userData.spaceId as string)
+      return room ? spaceTip(room.plan, room.space) : null
+    }
+    // Only re-renders when the hovered thing or its pixel position changes.
+    const showTip = (item: Selection | null, x = 0, y = 0) => {
+      const key = item ? `${item.kind}:${item.id}:${x}:${y}` : ''
+      if (key === tipKey) return
+      tipKey = key
+      setTip(item && { item, x, y })
+    }
     const setHovered = (floorId: string | null) => {
       if (floorId === hoveredFloor) return
       hoveredFloor = floorId
-      renderer.domElement.style.cursor = floorId && stackMode === 'all' ? 'pointer' : ''
       setHoveredId(floorId)
       paint()
     }
-    const onPointerMove = (event: PointerEvent) => { if (event.buttons === 0) setHovered(pick(event)) }
+    const onPointerMove = (event: PointerEvent) => {
+      // A held button orbits or pans the camera, so the tooltip waits until the pointer moves freely.
+      if (event.buttons !== 0) { showTip(null); return }
+      const rect = aim(event)
+      const thing = thingAt()
+      setHovered(pick())
+      showTip(thing, Math.round(event.clientX - rect.left) + 14, Math.round(event.clientY - rect.top) + 14)
+      renderer.domElement.style.cursor = thing?.kind === 'asset' || (hoveredFloor && stackMode === 'all') ? 'pointer' : ''
+    }
     const onPointerDown = (event: PointerEvent) => { downAt = { x: event.clientX, y: event.clientY } }
     const onPointerUp = (event: PointerEvent) => {
       if (!downAt || Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y) > 5) { downAt = null; return }
       downAt = null
-      const floorId = pick(event)
+      aim(event)
+      const thing = thingAt()
+      if (thing?.kind === 'asset') {
+        // The editor panel opens beside the stack, so a full-screen stack steps aside for it.
+        setExpanded(false)
+        if (stackMode === 'all') selectRef.current(thing.floorId)
+        onSelectRef.current?.(thing)
+        return
+      }
+      if (thing?.kind === 'space' && stackMode === 'single') { onSelectRef.current?.(thing); return }
+      const floorId = pick()
       if (floorId && stackMode === 'all') selectRef.current(floorId)
     }
-    const onPointerLeave = () => setHovered(null)
+    const onPointerLeave = () => {
+      setHovered(null)
+      showTip(null)
+      renderer.domElement.style.cursor = ''
+    }
+    // Zooming or orbiting moves the scene under a resting pointer, which would leave the tooltip stale.
+    controls.addEventListener('start', () => showTip(null))
     const canvas = renderer.domElement
     canvas.addEventListener('pointermove', onPointerMove)
     canvas.addEventListener('pointerdown', onPointerDown)
@@ -848,6 +910,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       renderer.dispose()
       element.replaceChildren()
       setHoveredId(null)
+      setTip(null)
     }
   }, [ordered, route])
 
@@ -883,6 +946,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       {expanded && <div className="floor-stack-backdrop" aria-hidden="true" onClick={() => setExpanded(false)} />}
       <section className={expanded ? 'floor-stack-3d is-expanded' : 'floor-stack-3d'} aria-label={copy.stackTitle}>
         <div ref={host} className="stack-viewport" role="img" aria-label={`${copy.stackTitle}: ${summary}`} />
+        {tip && <MapTooltip item={tip.item} x={tip.x} y={tip.y} />}
         <header className="stack-head">
           <div className="stack-heading">
             <span className="eyebrow">{copy.stackTitle}</span>

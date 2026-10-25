@@ -5,6 +5,7 @@ import type { Connector } from '../domain/types'
 import { interiorPoint, spaceAt } from '../domain/editor'
 import { connectorNoteFromPlan, landmarkIds } from '../domain/live'
 import type { PreviewObjects } from '../domain/presentation'
+import { MapTooltip, assetTip, openingTip, spaceTip } from './MapTooltip'
 import { WalkPad } from './WalkPad'
 
 export type GhostAsset = { asset: Asset; layer: number }
@@ -172,7 +173,7 @@ function InteractivePlan({
   const [pan, setPan] = useState<Point>([0, 0])
   const [hovered, setHovered] = useState<Selection | null>(null)
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 })
-  const [displayMode, setDisplayMode] = useState<'rooms' | 'items' | 'labels'>('labels')
+  const [displayMode, setDisplayMode] = useState<'rooms' | 'items' | 'labels'>('items')
   const gesture = useRef({ pointerId: -1, x: 0, y: 0, panX: 0, panY: 0, moved: false })
   const pointers = useRef(new Map<number, { x: number; y: number }>())
   const pinch = useRef<{ startDistance: number; startZoom: number; anchorX: number; anchorY: number } | null>(null)
@@ -441,7 +442,7 @@ function InteractivePlan({
                   tabIndex={0}
                   aria-label={space.name}
                   aria-pressed={picked}
-                  onMouseEnter={(event) => updateHover(event, { kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNoteFromPlan(plan, space.id) })}
+                  onMouseEnter={(event) => updateHover(event, spaceTip(plan, space))}
                   onMouseLeave={() => setHovered(null)}
                   onFocus={() => onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNoteFromPlan(plan, space.id) })}
                   onBlur={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.ownerSVGElement?.contains(event.relatedTarget)) onFocusSelection(null) }}
@@ -470,7 +471,7 @@ function InteractivePlan({
               className={['opening', opening.kind, selectionId === opening.id ? 'picked' : '', opening.step_free ? '' : 'stepped'].filter(Boolean).join(' ')}
               role="button"
               tabIndex={-1}
-              onMouseEnter={(event) => updateHover(event, { kind: 'opening', id: opening.id, name: opening.kind, floorId: plan.floor.id, floorName: plan.floor.name, note: `${opening.width_m} m - ${opening.step_free ? 'Step-free' : 'Has a step'}` })}
+              onMouseEnter={(event) => updateHover(event, openingTip(plan, opening))}
               onMouseLeave={() => setHovered(null)}
               aria-label={`${opening.kind}, ${opening.width_m} m`}
               onClick={(event) => {
@@ -504,7 +505,7 @@ function InteractivePlan({
                 className={['asset', asset.category, highlighted ? 'highlighted' : '', landmark ? 'landmark' : '', picked ? 'picked' : '', layer > 0 ? 'stacked' : '', fadedIds.has(asset.id) ? 'moving-origin' : '', removedIds.has(asset.id) ? 'removing' : ''].filter(Boolean).join(' ')}
                 role="button"
                 tabIndex={highlighted ? 0 : -1}
-                onMouseEnter={(event) => updateHover(event, { kind: 'asset', id: asset.id, name: asset.name, floorId: plan.floor.id, floorName: plan.floor.name, note: `${asset.type} - ${asset.category}${layer > 0 ? ` - Layer ${layer}` : ''}` })}
+                onMouseEnter={(event) => updateHover(event, assetTip(plan, asset))}
                 onMouseLeave={() => setHovered(null)}
                 aria-label={layer > 0 ? `${asset.name}, layer ${layer}` : asset.name}
                 aria-pressed={picked}
@@ -614,7 +615,7 @@ function InteractivePlan({
         </g>
       </svg>
       <WalkPad svgRef={svgRef} plan={plan} route={route} closedIds={closedIds} stepFree={stepFree} keysPaused={Boolean(editor)} walkerHere={walkerHere} onMove={onWalkerMove} onChangeFloor={onChangeFloor} />
-      {hovered && <div className="map-tooltip" role="status" style={{ left: hoverPosition.x, top: hoverPosition.y }}><strong>{hovered.name}</strong><dl><dt>Type</dt><dd>{hovered.kind === 'space' ? 'Room / area' : hovered.kind === 'asset' ? 'Equipment / item' : 'Opening / connector'}</dd><dt>Floor</dt><dd>{hovered.floorName}</dd><dt>Details</dt><dd>{hovered.note || 'No additional details'}</dd></dl></div>}
+      {hovered && <MapTooltip item={hovered} x={hoverPosition.x} y={hoverPosition.y} />}
     </div>
       <div
         className="map-controls"
