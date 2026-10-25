@@ -128,4 +128,6 @@ export const copy = {
   walkOutside: 'Stay inside the floor.',
   walkEmpty: 'This floor has no walkable room.',
   walkMetres: 'm',
+  walkSpeed: 'Speed',
+  walkMetresPerSecond: 'metres per second',
 }

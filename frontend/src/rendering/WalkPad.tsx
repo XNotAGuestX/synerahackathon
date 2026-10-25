@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
+import type { ChangeEvent, PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { copy } from '../i18n/en'
 import type { FloorPlan, Point, Route } from '../domain/types'
@@ -63,6 +63,9 @@ const CAUSE_COPY: Record<BlockCause, string> = {
 }
 
 const PAD_STORAGE_KEY = 'wayfinder-walk-pad'
+const SPEED_STORAGE_KEY = 'wayfinder-walk-speed'
+const SPEED_MIN_M_S = 0.4
+const SPEED_MAX_M_S = 4
 const VIEWPORT_MARGIN = 8
 
 type PadPlace = { x: number; y: number; hidden: boolean }
@@ -77,6 +80,18 @@ function readPadPlace(): PadPlace | null {
   } catch {
     return null
   }
+}
+
+function readWalkSpeed(): number {
+  try {
+    const stored = window.localStorage.getItem(SPEED_STORAGE_KEY)
+    if (stored == null) return WALK_SPEED_M_S
+    const raw = Number(stored)
+    if (Number.isFinite(raw)) return Math.min(SPEED_MAX_M_S, Math.max(SPEED_MIN_M_S, raw))
+  } catch {
+    /* Use the default pace if storage cannot be read. */
+  }
+  return WALK_SPEED_M_S
 }
 
 function rememberPadPlace(place: PadPlace) {
@@ -149,6 +164,9 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
   const drag = useRef<{ id: number; dx: number; dy: number } | null>(null)
   const [place, setPlace] = useState<PadPlace>(() => readPadPlace() ?? { x: 24, y: 24, hidden: false })
   const [dragging, setDragging] = useState(false)
+  const [speed, setSpeed] = useState(readWalkSpeed)
+  const speedRef = useRef(speed)
+  speedRef.current = speed
 
   const field = useMemo(() => buildWalkField(plan, closedIds, stepFree), [plan, closedIds, stepFree])
   const marks = useMemo(() => routeMarks(plan, route), [plan, route])
@@ -355,7 +373,8 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
         if (length < 1e-6) return
         const dir: Point = [combined[0] / length, combined[1] / length]
         headingRef.current = Math.atan2(dir[1], dir[0])
-        const next = moveWalker(fieldRef.current, point, [dir[0] * WALK_SPEED_M_S * dt, dir[1] * WALK_SPEED_M_S * dt])
+        const pace = speedRef.current
+        const next = moveWalker(fieldRef.current, point, [dir[0] * pace * dt, dir[1] * pace * dt])
         const stuck = Math.hypot(next.point[0] - point[0], next.point[1] - point[1]) < 0.002
         pointRef.current = next.point
         publish(stuck ? next.cause : null, true)
@@ -369,13 +388,14 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
         publish(null, false)
         return
       }
-      cursorRef.current = Math.min(arcLength(leg), cursorRef.current + WALK_SPEED_M_S * dt)
+      const pace = speedRef.current
+      cursorRef.current = Math.min(arcLength(leg), cursorRef.current + pace * dt)
       const target = pointAtArc(leg, cursorRef.current)
       const dx = target[0] - point[0]
       const dy = target[1] - point[1]
       const distance = Math.hypot(dx, dy)
       if (distance > 1e-4) headingRef.current = Math.atan2(dy, dx)
-      const step = Math.min(distance, WALK_SPEED_M_S * dt)
+      const step = Math.min(distance, pace * dt)
       const delta: Point = distance < 1e-6 ? [0, 0] : [(dx / distance) * step, (dy / distance) * step]
       const next = moveWalker(fieldRef.current, point, delta)
       const moved = Math.hypot(next.point[0] - point[0], next.point[1] - point[1])
@@ -419,11 +439,21 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
     if (!point) return
     const vector = DIR[dir]
     headingRef.current = Math.atan2(vector[1], vector[0])
-    const next = moveWalker(fieldRef.current, point, [vector[0] * 0.45, vector[1] * 0.45])
+    const step = Math.max(0.15, speedRef.current * 0.35)
+    const next = moveWalker(fieldRef.current, point, [vector[0] * step, vector[1] * step])
     const stuck = Math.hypot(next.point[0] - point[0], next.point[1] - point[1]) < 0.002
     pointRef.current = next.point
     publish(stuck ? next.cause : null, false)
     paint()
+  }
+  const onSpeed = (event: ChangeEvent<HTMLInputElement>) => {
+    const next = Math.min(SPEED_MAX_M_S, Math.max(SPEED_MIN_M_S, Number(event.target.value)))
+    setSpeed(next)
+    try {
+      window.localStorage.setItem(SPEED_STORAGE_KEY, String(next))
+    } catch {
+      /* The slider still applies for this visit. */
+    }
   }
   const reset = () => {
     pointRef.current = marksRef.current.origin ?? spawnPoint(plan, fieldRef.current, route)
@@ -573,6 +603,21 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
                     <small>{copy.walkMetres}</small>
                   </div>
                 </div>
+                <label className="walk-speed">
+                  <span id="walk-speed-label">{copy.walkSpeed}</span>
+                  <input
+                    type="range"
+                    min={SPEED_MIN_M_S}
+                    max={SPEED_MAX_M_S}
+                    step={0.05}
+                    value={speed}
+                    aria-labelledby="walk-speed-label"
+                    aria-valuetext={`${speed.toFixed(2)} ${copy.walkMetresPerSecond}`}
+                    onChange={onSpeed}
+                    onPointerDown={(event) => event.stopPropagation()}
+                  />
+                  <span className="walk-speed-value" aria-hidden="true">{speed.toFixed(2)}</span>
+                </label>
                 <div className="walk-actions">
                   <button type="button" onClick={toggleFollow} disabled={marks.leg.length < 2} aria-pressed={following}>{following ? copy.stopFollowing : copy.followRoute}</button>
                   <button type="button" onClick={reset} disabled={mode === 'empty'}>{marks.origin ? copy.returnToA : copy.resetPosition}</button>
