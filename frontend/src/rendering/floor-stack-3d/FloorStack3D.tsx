@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 import type { Asset, FloorPlan, Point, Route, Selection, Space } from '../../domain/types'
+import { escapeSpaceIds, wayfindingRole } from '../../domain/live'
 import { objectVisual } from '../../domain/object-catalog'
 import { copy } from '../../i18n/en'
 import { MapTooltip, assetTip, spaceTip } from '../MapTooltip'
@@ -23,8 +24,8 @@ type FloorStack3DProps = {
 /** `single` shows only the viewed floor; `all` is the exploded overview of every floor. */
 type StackMode = 'single' | 'all'
 
-type Tone = 'room' | 'office' | 'corridor' | 'restroom' | 'lift' | 'stair'
-const tones: Tone[] = ['room', 'office', 'corridor', 'restroom', 'lift', 'stair']
+type Tone = 'room' | 'office' | 'corridor' | 'restroom' | 'lift' | 'stair' | 'escape'
+const tones: Tone[] = ['room', 'office', 'corridor', 'restroom', 'lift', 'stair', 'escape']
 
 type Palette = Record<Tone, THREE.Color> & {
   slab: THREE.Color
@@ -82,10 +83,10 @@ type SceneApi = {
 const isoDirection = new THREE.Vector3(1, 0.6, 1).normalize()
 const up = new THREE.Vector3(0, 1, 0)
 
-function toneOf(space: Space): Tone {
+function toneOf(space: Space, escapeIds?: Set<string>): Tone {
+  const role = wayfindingRole(space) ?? (escapeIds?.has(space.id) ? 'escape' : null)
+  if (role === 'stair' || role === 'lift' || role === 'escape') return role
   const type = (space.room_type || space.type || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-')
-  if (['stair', 'stairs', 'emergency-exit', 'emergency-corridor'].includes(type)) return 'stair'
-  if (type === 'lift' || type === 'elevator') return 'lift'
   if (type === 'corridor' || type === 'hallway') return 'corridor'
   if (type === 'restroom' || type === 'toilet') return 'restroom'
   if (type === 'office') return 'office'
@@ -132,6 +133,7 @@ function readPalette(element: Element): Palette {
     restroom: mix(space, read('--color-restroom', '#4db6d6'), 0.32),
     lift: mix(space, start, 0.34),
     stair: mix(space, danger, 0.34),
+    escape: mix(space, read('--color-success', '#5fd6a4'), 0.28),
     slab: mix(surface, border, 0.4),
     slabEdge: border,
     wall: mix(space, stroke, 0.45),
@@ -405,9 +407,10 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
 
       const rooms = new Map<Tone, Fader>()
       const polygons: Point[][] = []
+      const exitIds = escapeSpaceIds(plan)
       for (const space of plan.spaces) {
         if (space.polygon.length < 3) continue
-        const tone = toneOf(space)
+        const tone = toneOf(space, exitIds)
         let material = rooms.get(tone)
         if (!material) {
           material = fader(new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 }))
@@ -974,7 +977,8 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
   const focus = (mode === 'all' ? ordered.find((plan) => plan.floor.id === hoveredId) : null) ?? viewed
   const focusCounts = useMemo(() => {
     const counts = new Map<Tone, number>()
-    for (const space of focus?.spaces ?? []) counts.set(toneOf(space), (counts.get(toneOf(space)) ?? 0) + 1)
+    const exitIds = focus ? escapeSpaceIds(focus) : new Set<string>()
+    for (const space of focus?.spaces ?? []) counts.set(toneOf(space, exitIds), (counts.get(toneOf(space, exitIds)) ?? 0) + 1)
     return counts
   }, [focus])
   const summary = [
@@ -1044,6 +1048,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
           <li><span className="stack-swatch tone-restroom" />{copy.stackToneRestroom}</li>
           <li><span className="stack-swatch tone-lift" />{copy.stackToneLift}</li>
           <li><span className="stack-swatch tone-stair" />{copy.stackToneStair}</li>
+          <li><span className="stack-swatch tone-escape" />{copy.stackToneEscape}</li>
           {route && <li><span className="stack-swatch tone-route" />{copy.route}</li>}
         </ul>
         {focus && (

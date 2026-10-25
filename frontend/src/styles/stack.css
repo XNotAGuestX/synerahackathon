@@ -8,6 +8,7 @@
   --stack-tone-restroom: color-mix(in srgb, var(--color-restroom) 32%, var(--map-space));
   --stack-tone-lift: color-mix(in srgb, var(--color-start) 34%, var(--map-space));
   --stack-tone-stair: color-mix(in srgb, var(--color-danger) 34%, var(--map-space));
+  --stack-tone-escape: color-mix(in srgb, var(--color-success) 28%, var(--map-space));
   position: relative;
   height: clamp(440px, 64vh, 720px);
   overflow: hidden;
@@ -174,6 +175,7 @@
 .stack-swatch.tone-restroom { background: var(--stack-tone-restroom); }
 .stack-swatch.tone-lift { background: var(--stack-tone-lift); border-color: var(--color-start); }
 .stack-swatch.tone-stair { background: var(--stack-tone-stair); border-color: var(--color-danger); }
+.stack-swatch.tone-escape { background: var(--stack-tone-escape); border-color: var(--color-success); }
 .stack-swatch.tone-route { height: 4px; border: 0; border-radius: var(--radius-pill); background: var(--color-route); }
 
 .stack-info {

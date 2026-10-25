@@ -315,6 +315,9 @@
 
 .legend-sample { display: block; flex: 0 0 auto; box-sizing: border-box; }
 .sample-room { width: 18px; height: 12px; border: 2px solid var(--map-space-stroke); border-radius: 2px; background: var(--map-space); }
+.sample-stairs { width: 18px; height: 12px; border: 2px solid var(--color-danger); border-radius: 2px; background: color-mix(in srgb, var(--color-danger) 24%, var(--map-space)); }
+.sample-lift { width: 18px; height: 12px; border: 2px solid var(--color-start); border-radius: 2px; background: color-mix(in srgb, var(--color-start) 22%, var(--map-space)); }
+.sample-escape { width: 18px; height: 12px; border: 2px solid var(--color-success); border-radius: 2px; background: color-mix(in srgb, var(--color-success) 24%, var(--map-space)); }
 .sample-equipment { width: 16px; height: 11px; margin-inline: 1px; border: 1px solid var(--map-asset-stroke); border-radius: 2px; background: var(--map-asset-machine); }
 .sample-opening { width: 11px; height: 11px; margin-inline: 4px; border: 2px solid var(--map-opening-stroke); border-radius: 50%; background: var(--map-opening); }
 .sample-route { width: 18px; height: 3px; background: repeating-linear-gradient(90deg, var(--color-route) 0 5px, transparent 5px 8px); }
@@ -350,12 +353,17 @@
   vector-effect: non-scaling-stroke;
   cursor: pointer;
 }
-/* Room types that matter for wayfinding. Declared before the states below so selection always wins. */
-.space.room-type-stair, .space.room-type-stairs, .space.room-type-emergency-exit, .space.room-type-emergency-corridor { fill: color-mix(in srgb, var(--color-danger) 24%, var(--map-space)); stroke: var(--color-danger); }
-.space.room-type-lift, .space.room-type-elevator { fill: color-mix(in srgb, var(--color-start) 22%, var(--map-space)); stroke: var(--color-start); }
+/* Room types that matter for wayfinding. Role rules come last in this block so a stairwell
+   stored as a corridor, or an exit corridor, keeps its circulation colour. Selection still wins below. */
 .space.room-type-corridor, .space.room-type-hallway { fill: color-mix(in srgb, var(--color-warning) 18%, var(--map-space)); stroke: var(--color-warning); }
 .space.room-type-restroom, .space.room-type-toilet { fill: color-mix(in srgb, var(--color-restroom) 22%, var(--map-space)); stroke: var(--color-restroom); }
 .space.room-type-office { fill: color-mix(in srgb, var(--color-primary) 14%, var(--map-space)); }
+.space.room-type-stair, .space.room-type-stairs, .space.room-type-stairwell, .space.room-type-staircase,
+.space.role-stair { fill: color-mix(in srgb, var(--color-danger) 24%, var(--map-space)); stroke: var(--color-danger); }
+.space.room-type-lift, .space.room-type-elevator,
+.space.role-lift { fill: color-mix(in srgb, var(--color-start) 22%, var(--map-space)); stroke: var(--color-start); }
+.space.room-type-emergency-exit, .space.room-type-emergency-corridor, .space.room-type-escape, .space.room-type-escape-route,
+.space.role-escape { fill: color-mix(in srgb, var(--color-success) 24%, var(--map-space)); stroke: var(--color-success); }
 .space.reason-match,
 .space.reason-selected { stroke: var(--color-primary); stroke-width: 0.3; }
 .space.reason-preview { fill: var(--map-preview); }

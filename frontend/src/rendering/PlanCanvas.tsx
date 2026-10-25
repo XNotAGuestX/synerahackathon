@@ -3,7 +3,7 @@ import type { PointerEvent as ReactPointerEvent } from 'react'
 import type { Asset, FloorPlan, Opening, Point, Route, Selection } from '../domain/types'
 import type { Connector } from '../domain/types'
 import { interiorPoint, spaceAt } from '../domain/editor'
-import { connectorNoteFromPlan, landmarkIds } from '../domain/live'
+import { connectorNoteFromPlan, escapeSpaceIds, landmarkIds, wayfindingRole } from '../domain/live'
 import type { PreviewObjects } from '../domain/presentation'
 import { MapTooltip, assetTip, openingTip, spaceTip } from './MapTooltip'
 import { WalkPad } from './WalkPad'
@@ -214,6 +214,7 @@ function InteractivePlan({
     gesture.current.pointerId = -1
   }, [plan.floor.id, route?.id])
 
+  const exitIds = escapeSpaceIds(plan)
   const reasons = new Map(spaceReasons)
   if (route?.start_space_id && !reasons.has(route.start_space_id)) reasons.set(route.start_space_id, 'selected')
   if (route?.destination_space_id && !reasons.has(route.destination_space_id)) reasons.set(route.destination_space_id, 'selected')
@@ -470,6 +471,7 @@ function InteractivePlan({
           {plan.spaces.map((space, spaceIndex) => {
             const reason = reasons.get(space.id)
             const roomType = (space.room_type || space.type || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-')
+            const role = wayfindingRole(space) ?? (exitIds.has(space.id) ? 'escape' : null)
             const picked = selectionId === space.id
             const [cx, cy] = centroid(space.polygon)
             const showLabel = showNumbers && polygonArea(space.polygon) >= 28
@@ -477,7 +479,7 @@ function InteractivePlan({
               <g key={space.id}>
                 <polygon
                   points={space.polygon.map(([x, y]) => `${x},${y}`).join(' ')}
-                  className={['space', `room-type-${roomType}`, reason ? `reason-${reason}` : '', picked ? 'picked' : '', pickedSpaces.has(space.id) ? 'editor-picked' : ''].filter(Boolean).join(' ')}
+                  className={['space', `room-type-${roomType}`, role ? `role-${role}` : '', reason ? `reason-${reason}` : '', picked ? 'picked' : '', pickedSpaces.has(space.id) ? 'editor-picked' : ''].filter(Boolean).join(' ')}
                   role="button"
                   tabIndex={space.id === tabbableId ? 0 : -1}
                   data-space-id={space.id}
@@ -688,7 +690,18 @@ function InteractivePlan({
       </div>
       <div className="map-legend-wrap">
         <button type="button" className="map-legend-toggle" aria-expanded={legendOpen} aria-controls={legendOpen ? `${plan.floor.id}-legend` : undefined} onClick={() => setLegendOpen((value) => !value)}>Legend</button>
-        {legendOpen && <div id={`${plan.floor.id}-legend`} className="map-legend" role="group" aria-label="Map legend"><span><i className="legend-sample sample-room" /><b>Room</b></span><span><i className="legend-sample sample-equipment" /><b>Equipment</b></span><span><i className="legend-sample sample-opening" /><b>Door / connector</b></span><span><i className="legend-sample sample-route" /><b>Current route</b></span><span><i className="legend-sample sample-closed" /><b>Closed / blocked</b></span></div>}
+        {legendOpen && (
+          <div id={`${plan.floor.id}-legend`} className="map-legend" role="group" aria-label="Map legend">
+            <span><i className="legend-sample sample-room" /><b>Room</b></span>
+            <span><i className="legend-sample sample-stairs" /><b>Stairs</b></span>
+            <span><i className="legend-sample sample-lift" /><b>Lift</b></span>
+            <span><i className="legend-sample sample-escape" /><b>Escape route</b></span>
+            <span><i className="legend-sample sample-equipment" /><b>Equipment</b></span>
+            <span><i className="legend-sample sample-opening" /><b>Door / connector</b></span>
+            <span><i className="legend-sample sample-route" /><b>Current route</b></span>
+            <span><i className="legend-sample sample-closed" /><b>Closed / blocked</b></span>
+          </div>
+        )}
       </div>
       </div>
       </div>
