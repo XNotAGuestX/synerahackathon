@@ -24,7 +24,7 @@ from final_agent.agent import BuildingAgent, MODELS
 from final_agent.api_session import ApiReply
 from final_agent.building_map import BuildingMap
 from final_agent.speech import SpeechError
-from final_agent.storage import RoomNoteStore
+from final_agent.storage import JsonBuildingStore, ObjectStateStore, RoomNoteStore
 from test_hull import ScriptedClient, ScriptedRunner, call, reply, say
 from test_storage import example_building
 
@@ -479,7 +479,7 @@ class ApiTests(unittest.TestCase):
     def plan(self, session, floor_id="F0"):
         return self.validate(self.client.get(self.path(session) + f"/floors/{floor_id}/plan"), "FloorPlan")
 
-    def test_object_editor_round_per_kind_with_stacking_files_and_isolation(self):
+    def test_object_editor_round_per_kind_with_shared_objects_and_private_structure(self):
         catalog = self.validate(self.client.get(self.base + "/object-types"), "ObjectCatalog")
         self.assertEqual([group["id"] for group in catalog["groups"]], ["items", "connections"])
         first, other = self.session(), self.session()
@@ -517,9 +517,113 @@ class ApiTests(unittest.TestCase):
         self.assertEqual([layer["layer"] for layer in adapter["layers"]], [0, 1])
         self.assertEqual(adapter["layers"][0]["objects"][0]["height_source"], "override")
         untouched = self.plan(other)
-        self.assertEqual(([asset["id"] for asset in untouched["assets"]], untouched["openings"], untouched["stacking"]), (["printer"], [], []))
+        self.assertEqual(sorted(asset["id"] for asset in untouched["assets"]), sorted(["printer", desk, printer]))
+        self.assertEqual(untouched["openings"], [])
+        self.assertEqual(len(untouched["stacking"]), 2)
         self.assertFalse((self.root / "output" / other["id"]).exists())
         self.assertEqual((self.data / "dev/test/building.json").read_bytes(), self.original)
+
+    def test_shared_objects_restart_search_remove_and_reverse(self):
+        first, other = self.session(), self.session()
+        _, added = self.edit(first, {"kind": "add_object", "type": "coffee_table", "space": "right", "name": "Shared coffee table", "width_m": 0.8, "depth_m": 0.6})
+        table = added["changed_ids"][0]
+        self.edit(first, {"kind": "update_object", "object_ref": table, "height_m": 0.55})
+        _, added = self.edit(first, {"kind": "add_object", "type": "printer", "on_top_of": [table]})
+        child = added["changed_ids"][0]
+        self.assertEqual(self.client.get(f"{self.base}/sessions/{other['id']}").json()["object_revision"], 3)
+        found = self.client.get(f"{self.base}/sessions/{other['id']}/places?q=Shared%20coffee%20table").json()["items"]
+        self.assertEqual([item["id"] for item in found], [table])
+        with TestClient(self.make_app()) as restarted:
+            fresh = restarted.post(self.base + "/sessions", json={"building_id": "test"}, headers={"Idempotency-Key": str(uuid4())}).json()
+            plan = restarted.get(f"{self.base}/sessions/{fresh['id']}/floors/F0/plan").json()
+            record = next(asset for asset in plan["assets"] if asset["id"] == table)
+            self.assertEqual(record["footprint"]["width_m"], 0.8)
+            self.assertEqual({entry["object_id"] for entry in plan["stacking"]}, {table, child})
+            self.assertEqual(next(entry["height_m"] for entry in plan["stacking"] if entry["object_id"] == table), 0.55)
+        self.edit(other, {"kind": "remove_object", "object_ref": table})
+        self.edit(other, {"kind": "remove_object", "object_ref": "printer"})
+        self.assertEqual(self.plan(self.session())["assets"], [])
+        with TestClient(self.make_app()) as restarted:
+            fresh = restarted.post(self.base + "/sessions", json={"building_id": "test"}, headers={"Idempotency-Key": str(uuid4())}).json()
+            self.assertEqual(restarted.get(f"{self.base}/sessions/{fresh['id']}/floors/F0/plan").json()["assets"], [])
+        self.edit(other, {"kind": "undo_edit"})
+        self.assertEqual([asset["id"] for asset in self.plan(first)["assets"]], ["printer"])
+        self.assertEqual((self.data / "dev/test/building.json").read_bytes(), self.original)
+
+    def test_shared_objects_reject_stale_previews_and_unsafe_undo(self):
+        first, other = self.session(), self.session()
+        self.edit(first, {"kind": "add_opening", "opening_kind": "opening", "first_space": "left", "second_space": "right"})
+        path = f"{self.base}/sessions/{other['id']}"
+        stale = self.post(path + "/actions", {"kind": "add_object", "type": "desk", "space": "right"}).json()
+        self.edit(first, {"kind": "add_object", "type": "coffee_table", "space": "right"})
+        error = self.post(path + f"/actions/{stale['id']}/confirmations", status=409, schema="Error").json()
+        self.assertEqual(error["code"], "30012_revision_conflict")
+        self.assertEqual(error["details"][0]["field"], "object_revision")
+        self.edit(other, {"kind": "add_object", "type": "chair", "space": "right"})
+        self.assertEqual(len(self.plan(first)["openings"]), 1)
+        self.assertEqual(len(self.plan(other)["openings"]), 0)
+        self.assertEqual(len(self.plan(first)["assets"]), 3)
+        self.post(f"{self.base}/sessions/{first['id']}/actions", {"kind": "undo_edit"}, status=409)
+        self.assertEqual(len(self.plan(first)["assets"]), 3)
+
+    def test_shared_edit_during_model_turn_cannot_restore_old_inventory(self):
+        first, other = self.session(), self.session()
+        test = self
+        class EditingClient(ScriptedClient):
+            def tool_runner(self, **request):
+                test.edit(other, {"kind": "add_object", "type": "coffee_table", "space": "right"})
+                return super().tool_runner(**request)
+        self.model = EditingClient([[reply(answer("An answer from before the edit."))]])
+        result = self.client.post(f"{self.base}/sessions/{first['id']}/messages", json={"text": "What is in Right?"},
+                                  headers={"Idempotency-Key": str(uuid4())})
+        self.assertEqual(result.status_code, 409, result.text)
+        self.assertEqual(result.json()["details"][0]["field"], "object_revision")
+        self.assertEqual(len(self.plan(first)["assets"]), 2)
+        self.assertEqual(self.app.state.service.get(first["id"]).history, [])
+
+    def test_shared_object_concurrent_confirmations_do_not_lose_edits(self):
+        sessions = [self.session(), self.session()]
+        actions = [self.post(f"{self.base}/sessions/{session['id']}/actions", {"kind": "add_object", "type": kind, "space": "right"}).json()
+                   for session, kind in zip(sessions, ["desk", "chair"])]
+        barrier = threading.Barrier(2)
+        def confirm(index):
+            barrier.wait(timeout=3)
+            return self.client.post(f"{self.base}/sessions/{sessions[index]['id']}/actions/{actions[index]['id']}/confirmations",
+                                    json={}, headers={"Idempotency-Key": str(uuid4())}).status_code
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            statuses = list(pool.map(confirm, [0, 1]))
+        self.assertEqual(sorted(statuses), [200, 409])
+        loser = statuses.index(409)
+        self.edit(sessions[loser], {"kind": "add_object", "type": ["desk", "chair"][loser], "space": "right"})
+        self.assertEqual(len(self.plan(self.session())["assets"]), 3)
+
+    def test_shared_objects_cancel_isolation_and_invalid_file(self):
+        first = self.session()
+        path = f"{self.base}/sessions/{first['id']}"
+        action = self.post(path + "/actions", {"kind": "add_object", "type": "desk", "space": "right"}).json()
+        self.post(path + f"/actions/{action['id']}/cancellations", status=200)
+        store = self.app.state.service.object_store("test")
+        self.assertFalse(store.path.exists())
+        self.edit(first, {"kind": "add_object", "type": "desk", "space": "right"})
+        service = self.app.state.service
+        other_source = self.data / "dev/other/building.json"
+        other_source.parent.mkdir()
+        other_data = api_building()
+        other_data["building"]["id"] = "other"
+        other_source.write_text(json.dumps(other_data))
+        service.manifest["other"] = {**service.manifest["test"], "building_id": "other", "path": "dev/other"}
+        different_building = service.create("other", {"step_free": False})
+        self.assertEqual(set(service.get(different_building["id"]).map.assets), {asset["id"] for asset in api_building()["assets"]})
+        other_output = self.root / "different-output"
+        other_app = create_app(self.data, other_output, notes_database=self.root / "other-notes.sqlite3", api_token="")
+        with TestClient(other_app) as isolated:
+            fresh = isolated.post(self.base + "/sessions", json={"building_id": "test"}, headers={"Idempotency-Key": str(uuid4())}).json()
+            self.assertEqual(len(isolated.get(f"{self.base}/sessions/{fresh['id']}/floors/F0/plan").json()["assets"]), 1)
+        store.path.write_text('{"schema_version": 99}')
+        with TestClient(self.make_app()) as restarted, self.assertLogs("final_agent.api", "ERROR"):
+            result = restarted.post(self.base + "/sessions", json={"building_id": "test"}, headers={"Idempotency-Key": str(uuid4())})
+        self.assertEqual(result.status_code, 503)
+        self.assertEqual(result.json()["code"], "30018_object_state_unavailable")
 
     def test_object_editor_errors_and_failed_save(self):
         session = self.session()
@@ -541,12 +645,89 @@ class ApiTests(unittest.TestCase):
         self.assertIsNone(self.client.get(path).json()["pending_action_id"])
         action = self.post(path + "/actions", {"kind": "add_object", "type": "desk", "space": "right"}, schema="Action").json()
         url = path + "/actions/" + action["id"] + "/confirmations"
-        with mock.patch.object(BuildingMap, "save", side_effect=OSError("disk full")), self.assertLogs("final_agent.api", "ERROR"):
+        with mock.patch.object(ObjectStateStore, "save", side_effect=OSError("disk full")), self.assertLogs("final_agent.api", "ERROR"):
             self.assertEqual(self.post(url, status=500, schema="Error").json()["code"], "00001_internal")
         self.assertEqual(self.client.get(path).json()["pending_action_id"], action["id"])
         self.assertEqual([asset["id"] for asset in self.plan(session)["assets"]], ["printer"])
         self.assertEqual(self.app.state.service.get(session["id"]).map.undo_stack, [])
         self.assertEqual(self.post(url, status=200).json()["status"], "confirmed")
+        store = self.app.state.service.object_store("test")
+        previous = store.path.read_bytes()
+        current = self.app.state.service.get(session["id"])
+        object_id = next(asset_id for asset_id in current.map.assets if asset_id != "printer")
+        update = self.post(path + "/actions", {"kind": "update_object", "object_ref": object_id, "name": "Must not leak"}).json()
+        with mock.patch.object(JsonBuildingStore, "save", side_effect=OSError("disk full")), self.assertLogs("final_agent.api", "ERROR"):
+            self.post(path + f"/actions/{update['id']}/confirmations", status=500)
+        self.assertEqual(store.path.read_bytes(), previous)
+        self.assertEqual(store.state["revision"], 1)
+        self.assertNotEqual(current.map.assets[object_id]["name"], "Must not leak")
+
+    def test_object_edit_acknowledgements_ignore_old_pending_report_and_bad_model_claims(self):
+        session = self.session()
+        notes = RoomNoteStore(self.root / "notes.sqlite3")
+        note = notes.add("test", "right", "001", "A coffee table is missing from the map.", session_id=session["id"])
+        path = self.path(session)
+        object_id = None
+        for operation in ("add_object", "update_object", "remove_object"):
+            with self.subTest(operation=operation):
+                args = {"type": "coffee_table", "space": "right"} if operation == "add_object" else {"object": object_id}
+                if operation == "update_object":
+                    args["rotation_deg"] = 15
+                self.model.turns = [[reply(call(operation, **args)), reply(answer(
+                    "Added immediately, but a second user must approve it before it is saved.", "edit",
+                    summary="Waiting for a second user", speech_text="A second user must approve the change.",
+                    question="Can another user approve?"))]]
+                before = self.plan(session)["assets"]
+                result = self.post(path + "/messages", {"text": f"Please {operation}.", "input_mode": "voice"}, schema="MessageAccepted").json()
+                for message in (result["guide_message"]["text"], result["speech_text"], result["guide_message"]["understood"]["summary"]):
+                    self.assertNotIn("second", message.lower())
+                    self.assertNotIn("immediately", message.lower())
+                self.assertIn("Preview:", result["speech_text"])
+                self.assertIn("not saved yet", result["guide_message"]["text"])
+                history = self.app.state.service.get(session["id"]).history
+                self.assertEqual(history[-1]["content"][0].text, result["guide_message"]["text"])
+                self.assertEqual(self.plan(session)["assets"], before)
+                self.assertIsNone(result["guide_message"]["understood"].get("question"))
+                action = result["pending_action"]
+                confirmed = self.post(path + f"/actions/{action['id']}/confirmations", status=200).json()
+                if operation == "add_object":
+                    object_id = confirmed["result"]["changed_ids"][0]
+                fresh = self.app.state.service.get(self.session()["id"])
+                self.assertEqual(object_id in fresh.map.assets, operation != "remove_object")
+                pending = notes.active("test", ["right"], include_pending=True)
+                self.assertEqual([(row["note_id"], row["status"], row["confirmation_count"]) for row in pending], [(note["note_id"], "pending", 1)])
+        self.assertFalse(any(name in {"add_room_note", "confirm_room_note"} for name, _, _ in self.model.results))
+
+    def test_object_edit_keeps_separate_general_and_safety_reports(self):
+        session = self.session()
+        path = self.path(session)
+        for category, condition in (("general", "The printer is broken."), ("safety", "The floor is wet.")):
+            with self.subTest(category=category):
+                self.model.turns = [[reply(call("add_object", type="printer", space="right")),
+                                     reply(call("add_room_note", space="right", text=condition, category=category)),
+                                     reply(answer("Done.", "edit", speech_text="Done."))]]
+                result = self.post(path + "/messages", {"text": f"Add a printer to Right. {condition}", "input_mode": "voice"}).json()
+                self.assertIn("Confirm or cancel the map change", result["guide_message"]["text"])
+                self.assertIn(condition, result["guide_message"]["text"])
+                self.assertIn("Separately", result["guide_message"]["text"])
+                if category == "general":
+                    self.assertIn("separate report", result["speech_text"])
+                    self.assertIn("another chat", result["speech_text"])
+                else:
+                    self.assertIn(condition, result["speech_text"])
+                    self.assertNotIn("another chat", result["speech_text"])
+                self.post(path + f"/actions/{result['pending_action']['id']}/confirmations", status=200)
+        reports = RoomNoteStore(self.root / "notes.sqlite3").active("test", ["right"], include_pending=True)
+        self.assertEqual({note["category"]: note["status"] for note in reports}, {"general": "pending", "safety": "active"})
+
+    def test_object_edit_preserves_an_independently_requested_answer(self):
+        session = self.session()
+        detail = "Please confirm the desk preview. The room has an area of 16 square metres."
+        self.model.turns = [[reply(call("add_object", type="desk", space="right")),
+                             reply(answer(detail, "edit", speech_text="Confirm the desk preview. The room is 16 square metres.", has_other_answer=True))]]
+        result = self.post(self.path(session) + "/messages", {"text": "Add a desk to Right and tell me its room area.", "input_mode": "voice"}).json()
+        self.assertEqual(result["guide_message"]["text"], detail)
+        self.assertIn("16 square metres", result["speech_text"])
 
     def test_chat_editor_tools_only_propose_with_selected_object(self):
         self.model.turns = [[reply(call("add_object", type="desk", space="right")), reply(answer("Please confirm the desk.", "edit"))]]

@@ -42,6 +42,55 @@ bei bestätigten Änderungen geleert. Eine neue Route ausdrücklich berechnen.
 Es gibt höchstens eine offene Aktion pro Sitzung. Eine weitere Änderung erst
 nach Bestätigung/Abbruch vorschlagen; sonst folgt `30010_action_conflict`.
 
+### Shared room objects
+
+Confirmed furniture/equipment additions, removals and updates are shared immediately
+by all HTTP sessions for the same dataset/building, including edits to original
+objects. They survive backend restarts. New objects use the normal inventory,
+search, counts, navigation targets, 2D/3D rendering and stacking rules. One UI
+confirmation is sufficient; room reports keep their separate two-chat rule.
+Doors, passages, connectors, closures and conversations remain session-local.
+
+An explicit add/remove/update command is an editor task and must not also create a
+report that the object was added, removed or missing from the map. Pure edit
+acknowledgements use the application's actual pending action: the displayed object
+is a preview and one UI confirmation saves it. Separate room/object conditions
+remain reports with their own general/safety policy; their voting never approves
+or blocks the map edit. Independent answers and essential warnings remain intact.
+
+The API saves one atomic JSON file per dataset/building under
+`<--output>/shared_objects/<identity-hash>.json` (default:
+`agent_output/api/shared_objects/`). The file includes assets, stacking, custom
+heights, a source fingerprint and a shared revision. Reuse the same output and
+dataset paths after restarting. Source datasets and benchmark runs are unchanged;
+historical per-session exports are not merged automatically.
+
+`Session.object_revision` starts at zero and increases on shared object commits.
+The frontend polls the existing session endpoint every two seconds while visible,
+reloads its cached floors after changes and checks immediately on returning to the
+page. Selected removed objects, old routes and queued audio are cleared. Active
+guidance stops and can be requested again against the updated map.
+
+A stale preview returns 409 `30012_revision_conflict` with an `object_revision`
+detail. Review the updated map and create a new preview; do not replay the old
+confirmation. The editor keeps unsaved input and asks for review before a second
+Save. Another session's change clears unsafe snapshot undo history. Existing undo
+can reverse your recent edits while its shared state is still current; after a
+restart, use normal add/remove/update actions to reverse changes.
+
+A failed save rolls back the edit. An unreadable or incompatible saved inventory
+returns 503 `30018_object_state_unavailable`; the app does not silently substitute
+the original inventory. Restore the saved file or its matching source dataset.
+This local persistence supports the existing single-worker backend, not separate
+servers or devices running independent backend copies.
+
+Verification (25 October 2026): 45 API, 15 object-editor and 8 storage tests
+passed; all 44 API examples validated. The production frontend build and existing
+VAD/WAV/speech-queue checks passed. Two real Chrome sessions passed add, automatic
+refresh, retained draft/review, rename and removal. A sampled live STT/voice
+add-confirm/new-session-locate/remove-confirm flow also passed. The live check used temporary
+storage and real providers; it is not a general speech-accuracy benchmark.
+
 Raummeldungen funktionieren über den Chat. Sie verwenden standardmäßig
 `agent_output/room_notes.sqlite3` und die bestehende Facility-Ableitung aus
 Gebäudemetadaten bzw. `building.id`; `--notes-db` ändert den Speicherpfad.

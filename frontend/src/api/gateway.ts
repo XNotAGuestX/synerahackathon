@@ -6,7 +6,7 @@ export type InputMode = 'text' | 'transcript' | 'voice'
 
 export type GatewayConfig = { baseUrl: string }
 export type BuildingSummary = { id: string; name: string; floors: number; has_lift: boolean; has_step_free_entrance: boolean }
-export type Session = { id: string; building_id: string; building_name: string; revision: number; preferences: { step_free: boolean }; closed_ids?: string[]; last_route_id?: string | null; pending_action_id?: string | null }
+export type Session = { id: string; building_id: string; building_name: string; revision: number; object_revision?: number; preferences: { step_free: boolean }; closed_ids?: string[]; last_route_id?: string | null; pending_action_id?: string | null }
 export type Place = { id: string; kind: string; name: string; floor_id: string; floor_level: number; space_id: string | null; position: [number, number] | null }
 type CursorPage<T> = { items: T[]; next_cursor?: string | null }
 export type RouteRequest = { start_space_id: string; destination_space_id: string; step_free?: boolean; via?: string[] }
@@ -41,7 +41,7 @@ export interface BuildingGateway {
   updatePreferences(sessionId: string, preferences: { step_free: boolean }): Promise<Session>
   sendMessage(sessionId: string, text: string, inputMode?: InputMode, clientContext?: ClientContext): Promise<Reply>
   listObjectTypes(): Promise<ObjectCatalog>
-  createAction(sessionId: string, proposal: EditProposal): Promise<ActionResult>
+  createAction(sessionId: string, proposal: EditProposal, revision?: number): Promise<ActionResult>
   confirmAction(sessionId: string, actionId: string): Promise<ActionResult>
   cancelAction(sessionId: string, actionId: string): Promise<ActionResult>
   getAction(sessionId: string, actionId: string): Promise<ActionResult>
@@ -163,7 +163,7 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
       return normalizeReply(result)
     },
     async listObjectTypes() { return request<ObjectCatalog>(config, '/object-types') },
-    async createAction(sessionId, proposal) { return normalizeAction(await request<Action>(config, `/sessions/${sessionId}/actions`, json(proposal), requestId())) },
+    async createAction(sessionId, proposal, revision) { return normalizeAction(await request<Action>(config, `/sessions/${sessionId}/actions`, { ...json(proposal), ...(revision == null ? {} : { headers: { 'If-Match': `"${revision}"` } }) }, requestId())) },
     async confirmAction(sessionId, actionId) { return normalizeAction(await request<Action>(config, `/sessions/${sessionId}/actions/${actionId}/confirmations`, json({}), requestId())) },
     async cancelAction(sessionId, actionId) { return normalizeAction(await request<Action>(config, `/sessions/${sessionId}/actions/${actionId}/cancellations`, json({}), requestId())) },
     async getAction(sessionId, actionId) { return normalizeAction(await request<Action>(config, `/sessions/${sessionId}/actions/${actionId}`)) },

@@ -1,4 +1,5 @@
 export const copy = {
+  sharedObjectsChanged: 'The room objects changed. Your draft is kept. Review it against the updated map, then Save again.',
   title: 'Wayfinder',
   prompt: 'Where are you going?',
   placeholder: 'I am at the main entrance. How do I reach the CNC mill without stairs?',
@@ -300,14 +301,14 @@ export const copy = {
       codes: {
         '30014_invalid_placement': 'That placement is not possible here.',
         '30015_nothing_to_undo': 'Nothing to undo.',
-        '30016_not_removable': 'Only objects and connections added in this session can be removed.',
+        '30016_not_removable': 'Original doors and connectors cannot be removed. Close them instead.',
         '30007_not_adjacent': 'These rooms do not share a wall long enough for a door, or there is already one.',
         '30010_action_conflict': "Confirm or cancel the guide's pending change first.",
         '30013_element_not_found': 'That object no longer exists. The plan has been reloaded.',
         '30005_place_ambiguous': 'More than one object or room matches. Pick it on the map instead.',
         '30004_place_not_found': 'That room was not found on this map.',
         '30009_action_expired': 'The change expired. Save again.',
-        '30012_revision_conflict': 'The map changed in the meantime. Save again.',
+        '30012_revision_conflict': 'The map changed. Review the updated map and your draft, then Save again.',
         '30002_session_not_found': 'The session has ended. Reload the page to start a new one.',
         '20001_validation_failed': 'Some values are not valid.',
         '00001_internal': 'The guide service is unavailable. Your draft is kept.',

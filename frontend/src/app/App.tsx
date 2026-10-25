@@ -73,6 +73,11 @@ export function App() {
   const [loadError, setLoadError] = useState<UiError | null>(null)
   const [booting, setBooting] = useState(true)
   const [revision, setRevision] = useState(1)
+  const [objectRevision, setObjectRevision] = useState(0)
+  const objectRevisionRef = useRef(0)
+  const plansRef = useRef(plans)
+  plansRef.current = plans
+  const invalidateObjectsRef = useRef<() => void>(() => undefined)
   const [inputMode, setInputMode] = useState<InputMode>('text')
   const [stackOpen, setStackOpen] = useState(true)
   const [themeMode, setThemeMode] = useState<ThemeMode>(initialThemeMode)
@@ -112,6 +117,8 @@ export function App() {
     setBooting(true)
     window.localStorage.setItem('wayfinder-building', buildingId)
     setSessionId('')
+    objectRevisionRef.current = 0
+    setObjectRevision(0)
     setWalkerFloorId(null)
     walkerRef.current = null
     setHereId(null)
@@ -164,6 +171,8 @@ export function App() {
       if (cancelled) return
       setSessionId(session.id)
       setRevision(session.revision)
+      objectRevisionRef.current = session.object_revision ?? 0
+      setObjectRevision(session.object_revision ?? 0)
       setStepFree(session.preferences.step_free)
       setFloors(nextFloors)
       setPlans(new Map(nextPlans))
@@ -216,6 +225,8 @@ export function App() {
     const session = wanted === created.preferences.step_free ? created : await gateway.updatePreferences(created.id, { step_free: wanted })
     setSessionId(session.id)
     setRevision(session.revision)
+    objectRevisionRef.current = session.object_revision ?? 0
+    setObjectRevision(session.object_revision ?? 0)
     setStepFree(session.preferences.step_free)
     sessionRef.current = session.id
     writeRecovery({ id: session.id, buildingId: session.building_id, revision: session.revision, stepFree: session.preferences.step_free, lastRouteId: session.last_route_id ?? null, pendingActionId: session.pending_action_id ?? null })
@@ -300,17 +311,25 @@ export function App() {
   const refreshFloors = async (floorIds: string[]): Promise<Map<string, FloorPlan>> => {
     const id = sessionRef.current || sessionId
     if (!id || id.startsWith('local-')) return new Map()
-    const unique = [...new Set(floorIds)].filter((item) => plans.has(item) || floors.some((entry) => entry.id === item))
-    const [session, entries] = await Promise.all([
-      gateway.getSession(id),
-      Promise.all(unique.map(async (item) => [item, await gateway.getFloorPlan(id, item)] as const)),
-    ])
-    setRevision(session.revision)
-    setPlans((current) => { const next = new Map(current); for (const [item, nextPlan] of entries) next.set(item, nextPlan); return next })
-    return new Map(entries)
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const session = await gateway.getSession(id)
+      const changed = (session.object_revision ?? 0) !== objectRevisionRef.current
+      const unique = [...new Set(changed ? [...plansRef.current.keys(), ...floorIds] : floorIds)]
+      const entries = await Promise.all(unique.map(async (item) => [item, await gateway.getFloorPlan(id, item)] as const))
+      const latest = await gateway.getSession(id)
+      if (id !== sessionRef.current) return new Map()
+      if (latest.object_revision !== session.object_revision) continue
+      setRevision(latest.revision)
+      if (changed) invalidateObjectsRef.current()
+      objectRevisionRef.current = session.object_revision ?? 0
+      setObjectRevision(session.object_revision ?? 0)
+      setPlans((current) => { const next = new Map(current); for (const [item, nextPlan] of entries) next.set(item, nextPlan); return next })
+      return new Map(entries)
+    }
+    throw new Error(copy.sharedObjectsChanged)
   }
 
-  const editor = useObjectEditor({ sessionId, plans, floors, floorId: floor.id, selection, onSelect: setSelection, refreshFloors, buttonRef: editButtonRef })
+  const editor = useObjectEditor({ sessionId, objectRevision, plans, floors, floorId: floor.id, selection, onSelect: setSelection, refreshFloors, buttonRef: editButtonRef })
 
   // A click on the flat plan or the 3D stack; the 3D stack can pick items on other floors. Items open in the editor.
   const selectOnMap = (next: Selection) => {
@@ -502,6 +521,54 @@ export function App() {
     busy: loading || queuedMessages > 0, send: (text, signal, onStart) => sendText(text, pendingDestination, { signal, onStart }) })
   speakRef.current = voice.speakGuidance
 
+
+  invalidateObjectsRef.current = () => {
+    voice.interruptPlayback()
+    setPlaying(false)
+    setGuidedRoute(null)
+    setConfirmedEffects([])
+    setConfirmedNote(null)
+    setSampleId(null)
+    setLiveReply((current) => current ? { ...current, effects: [], routes: [], pending: null } : current)
+    setDecision(null)
+    setDirectionIndex(0)
+    feed.refresh()
+  }
+
+  const pollObjectsRef = useRef<(id: string, valid: () => boolean) => Promise<void>>(async () => undefined)
+  pollObjectsRef.current = async (id, valid) => {
+    const session = await gateway.getSession(id)
+    if (!valid() || (session.object_revision ?? 0) === objectRevisionRef.current) return
+    const entries = await Promise.all([...plansRef.current.keys()].map(async (floorId) => [floorId, await gateway.getFloorPlan(id, floorId)] as const))
+    // A second edit during the floor fetch is retried on the next tick; never mix revisions.
+    const latest = await gateway.getSession(id)
+    if (!valid() || latest.object_revision !== session.object_revision) return
+    invalidateObjectsRef.current()
+    objectRevisionRef.current = session.object_revision ?? 0
+    setObjectRevision(session.object_revision ?? 0)
+    setRevision(session.revision)
+    setPlans(new Map(entries))
+    setSelection((current) => current?.kind === 'asset' && !entries.some(([, plan]) => plan.assets.some((asset) => asset.id === current.id)) ? null : current)
+  }
+
+  useEffect(() => {
+    if (!sessionId || sessionId.startsWith('local-')) return
+    let cancelled = false
+    let polling = false
+    const valid = () => !cancelled && sessionRef.current === sessionId
+    const poll = async () => {
+      if (document.hidden || polling || !valid()) return
+      polling = true
+      try { await pollObjectsRef.current(sessionId, valid) }
+      catch (error: unknown) { if (valid()) setLoadError(toUiError(error)) }
+      finally { polling = false }
+    }
+    const timer = window.setInterval(() => { void poll() }, 2000)
+    document.addEventListener('visibilitychange', poll)
+    void poll()
+    return () => { cancelled = true; window.clearInterval(timer); document.removeEventListener('visibilitychange', poll) }
+  }, [sessionId])
+
   const changeInputMode = (mode: InputMode) => {
     if (mode === 'voice') {
       if (!sessionId || sessionId.startsWith('local-')) {
@@ -584,6 +651,7 @@ export function App() {
       const elementId = reply.pending.proposal.element_ref
       const action = await gateway.confirmAction(sessionId, reply.pending.id)
       const edit = editedFloors(action)
+      if (!sessionId.startsWith('local-')) await refreshFloors(edit?.floorIds.length ? edit.floorIds : [floor.id])
       if (edit) {
         setConfirmedEffects([])
         setAppliedClosed(null)
@@ -595,7 +663,6 @@ export function App() {
       }
       setDecision('confirmed')
       writeRecovery({ id: sessionId, buildingId, revision, stepFree, lastRouteId: null, pendingActionId: null })
-      if (!sessionId.startsWith('local-')) await refreshFloors(edit?.floorIds.length ? edit.floorIds : [floor.id])
     } catch (error: unknown) { setLoadError(toUiError(error)) } finally { setLoading(false) }
   }
   const cancel = async () => {

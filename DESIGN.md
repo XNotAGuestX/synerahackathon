@@ -101,6 +101,14 @@ Ablauf:
 4. Route oder Nachricht liefert `route_id` und `points` pro Etage.
 5. Eine Gebäudeänderung erscheint zuerst als `pending`. Nach der Bestätigung steigt `revision`.
 
+Bestätigte Möbel-/Geräteänderungen gelten gemeinsam pro Datensatz/Gebäude und bleiben
+nach Neustarts erhalten. `Session.object_revision` versioniert diesen Bestand;
+Höhen und Stapelbeziehungen werden mit den Objekten atomar gespeichert. Andere
+Sitzungen übernehmen Änderungen vor Zugriffen und im sichtbaren Browser alle zwei
+Sekunden. Alte Vorschauen werden verworfen (409 bei Bestätigungsversuch), unsichere
+Undo-Snapshots gelöscht und Routen/Sprachausgabe gestoppt. Türen, Verbindungen,
+Sperrungen und Gespräch bleiben sitzungsbezogen. Details: [Speichervertrag](docs/api/README.md#shared-room-objects).
+
 `revision` folgt nur dem Kartenzustand: Präferenz, Schließmenge, bestätigte Edits, `last_route_id`, `pending_action_id`. Reiner Text erhöht `revision` nicht.
 
 Stufenfrei: fehlt `preferences` beim Anlegen, ist `step_free` false. `PUT .../preferences` wird der spätere Default. Ein Satz darf das über `client_context.preferences.step_free` nur für diesen Turn übersteuern. Die Oberfläche zeigt `understood.constraints.step_free`.

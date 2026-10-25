@@ -495,6 +495,16 @@ npm run dev
 
 Claude-backed chat requires configured Anthropic credentials; use `uv run --env-file .env python -m final_agent.api` to load a local `.env`. It uses main's standard Anthropic SDK client. Main's map, report, emergency, campus and plan-workspace features remain available. The frontend retains discovery, text/transcript input, confirmed closures, route playback, floor stacking, map controls, plan import and the walk pad with its speed slider.
 
+Confirmed room-object edits now persist across HTTP sessions and backend restarts,
+including removals of original furniture/equipment. Other foreground sessions
+refresh within a few seconds. Objects behave normally in search, counts, maps and
+navigation targets. One confirmation saves an edit; room-report voting is separate.
+Explicit editor commands do not also create room reports; only separately stated
+conditions/facts follow the two-chat rule (concrete hazards are active immediately).
+Shared inventories live in `agent_output/api/shared_objects/` (or under `--output`);
+keep that directory across restarts. Structural edits and closures remain local to
+the session. See [shared object storage and conflicts](docs/api/README.md#shared-room-objects).
+
 All live browser chat and benchmark answers use main's agent implementation. The browser connects to the main API through `VITE_API_BASE_URL` (default `/api/v1`, proxied by Vite to port 8000). API failures remain visible. `scripts/serve_api.py` is a compatibility launcher for that same API. Static debug previews and both fixture sets remain; regenerate them with `uv run python scripts/generate_api_fixtures.py` and validate with `uv run python scripts/validate_api_fixtures.py`.
 
 ## 8. Licences

@@ -292,5 +292,6 @@ export function useVoice({ active, sessionId, busy, send }: Options) {
   }, [refresh, stopPlayback])
 
   return { state, level, muted, setMuted, ready, error, transcript, queued, enable,
-    finishSpeaking: () => finishRef.current(), speakGuidance }
+    finishSpeaking: () => finishRef.current(), speakGuidance,
+    interruptPlayback: () => { stopPlayback(); refresh() } }
 }

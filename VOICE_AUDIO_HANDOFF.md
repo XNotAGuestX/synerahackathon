@@ -39,6 +39,38 @@ and remote `main` were not changed. Branch-only changes were excluded.
 - Backgrounding the page pauses voice. Tap **Resume voice** after returning.
   This is a foreground browser feature, not lock-screen/background navigation.
 
+## Object edits and reports — follow-up
+
+Explicit add/remove/update requests use the object editor and require only the
+requesting user's Confirm button (or editor Save). A ghost on the map is a preview,
+not a saved object. Pure edit acknowledgements now come from the actual pending
+action in both written and spoken output, and the corrected wording is retained
+in conversation history. Existing unrelated pending reports cannot add a second
+user requirement to that acknowledgement. Independently requested answers and
+essential warnings are preserved.
+
+The prompts/tool descriptions prohibit saving a duplicate report merely recording
+an object addition/removal or a missing map object. A separately stated condition
+can still be reported alongside an edit. General facts/conditions need two distinct
+chats; concrete hazards become active immediately. The API's public shapes are
+unchanged.
+
+The requested local cleanup removed `Coffee table H-C2` through the normal shared
+edit mechanism and archived its obsolete missing-map report. A fresh session
+confirmed absence and all 505 other objects were unchanged. Historical exports
+were left intact.
+
+Focused checks (25 October 2026): 48 API tests and 12 room-report tests pass.
+Regression cases inject incorrect second-user wording with an existing pending
+report and cover add/update/remove, preview-only state, one confirmation,
+new-session persistence, mixed general/safety reports, retained independent answers
+and corrected conversation history. Real Chrome chat add/remove passed with one
+Confirm each; a second session saw the saved changes. Live STT/voice samples passed
+add/locate/remove without duplicate report/vote calls, general report activation
+only after two chats, and an immediate wet-floor safety report alongside an edit
+preview. All verification edits/reports used temporary data, apart from the
+explicitly requested H-C2 cleanup. These are sampled flows, not a speech benchmark.
+
 ## Run
 
 ```bash

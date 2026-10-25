@@ -1404,6 +1404,7 @@ components:
         - 30015_nothing_to_undo
         - 30016_not_removable
         - 30017_speech_clip_not_found
+        - 30018_object_state_unavailable
         - 40001_model_unavailable
         - 40002_model_rate_limited
         - 40003_model_timeout
@@ -1655,6 +1656,10 @@ components:
         revision:
           type: integer
           minimum: 1
+        object_revision:
+          type: integer
+          minimum: 0
+          description: Shared room-object revision; changes across sessions and survives server restarts.
         preferences:
           $ref: "#/components/schemas/Preferences"
         closed_ids:
@@ -2434,6 +2439,9 @@ components:
         speech_clip_id:
           type: [string, "null"]
           description: Clip der Guide-Antwort für `get_speech_clip`, nur bei Eingabe per Sprache (input_mode voice), sonst null.
+        speech_text:
+          type: [string, "null"]
+          description: Kurze gesprochene Zusammenfassung; guide_message.text enthält die vollständige Antwort. Bei Texteingabe null.
         session:
           $ref: "#/components/schemas/Session"
         user_message:

@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import json
 import logging
+import math
 import secrets
 import threading
 from dataclasses import dataclass, field
@@ -25,7 +26,7 @@ from .building_map import BuildingMap, MapError, RouteResult
 from .live import LiveState
 from .narration import landmark_candidates, narrate
 from .speech import REALTIME_URL, ClipCache, SpeechError, SpeechProvider
-from .storage import RoomNoteStore
+from .storage import ObjectStateStore, RoomNoteStore
 from .tools import ArgumentCheckedTool, as_json, make_tools, route_json
 from .viewer import landmark_targets, node_location, route_polylines
 from .waypoints import spoken_distance
@@ -62,6 +63,7 @@ ERRORS = {
     "30015_nothing_to_undo": (409, "There is no edit to undo."),
     "30016_not_removable": (409, "Element comes from the building data and cannot be removed."),
     "30017_speech_clip_not_found": (404, "Speech clip was not found."),
+    "30018_object_state_unavailable": (503, "Saved room objects could not be loaded. Restore the shared object file or use a matching source dataset; the original map has not been substituted."),
     "40001_model_unavailable": (503, "Model is unavailable."),
     "40002_model_rate_limited": (429, "Model rate limit exceeded."),
     "40003_model_timeout": (504, "Model timed out."),
@@ -132,6 +134,9 @@ class SessionState:
     lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
     route_results: dict[str, Any] = field(default_factory=dict)  # route id -> RouteResult; never on the wire
     live: LiveState = field(default_factory=lambda: LiveState(utc_now, identifier), repr=False)
+    object_revision: int = 0
+    action_object_revisions: dict[str, int] = field(default_factory=dict)
+    is_working_copy: bool = field(default=False, repr=False)
 
 
 class AskChoice(BaseModel):
@@ -150,6 +155,12 @@ class ApiReply(BaseModel):
     missing: list[Literal["start", "destination", "asset", "element"]]
     question: str | None
     options: list[AskChoice]
+    has_other_answer: bool = Field(default=False, description=(
+        "True only when the user needs an independent answer/clarification besides an object edit, "
+        "or essential safety warnings must be retained. False for pure add/remove/update requests, "
+        "including requests with a separately reported condition. Edit acknowledgement, preview "
+        "status and approval rules are not independent answers. Internal field; not sent to the UI."
+    ))
 
 
 class VoiceReply(ApiReply):
@@ -176,6 +187,21 @@ the object was moved. Confirmation/cancellation happens through the UI's action 
 Use intent edit for object, opening, connector and undo proposals (add_door keeps add_door).
 list_object_types only reads the catalog. selected_object_id in the turn context is the object,
 door or connector selected in the UI; "it" or "this" may refer to it. Use its id as the object.
+Confirmed additions, removals and updates to furniture/equipment persist for this building
+across chats and server restarts. They are normal map objects: search/count and inspect them
+with tools. One UI confirmation commits them; no second-chat report vote is needed.
+Room reports are separate. Structural edits and closures still belong to this chat.
+For an explicit add/remove/update request, call only the editor tool for that change;
+never also add/confirm a room report that the object exists, is missing from the map,
+was added or was removed. A separately stated fact (e.g. a printer fault) is reportable
+and follows its own voting rule. Clearly distinguish that report from the map edit.
+Only describe second-chat confirmation for an actual general report, never an edit.
+An object in preview_objects is a ghost preview, not a saved object. The requesting
+user's Confirm button (or editor Save) is the only approval for the map change.
+For pure object edits set has_other_answer=false: the application supplies the
+pending-action acknowledgement. Set it true only to preserve a separately requested
+answer/clarification or essential safety warning; keep that answer in text/speech_text.
+After a map-change conflict, read the latest map and propose a fresh preview for review.
 If an action is already pending, ask the user to confirm or cancel it before another proposal.
 Do not silently replace it. Do not attempt to confirm an action by another tool.
 show_location and show_route produce JSON map effects, not image files. A successful effect
@@ -206,6 +232,8 @@ class SessionService:
         self._lock = threading.RLock()
         self._cursor_secret = cursor_secret if cursor_secret is not None else secrets.token_bytes(32)
         self._buildings: dict[str, dict] = {}
+        self._base_maps: dict[str, BuildingMap] = {}
+        self._object_stores: dict[str, ObjectStateStore] = {}
         with (self.data_directory / "manifest.csv").open(encoding="utf-8", newline="") as handle:
             self.manifest = {row["building_id"]: row for row in csv.DictReader(handle)}
 
@@ -218,8 +246,89 @@ class SessionService:
                 path = (self.data_directory / row["path"]).resolve()
                 if not path.is_relative_to(self.data_directory):
                     raise ValueError("Manifest path is outside the configured dataset directory.")
-                self._buildings[building_id] = BuildingMap.load(path).data
+                self._base_maps[building_id] = BuildingMap.load(path)
+                self._buildings[building_id] = self._base_maps[building_id].data
             return self._buildings[building_id]
+
+    def object_store(self, building_id: str) -> ObjectStateStore:
+        with self._lock:
+            if building_id not in self._object_stores:
+                self.building_data(building_id)
+                base = self._base_maps[building_id]
+                try:
+                    store = ObjectStateStore(self.output_directory, self.data_directory, building_id, {
+                        "building": base.data, "stacking": base.stacking, "height_overrides": base.height_overrides,
+                    })
+                    # Validate saved records and stacking before making the inventory available.
+                    trial = base.clone()
+                    self.replace_objects(trial, store.state)
+                    self._object_stores[building_id] = store
+                except (OSError, ValueError, TypeError, KeyError, MapError) as error:
+                    LOG.exception("Could not load shared objects for %s", building_id)
+                    raise ApiError("30018_object_state_unavailable") from error
+            return self._object_stores[building_id]
+
+    @staticmethod
+    def object_inventory(building_map: BuildingMap) -> dict:
+        return {"assets": building_map.data["assets"], "stacking": building_map.stacking,
+                "height_overrides": building_map.height_overrides}
+
+    @staticmethod
+    def replace_objects(building_map: BuildingMap, state: dict) -> None:
+        from . import stacking
+
+        assets = copy.deepcopy(state["assets"])
+        ids = {asset["id"] for asset in assets}
+        if len(ids) != len(assets):
+            raise ValueError("Duplicate saved object ids.")
+        for asset in assets:
+            if (asset["space_id"] not in building_map.spaces
+                    or asset["floor_id"] != building_map.spaces[asset["space_id"]]["floor_id"]
+                    or len(asset["position"]) != 2):
+                raise ValueError("Saved object is not in a valid room/floor.")
+            if any(not isinstance(asset[name], str) or not asset[name] for name in ("id", "name", "type", "category")):
+                raise ValueError("Saved objects need non-empty ids, names, types and categories.")
+            footprint = asset["footprint"]
+            measurements = [*asset["position"], footprint["width_m"], footprint["depth_m"], footprint["rotation_deg"]]
+            if (any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)
+                    for value in measurements) or footprint["width_m"] <= 0 or footprint["depth_m"] <= 0):
+                raise ValueError("Saved object coordinates and dimensions are invalid.")
+        building_map.data["assets"] = assets
+        building_map.assets = {asset["id"]: asset for asset in assets}
+        building_map.stacking = copy.deepcopy(state["stacking"])
+        building_map.height_overrides = dict(state["height_overrides"])
+        document = building_map.stacking_document()
+        stacking.from_document(document, building_map.data["building"]["id"], ids)
+        building_map._spatial_index = None
+        building_map.forget_missing()
+
+    @staticmethod
+    def objects_changed() -> ApiError:
+        error = ApiError("30012_revision_conflict", [{"field": "object_revision", "code": "map_changed",
+                                                    "message": "The room objects changed. Review the updated map and submit the edit or request again."}])
+        error.message = "The map changed in another session. Review the updated map and try again."
+        return error
+
+    def sync_objects(self, session: SessionState) -> None:
+        """Refresh lazily; lock order is session -> building, never another session's lock."""
+        store = self.object_store(session.map.data["building"]["id"])
+        with session.lock, store.lock:
+            if session.object_revision == store.state["revision"]:
+                return
+            if session.is_working_copy:
+                raise self.objects_changed()
+            self.replace_objects(session.map, store.state)
+            session.object_revision = store.state["revision"]
+            session.map.undo_stack.clear()  # snapshots could otherwise restore somebody else's removed objects
+            session.map.last_route = None
+            session.map.active_request = None
+            session.last_route_id = None
+            session.route_results.clear()  # immutable route records remain readable, but cannot restart stale guidance
+            session.live.stop("map_changed", "The room objects changed. Ask for fresh directions.")
+            if session.pending_action_id:
+                session.actions[session.pending_action_id].update(status="cancelled", resolved_at=timestamp(self.clock()))
+                session.pending_action_id = None
+            self.bump(session)
 
     def page(self, items: list, cursor: str | None, limit: int, scope: object) -> dict:
         scope_hash = hashlib.sha256(json.dumps(scope, sort_keys=True).encode()).hexdigest()
@@ -248,11 +357,16 @@ class SessionService:
         for key, row in sorted(self.manifest.items()):
             if split is not None and row["split"] != split:
                 continue
+            asset_count = int(row["assets"])
+            if key in self._object_stores or ObjectStateStore.path_for(self.output_directory, self.data_directory, key).exists():
+                store = self.object_store(key)
+                with store.lock:
+                    asset_count = len(store.state["assets"])
             rows.append({
                 "id": key, "name": row["name"], "source": row["source"], "split": row["split"],
                 "license": row["license"], "level_count": int(row["floors"]),
                 "levels": [int(level) for level in row["levels"].split(";")],
-                "space_count": int(row["spaces"]), "asset_count": int(row["assets"]),
+                "space_count": int(row["spaces"]), "asset_count": asset_count,
                 **{name: row[name].lower() == "true" for name in ("has_stairs", "has_lift", "has_step_free_entrance")},
             })
         return self.page(rows, cursor, limit, ["buildings", split])
@@ -277,8 +391,13 @@ class SessionService:
 
     def create(self, building_id: str, preferences: dict) -> dict:
         now = timestamp(self.clock())
-        session = SessionState(self.new_id(), BuildingMap(copy.deepcopy(self.building_data(building_id))), now, now, preferences,
-                               live=self.new_live())
+        self.building_data(building_id)
+        store = self.object_store(building_id)
+        with store.lock:
+            building_map = self._base_maps[building_id].clone()
+            self.replace_objects(building_map, store.state)
+            session = SessionState(self.new_id(), building_map, now, now, preferences,
+                                   live=self.new_live(), object_revision=store.state["revision"])
         with self._lock:
             self.sessions[session.id] = session
         return self.view(session)
@@ -312,6 +431,7 @@ class SessionService:
             session = self.sessions.get(session_id)
         if session is None:
             raise ApiError("30002_session_not_found")
+        self.sync_objects(session)
         return session
 
     def delete(self, session_id: str) -> None:
@@ -340,10 +460,12 @@ class SessionService:
 
     def view(self, session: SessionState) -> dict:
         with session.lock:
+            self.sync_objects(session)
             self.expire(session)
             return {
                 "schema_version": 1, "id": session.id, "building_id": session.map.data["building"]["id"],
                 "building_name": session.map.data["building"]["name"], "revision": session.revision,
+                "object_revision": session.object_revision,
                 "preferences": dict(session.preferences), "closed_ids": sorted(session.map.closed),
                 "last_route_id": session.last_route_id, "pending_action_id": session.pending_action_id,
                 "created_at": session.created_at, "updated_at": session.updated_at,
@@ -351,6 +473,7 @@ class SessionService:
 
     def preferences(self, session: SessionState, preferences: dict, revision: int | None) -> dict:
         with session.lock:
+            self.sync_objects(session)
             self.expire(session)
             self.match(session, revision)
             if session.preferences != preferences:
@@ -360,11 +483,13 @@ class SessionService:
 
     def floor_index(self, session: SessionState) -> dict:
         with session.lock:
+            self.sync_objects(session)
             self.expire(session)
             return {"schema_version": 1, "session_id": session.id, "revision": session.revision, "floors": self.floors(session.map)}
 
     def floor_plan(self, session: SessionState, floor_id: str, included: list[str]) -> dict:
         with session.lock:
+            self.sync_objects(session)
             self.expire(session)
             floor = next((floor for floor in self.floors(session.map) if floor["id"] == floor_id), None)
             if floor is None:
@@ -409,6 +534,7 @@ class SessionService:
 
     def places(self, session: SessionState, query: str, level: int | None, kind: str | None, cursor: str | None, limit: int) -> dict:
         with session.lock:
+            self.sync_objects(session)
             self.expire(session)
             if level is not None and level not in {floor["level"] for floor in session.map.floors.values()}:
                 raise ApiError("30003_floor_not_found")
@@ -474,6 +600,7 @@ class SessionService:
 
     def create_route(self, session: SessionState, body: dict, revision: int | None) -> dict:
         with session.lock:
+            self.sync_objects(session)
             self.expire(session)
             self.match(session, revision)
             references = [body["start"], *body.get("via", []), body["destination"]]
@@ -541,10 +668,11 @@ class SessionService:
         return checked["proposal"], checked["summary"], effects
 
     def apply_change(self, session: SessionState, proposal: dict) -> dict:
-        """Apply a confirmed building change and save the session's files; on any failure nothing changes."""
+        """Publish room objects atomically; structural edits still belong to this session."""
         target = self.output_directory / session.id / EDITED_FILE
+        store = self.object_store(session.map.data["building"]["id"])
         try:
-            with session.map.transaction():
+            with store.lock, session.map.transaction():
                 if proposal["kind"] == "add_door":
                     opening = self.existing_door(session.map, proposal)
                     if opening is None:
@@ -552,7 +680,13 @@ class SessionService:
                     result = {"kind": "add_door", "opening": self.opening(opening)}
                 else:
                     result = project(object_edits.apply_edit(session.map, proposal), "kind summary changed_ids removed_ids floor_ids")
-                session.map.save(target)
+                inventory = self.object_inventory(session.map)
+                if inventory != {key: store.state[key] for key in inventory}:
+                    session.object_revision = store.save(inventory)
+                    session.route_results.clear()
+                    session.live.stop("map_changed", "The room objects changed. Ask for fresh directions.")
+                else:
+                    session.map.save(target)
         except MapError as error:
             raise edit_error(error) from error
         except (OSError, TypeError, ValueError) as error:
@@ -567,6 +701,7 @@ class SessionService:
 
     def propose(self, session: SessionState, proposal: dict, revision: int | None) -> dict:
         with session.lock:
+            self.sync_objects(session)
             self.expire(session)
             self.match(session, revision)
             if session.pending_action_id is not None:
@@ -593,23 +728,29 @@ class SessionService:
                 "result": None, "created_at": timestamp(now), "expires_at": timestamp(now + timedelta(minutes=15)), "resolved_at": None,
             }
             session.actions[action["id"]] = action
+            session.action_object_revisions[action["id"]] = session.object_revision
             session.pending_action_id = action["id"]
             self.bump(session)
             return copy.deepcopy(action)
 
     def action(self, session: SessionState, action_id: str) -> dict:
         with session.lock:
+            self.sync_objects(session)
             self.expire(session)
             if action_id not in session.actions:
                 raise ApiError("30008_action_not_found")
             return copy.deepcopy(session.actions[action_id])
 
     def finish_action(self, session: SessionState, action_id: str, confirm: bool, revision: int | None) -> dict:
-        with session.lock:
+        with session.lock, self.object_store(session.map.data["building"]["id"]).lock:
+            self.sync_objects(session)
             self.expire(session)
             action = session.actions.get(action_id)
             if action is None:
                 raise ApiError("30008_action_not_found")
+            if (confirm and action["status"] != "confirmed"
+                    and session.action_object_revisions.get(action_id, session.object_revision) != session.object_revision):
+                raise self.objects_changed()
             target = "confirmed" if confirm else "cancelled"
             if action["status"] == target:
                 return copy.deepcopy(action)
@@ -717,6 +858,8 @@ class SessionService:
             copy.deepcopy(session.routes), copy.deepcopy(session.actions),
             copy.deepcopy(session.transcript), copy.deepcopy(session.history),
             route_results=dict(session.route_results), live=session.live,  # live is shared, never copied
+            object_revision=session.object_revision, action_object_revisions=dict(session.action_object_revisions),
+            is_working_copy=True,
         )
 
     @staticmethod
@@ -742,6 +885,7 @@ class SessionService:
 
     def message(self, session: SessionState, body: dict, revision: int | None) -> dict:
         with session.lock:
+            self.sync_objects(session)
             self.expire(session)
             self.match(session, revision)
             work = self.working_copy(session)
@@ -777,6 +921,22 @@ class SessionService:
             spoken = reply.speech_text.strip() if isinstance(reply, VoiceReply) else None
             if voice and not spoken:
                 raise ValueError("Voice reply contained no spoken summary.")
+            acknowledgement = bridge.object_edit_acknowledgement()
+            if acknowledgement is not None and not reply.has_other_answer:
+                # Tool evidence owns edit status. Old room-report context cannot add a vote requirement.
+                reply.text, spoken_edit = acknowledgement
+                spoken = spoken_edit if voice else None
+                reply.intent = "edit"
+                reply.summary = work.actions[bridge.object_action_id]["summary"]
+                reply.question, reply.options, reply.missing = None, [], []
+                # Keep the corrected acknowledgement in future turns too, preserving all tool exchanges.
+                if work.history and work.history[-1]["role"] == "assistant":
+                    content = work.history[-1]["content"]
+                    if not isinstance(content, list) or not any(
+                        (block.get("type") if isinstance(block, dict) else getattr(block, "type", None)) == "tool_use"
+                        for block in content
+                    ):
+                        work.history[-1] = {"role": "assistant", "content": [anthropic.types.TextBlock(type="text", text=reply.text)]}
             # A voice route request means "walk me there": guide it even if the model forgot start_guidance,
             # and speak a one-line lead-in instead of reading every direction at once.
             if voice and reply.intent == "route" and bridge.guidance_request is None and bridge.guidance_problem() is None:
@@ -827,11 +987,14 @@ class SessionService:
             guide_message = {"id": self.new_id(), "session_id": session.id, "role": "guide", "text": reply.text,
                              "created_at": now, "understood": understood, "effects": effects, "pending_action_id": work.pending_action_id}
             # Model work never holds the session lock. Competing turns cannot overwrite newer state.
-            with session.lock:
+            with session.lock, self.object_store(session.map.data["building"]["id"]).lock:
                 with self._lock:
                     if self.sessions.get(session.id) is not session:
                         raise ApiError("30002_session_not_found")
+                self.sync_objects(session)
                 self.expire(session)
+                if session.object_revision != work.object_revision:
+                    raise self.objects_changed()
                 if session.revision != base_revision or len(session.history) != history_length:
                     raise ApiError("30012_revision_conflict")
                 changed = (work.preferences != session.preferences or work.last_route_id != session.last_route_id or work.pending_action_id != session.pending_action_id)
@@ -851,7 +1014,7 @@ class SessionService:
                 # Validate JSON before committing session state. Room reports are already saved
                 # per tool call; a retry cannot add votes because each chat counts once.
                 json.dumps(response, allow_nan=False)
-                for name in ("map", "revision", "updated_at", "last_route_id", "pending_action_id", "routes", "actions", "transcript", "history", "route_results"):
+                for name in ("map", "revision", "updated_at", "last_route_id", "pending_action_id", "routes", "actions", "transcript", "history", "route_results", "action_object_revisions"):
                     setattr(session, name, getattr(work, name))
                 if bridge.guidance_request is not None:
                     action, route_id = bridge.guidance_request
@@ -905,6 +1068,8 @@ class TurnTools:
         self._route_objects: dict[int, str] = {}
         self.guided_route_id: str | None = None  # last reachable route this turn drew
         self.guidance_request: tuple[str, str | None] | None = None
+        self.object_action_id: str | None = None
+        self.report_outcomes: dict[int, dict] = {}
 
         def set_closed(element: str, closed: bool) -> str:
             """Propose closing/reopening an element. No edit is applied; the UI must confirm the pending action.
@@ -942,6 +1107,8 @@ class TurnTools:
         ) -> str:
             """PROPOSE adding an object (furniture, equipment, fixture, machine) to a room or on top of other objects.
 
+            This is a map-edit preview, not a room report. Only this user's UI confirmation is needed,
+            never a second user/chat. Do not also save/confirm a report duplicating this addition.
             Nothing changes until the user confirms the pending action in the UI. With only `space` the object
             goes to the room's centre point; with only `on_top_of` onto the centre of those objects; `position`
             (local metres) needs `space` or `floor_level`. Never invent coordinates. Size and height default to
@@ -975,7 +1142,8 @@ class TurnTools:
         ) -> str:
             """PROPOSE changing, moving, turning, resizing or restacking an object, or changing a door or connector.
 
-            Nothing changes until the user confirms the pending action in the UI. Only the given arguments
+            Only this user's UI confirmation is needed, never a second chat. Do not duplicate this edit
+            as a room report. Nothing changes until the user confirms the pending action in the UI. Only the given arguments
             change. "Put X on Y" is on_top_of=[Y]; "take X off" / "put it on the floor" is on_top_of=[].
             Moving to another room without on_top_of puts it on the floor there; everything on top moves along.
             Doors accept opening_kind, width_m and step_free; stairs/escalators/lifts accept name and step_free.
@@ -1006,6 +1174,7 @@ class TurnTools:
         def remove_object(object: str) -> str:
             """PROPOSE removing an object with everything on top of it, or a door/connector added in this session.
 
+            Only this user's UI confirmation is needed, never a second chat or a duplicate room report.
             Nothing changes until the user confirms. Doors, stairs and lifts from the building data cannot be
             removed (propose closing them with set_closed instead).
 
@@ -1140,10 +1309,34 @@ class TurnTools:
     def proposal(self, proposal: dict) -> str:
         try:
             action = self.service.propose(self.work, proposal, None)
+            if proposal["kind"] in {"add_object", "remove_object", "update_object"}:
+                self.object_action_id = action["id"]
             self.effects.extend(action["preview_effects"])
             return as_json({"applied": False, "confirmation_required": True, "pending_action": action})
         except ApiError as error:
             raise ToolError(f"{error.message} {as_json(error.details)} Confirm or cancel the current pending action if one exists.") from error
+
+    def object_edit_acknowledgement(self) -> tuple[str, str] | None:
+        if self.object_action_id is None:
+            return None
+        action = self.work.actions[self.object_action_id]
+        if action["status"] != "pending":
+            return None
+        summary = action["summary"]
+        written = f"Preview: {summary} Confirm or cancel the map change in the app; it is not saved yet."
+        spoken = f"Preview: {summary} Confirm the map change in the app to save it."
+        for note in self.report_outcomes.values():
+            if note["status"] == "pending":
+                written += f" Separately, your report: {note['text']} It is recorded but needs a second chat's confirmation before it is shared."
+                spoken += " Your separate report is recorded and needs confirmation from another chat."
+            elif note["status"] == "resolved":
+                written += f" Separately, the report was resolved: {note['text']}"
+                spoken += " The separate report is resolved."
+            else:
+                label = "Safety report" if note["category"] == "safety" else "Report"
+                written += f" Separately, {label.lower()} is active: {note['text']}"
+                spoken += f" {label}: {note['text']}"
+        return written, spoken
 
     def observe(self, name: str, arguments: dict, result: dict) -> None:
         if name in {"search_building", "list_spaces", "spatial_search"}:
@@ -1160,6 +1353,8 @@ class TurnTools:
             self.space_ids.add(result["room"]["id"])
         if isinstance(result.get("note"), dict) and result["note"].get("space_id") in self.work.map.spaces:
             self.space_ids.add(result["note"]["space_id"])
+            if name in {"add_room_note", "confirm_room_note", "resolve_room_note"}:
+                self.report_outcomes[result["note"]["note_id"]] = result["note"]
         if name == "get_room_notes":
             self.space_ids.update(result["checked_space_ids"])
         if name in {"reachable_rooms", "count_shared_walls", "analyze_what_if_door"}:
