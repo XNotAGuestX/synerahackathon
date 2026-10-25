@@ -678,7 +678,7 @@ class ApiTests(unittest.TestCase):
 
     GUIDE = [reply(call("find_route", start="left", destination="upstairs")), reply(call("start_guidance")), reply(answer("Going upstairs."))]
 
-    def test_voice_turn_uses_voice_prompt_low_effort_live_position_and_speech_clip(self):
+    def test_voice_turn_uses_voice_prompt_haiku_high_effort_live_position_and_speech_clip(self):
         session = self.session()
         self.fix(session, -2, 0)
         result = self.turn(session, [reply(answer("Hi."))], input_mode="voice")
@@ -686,7 +686,7 @@ class ApiTests(unittest.TestCase):
         system = request["system"][0]["text"]
         self.assertIn("# Voice turn", system)
         self.assertIn('"live_position": {"space_id": "left"', system)
-        self.assertEqual(request["output_config"], {"effort": "low"})
+        self.assertEqual((request["model"], request["output_config"]), ("claude-haiku-5-5", {"effort": "high"}))
         clip = self.client.get(self.path(session) + "/speech-clips/" + result["speech_clip_id"])
         self.assertEqual((clip.headers["content-type"], clip.content), ("audio/mpeg", b"ID3Hi."))
 
@@ -703,6 +703,17 @@ class ApiTests(unittest.TestCase):
         self.turn(session, self.GUIDE, input_mode="voice")
         feed = self.client.get(self.path(session) + "/guidance").json()
         self.assertEqual((feed["guidance"]["status"], feed["events"][0]["kind"]), ("active", "instruction"))
+
+    def test_voice_route_without_start_guidance_still_guides_and_speaks_a_lead_in(self):
+        session = self.session()
+        self.fix(session, -2, 0)
+        script = [reply(call("find_route", start="left", destination="upstairs")),
+                  reply(answer("Go through the door, take the stairs up, then turn right into Upstairs.", intent="route"))]
+        result = self.turn(session, script, input_mode="voice")
+        feed = self.client.get(self.path(session) + "/guidance").json()
+        self.assertEqual((feed["guidance"]["status"], feed["events"][0]["kind"]), ("active", "instruction"))
+        clip = self.client.get(self.path(session) + "/speech-clips/" + result["speech_clip_id"])
+        self.assertTrue(clip.content.startswith(b"ID3Heading to "), clip.content)
 
     def test_start_guidance_from_another_room_is_a_tool_error(self):
         session = self.session()

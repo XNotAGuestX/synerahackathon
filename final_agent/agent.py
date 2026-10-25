@@ -20,6 +20,9 @@ MODEL = MODELS[DEFAULT_MODEL]
 MAX_TOKENS = 16000
 MAX_TOOL_ITERATIONS = 20
 EFFORT = "medium"
+# Voice turns run on Haiku at high effort: low effort ignored the voice rules and skipped start_guidance.
+VOICE_MODEL = MODELS["haiku"]
+VOICE_EFFORT = "high"
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 # Haiku 5.5 has no server-side fallback: a declined request stays declined, and the reply says so.
 FALLBACK_MODELS = {MODELS["opus"], MODELS["sonnet"]}
@@ -41,7 +44,8 @@ The user is talking to you while walking through the building, and your reply `t
 
 Guidance: the app speaks every step of a route by itself once guidance has started.
 - For a new destination or constraint, route from the live position with find_route, then call start_guidance.
-- After start_guidance, say one lead-in line only: the destination and a rough distance.
+  Do not call show_route as well; find_route already draws the route.
+- After start_guidance, say one lead-in line only: the destination and a rough distance. Never list the steps.
 - When the user asks to stop or cancel guidance, call stop_guidance.
 """
 DEFAULT_OUTPUT_DIRECTORY = Path("agent_output")

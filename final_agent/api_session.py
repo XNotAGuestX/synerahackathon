@@ -20,7 +20,7 @@ from anthropic.lib.tools import BetaBuiltinFunctionTool, ToolError
 from pydantic import BaseModel, ConfigDict
 
 from . import object_edits
-from .agent import EFFORT, MODELS, VOICE_PROMPT, BuildingAgent, MissingCredentialsError
+from .agent import EFFORT, MODEL, MODELS, VOICE_EFFORT, VOICE_MODEL, VOICE_PROMPT, BuildingAgent, MissingCredentialsError
 from .building_map import BuildingMap, MapError, RouteResult
 from .live import LiveState
 from .narration import landmark_candidates, narrate
@@ -28,6 +28,7 @@ from .speech import ClipCache, SpeechError, SpeechProvider
 from .storage import RoomNoteStore
 from .tools import ArgumentCheckedTool, as_json, make_tools, route_json
 from .viewer import landmark_targets, node_location, route_polylines
+from .waypoints import spoken_distance
 
 LOG = logging.getLogger("final_agent.api")
 EDITED_FILE = "building_edited.json"
@@ -752,10 +753,18 @@ class SessionService:
                 work.map, self.output_directory / session.id, client=client,
                 registered_tools=bridge.tools, response_format=ApiReply,
                 turn_context=turn_context + "\nCurrent turn context: " + json.dumps({**context, "step_free_default": step_free, **live_context}),
-                request_timeout=self.model_timeout, effort="low" if voice else EFFORT,
+                request_timeout=self.model_timeout, effort=VOICE_EFFORT if voice else EFFORT, model=VOICE_MODEL if voice else MODEL,
             )
             agent.messages = work.history
             reply = ApiReply.model_validate_json(agent.ask(body["text"]))
+            spoken = reply.text
+            # A voice route request means "walk me there": guide it even if the model forgot start_guidance,
+            # and speak a one-line lead-in instead of reading every direction at once.
+            if voice and reply.intent == "route" and bridge.guidance_request is None and bridge.guidance_problem() is None:
+                bridge.guidance_request = ("start", bridge.guided_route_id)
+            if voice and bridge.guidance_request is not None and bridge.guidance_request[0] == "start":
+                record = work.routes[bridge.guidance_request[1]]
+                spoken = f"Heading to {work.map.spaces[record['destination_space_id']]['name']}, {spoken_distance(record['length_m'])}."
             effects = bridge.effects
             if reply.intent == "locate" and not any(effect["type"] == "highlight_spaces" for effect in effects):
                 if bridge.space_ids:
@@ -822,7 +831,7 @@ class SessionService:
                     else:
                         session.live.stop("user")
                 if voice:
-                    response["speech_clip_id"] = session.live.clip(reply.text)
+                    response["speech_clip_id"] = session.live.clip(spoken)
                 return response
         except anthropic.RateLimitError as error:
             raise ApiError("40002_model_rate_limited", retry_after=1) from error
@@ -1061,23 +1070,18 @@ class TurnTools:
 
         def start_guidance() -> str:
             """Start spoken step-by-step guidance along the route computed this turn. Starts after this reply."""
+            problem = self.guidance_problem()
+            if problem is not None:
+                raise ToolError(problem)
             route_id = self.guided_route_id
-            if route_id is None:
-                raise ToolError("Call find_route from the user's live position first.")
-            record = work.routes[route_id]
-            position = work_live.position_view()
-            if position and position["tracking"] == "live" and position["space_id"] not in (None, record["start_space_id"]):
-                names = [work.map.spaces[space]["name"] for space in (position["space_id"], record["start_space_id"])]
-                raise ToolError(f"The user is in {names[0]}, but the route starts in {names[1]}. Call find_route from the live position first.")
             self.guidance_request = ("start", route_id)
-            return as_json({"guidance": "will start after this reply", "destination": work.map.spaces[record["destination_space_id"]]["name"]})
+            return as_json({"guidance": "will start after this reply", "destination": work.map.spaces[work.routes[route_id]["destination_space_id"]]["name"]})
 
         def stop_guidance() -> str:
             """Stop the running spoken guidance. Takes effect after this reply."""
             self.guidance_request = ("stop", None)
             return as_json({"guidance": "will stop after this reply"})
 
-        work_live = work.live
         overrides = {function.__name__: ArgumentCheckedTool(function) for function in (
             set_closed, add_door, add_object, update_object, remove_object, add_opening, add_connector,
             undo_last_edit, show_location, show_route,
@@ -1085,6 +1089,18 @@ class TurnTools:
         originals = make_tools(work.map, service.output_directory / work.id, notes_store=store, session_id=work.id)
         self.tools = [ObservedTool(overrides.get(tool.name, tool), self.observe, step_free, self.failed) for tool in originals]
         self.tools += [ArgumentCheckedTool(function) for function in (start_guidance, stop_guidance)]
+
+    def guidance_problem(self) -> str | None:
+        """Why the route drawn this turn cannot be guided from the user's live position; None if it can."""
+        route_id = self.guided_route_id
+        if route_id is None or not self.work.routes[route_id]["reachable"]:
+            return "Call find_route from the user's live position first."
+        record = self.work.routes[route_id]
+        position = self.work.live.position_view()
+        if position and position["tracking"] == "live" and position["space_id"] not in (None, record["start_space_id"]):
+            names = [self.work.map.spaces[space]["name"] for space in (position["space_id"], record["start_space_id"])]
+            return f"The user is in {names[0]}, but the route starts in {names[1]}. Call find_route from the live position first."
+        return None
 
     def failed(self, name: str) -> None:
         if name == "find_route":
@@ -1144,4 +1160,5 @@ class TurnTools:
                 self.route_ids.append(route_id)
                 self.guided_route_id = route_id
                 self.space_ids.update(route.space_path)
-                self.effects.append({"type": "draw_route", "route_id": route_id})
+                if {"type": "draw_route", "route_id": route_id} not in self.effects:
+                    self.effects.append({"type": "draw_route", "route_id": route_id})
