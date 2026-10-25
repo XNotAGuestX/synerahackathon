@@ -201,7 +201,8 @@
   font: var(--font-weight-semibold) var(--font-size-title) / 1.25 var(--font-family-title);
 }
 .chat-heading p { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-label); }
-.chat-heading .input-mode { justify-self: start; }
+.chat-heading .input-mode,
+.chat-heading .route-filters { justify-self: start; }
 .chat-avatar {
   display: grid;
   place-items: center;

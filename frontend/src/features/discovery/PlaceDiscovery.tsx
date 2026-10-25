@@ -8,14 +8,12 @@ import { copy } from '../../i18n/en'
 type PlaceDiscoveryProps = {
   plans: FloorPlan[]
   floors: FloorSummary[]
-  stepFree: boolean
   busyId: string | null
-  onToggleStepFree: () => void
   onFocus: (place: DiscoveryPlace) => void
   onRoute: (place: DiscoveryPlace) => void
 }
 
-export function PlaceDiscovery({ plans, floors, stepFree, busyId, onToggleStepFree, onFocus, onRoute }: PlaceDiscoveryProps) {
+export function PlaceDiscovery({ plans, floors, busyId, onFocus, onRoute }: PlaceDiscoveryProps) {
   const categories = useMemo(() => buildDiscovery(plans, floors), [plans, floors])
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [typeId, setTypeId] = useState<string | null>(null)
@@ -92,10 +90,6 @@ export function PlaceDiscovery({ plans, floors, stepFree, busyId, onToggleStepFr
         </form>
         <button type="button" className="discover-browse-toggle" aria-expanded={open} aria-controls={open ? panelId : undefined} onClick={() => setOpen((value) => !value)}>
           {copy.browse}<span className="discover-chevron" aria-hidden="true" />
-        </button>
-        <button type="button" className="step-free-toggle" aria-pressed={stepFree} aria-label={copy.stepFree} onClick={onToggleStepFree}>
-          <span className="switch-track" aria-hidden="true"><span /></span>
-          <span className="step-free-label">{copy.stepFree}</span>
         </button>
       </div>
       {open && <div id={panelId} className="discover-panel">

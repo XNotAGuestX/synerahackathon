@@ -94,6 +94,9 @@ type GuidePanelProps = {
   onStopGuidance: () => void
   inputRef: RefObject<HTMLTextAreaElement | null>
   floors: FloorSummary[]
+  forklift: boolean
+  onToggleStepFree: () => void
+  onToggleForklift: () => void
 }
 
 export function readableDirection(text: string): string {
@@ -120,7 +123,7 @@ const COMPOSER_MAX_PX = 160
 
 export function GuidePanel({ comparisonVisible = false, onClearComparison, query, messages, busy, ready, connection, suggestions, stepFree, activeRoute, activeMessageId,
   pendingActionId, onQuery, onSubmit, onChoose, onRetry, onConfirm, onCancel,
-  onShowMap, onShowFloor, onAllowStairs, onChooseStart, inputMode, onInputMode, voice, guidanceActive, onStopGuidance, inputRef, floors }: GuidePanelProps) {
+  onShowMap, onShowFloor, onAllowStairs, onChooseStart, inputMode, onInputMode, voice, guidanceActive, onStopGuidance, inputRef, floors, forklift, onToggleStepFree, onToggleForklift }: GuidePanelProps) {
   const feedRef = useRef<HTMLDivElement>(null)
   const nearBottom = useRef(true)
   const speechRef = useRef<BrowserSpeech | null>(null)
@@ -169,6 +172,10 @@ export function GuidePanel({ comparisonVisible = false, onClearComparison, query
     <header className="chat-heading">
       <div className="chat-title"><span className="chat-avatar" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 5h16v11H9l-5 4V5Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg></span><div><h2>{copy.guideTitle}</h2><p>{busy ? copy.guideBusy : copy.guideIntro}</p></div></div>
       <div className="input-mode segmented" role="group" aria-label="Input mode"><button type="button" aria-pressed={inputMode === 'text'} onClick={() => onInputMode('text')}>{copy.textMode}</button><button type="button" aria-pressed={inputMode === 'transcript'} onClick={() => onInputMode('transcript')}>{copy.transcriptMode}</button><button type="button" aria-pressed={inputMode === 'voice'} onClick={() => onInputMode('voice')}>{copy.voiceMode}</button></div>
+      <div className="route-filters segmented" role="group" aria-label={copy.routeFilters}>
+        <button type="button" aria-pressed={stepFree} disabled={busy} onClick={onToggleStepFree}>{copy.stepFree}</button>
+        <button type="button" aria-pressed={forklift} title={copy.forkliftHint} onClick={onToggleForklift}>{copy.forklift}</button>
+      </div>
     </header>
     {inputMode === 'voice' && <div className="voice-bar chat-voice-bar">
       <span className={`voice-pill ${voice.muted ? 'muted' : voice.state}`} role="status">{voice.muted ? copy.voiceMuted : voiceLabels[voice.state]}</span>

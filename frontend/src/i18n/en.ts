@@ -240,6 +240,7 @@ export const copy = {
     legendMarked: 'Marked outside',
   },
   stackToggle: '3D stack',
+  routeFilters: 'Route filters',
   forklift: 'Forklift',
   forkliftHint: 'Show the forklift route beside the walking route',
   forkliftWorking: 'Checking the forklift route…',
