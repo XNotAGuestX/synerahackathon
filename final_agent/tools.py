@@ -1253,7 +1253,8 @@ def make_emergency_tools(building_map: BuildingMap, output_directory: Path) -> l
     def start_emergency_mode(reason: str) -> str:
         """Start emergency mode: every phone is tracked and listed as inside or outside the building.
 
-        MOCK: the phones and how their owners leave are simulated; say so once. Call this only when the user
+        MOCK: the phones and how their owners leave are simulated; say so once. Three people start already
+        outside, marked by the assembly point warden (showcase data). Call this only when the user
         explicitly asks to start an emergency alarm, never for a hypothetical question. Returns the counts,
         each person's status ("inside", "outside" or "outside_manual"), their room (space_id, space_name) and
         one map image per floor.

@@ -54,8 +54,10 @@ type PlanCanvasProps = {
   editor?: EditorOverlay | null
   /** Ghosts for a guide proposal that waits for confirmation. */
   preview?: PreviewObjects | null
-  /** Emergency mode: phones on this floor, coloured by inside/outside. Only the admin view passes them. */
+  /** Emergency mode: people still inside on this floor, drawn with their names during an alarm. */
   people?: PlanPerson[]
+  /** Person picked in the emergency list; gets a ring. */
+  focusedPersonId?: string | null
 }
 
 export type PlanPerson = { id: string; label: string; status: 'inside' | 'outside' | 'outside_manual'; stale: boolean; position: Point }
@@ -172,6 +174,7 @@ function InteractivePlan({
   editor = null,
   preview = null,
   people = [],
+  focusedPersonId = null,
 }: PlanCanvasProps & { plan: FloorPlan }) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [zoom, setZoom] = useState(1)
@@ -625,9 +628,13 @@ function InteractivePlan({
           {mockPoint && <circle className="mock-marker" cx={mockPoint[0]} cy={mockPoint[1]} r={1.3} />}
           {people.length > 0 && <g className="emergency-people">
             {people.map((person) => (
-              <circle key={person.id} className={`emergency-person ${person.status}${person.stale ? ' stale' : ''}`} cx={person.position[0]} cy={person.position[1]} r={0.75}>
-                <title>{person.label}</title>
-              </circle>
+              <g key={person.id} className={`emergency-person ${person.status}${person.stale ? ' stale' : ''}`}>
+                {person.id === focusedPersonId && <circle className="emergency-person-focus" cx={person.position[0]} cy={person.position[1]} r={2.2} />}
+                <circle cx={person.position[0]} cy={person.position[1]} r={0.75}><title>{person.label}</title></circle>
+                <g transform={`translate(${person.position[0] + 1.05} ${person.position[1]}) scale(1 -1)`} className="emergency-person-label" aria-hidden="true">
+                  <text dominantBaseline="middle" fontSize={1.1}>{person.label}</text>
+                </g>
+              </g>
             ))}
           </g>}
         </g>

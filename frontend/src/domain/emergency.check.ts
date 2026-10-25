@@ -1,5 +1,5 @@
 import type { EmergencyPerson } from '../api/gateway.ts'
-import { clockLabel, markersOnFloor, personName, placeLabel, secondsSince } from './emergency.ts'
+import { clockLabel, insideByFloor, markersOnFloor, personName, placeLabel, secondsSince } from './emergency.ts'
 
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message)
@@ -16,8 +16,11 @@ assert(personName(person({ name: null, id: 'D02' })) === 'Unnamed phone D02', 'u
 assert(placeLabel(person({})) === 'Lab', 'inside shows the room')
 assert(placeLabel(person({ space_name: null })) === 'Inside, between rooms', 'inside without a room stays inside')
 assert(placeLabel(person({ auto_status: 'outside', status: 'outside', space_name: null })) === 'Outside the building', 'outside')
-const markers = markersOnFloor([person({}), person({ id: 'P02', floor_id: 'F1' }), person({ id: 'D01', position: null })], 'F0')
-assert(markers.length === 1 && markers[0].id === 'P01', 'only people with a position on this floor are drawn')
+const people = [person({}), person({ id: 'P02', floor_id: 'F1' }), person({ id: 'D01', position: null }), person({ id: 'P03', status: 'outside', auto_status: 'outside' })]
+const markers = markersOnFloor(people, 'F0')
+assert(markers.length === 1 && markers[0].id === 'P01' && markers[0].label === 'Ada', 'only people inside with a position on this floor are drawn')
+const counts = insideByFloor(people)
+assert(counts.get('F0') === 2 && counts.get('F1') === 1, 'inside counts per floor, outside people excluded')
 assert(clockLabel(125) === '2:05' && clockLabel(-3) === '0:00', 'clock label')
 assert(secondsSince('2026-10-25T12:00:00Z', Date.parse('2026-10-25T12:00:20Z')) === 20, 'seconds since')
 console.log('emergency check ok')

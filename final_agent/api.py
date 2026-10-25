@@ -119,14 +119,8 @@ class AdminTokenCreate(Input):
     name: Annotated[str, StringConstraints(min_length=1, max_length=80, strip_whitespace=True)]
 
 
-class EmergencyChallengeCreate(Input):
-    pass
-
-
 class EmergencyStart(Input):
-    challenge_id: Annotated[str, StringConstraints(min_length=1, max_length=64)]
-    code: Annotated[str, StringConstraints(pattern=r"^[0-9]{6}$")]
-    reason: Annotated[str, StringConstraints(min_length=1, max_length=200, strip_whitespace=True)]
+    reason: Annotated[str, StringConstraints(min_length=1, max_length=200, strip_whitespace=True)] = "Emergency"
 
 
 class ExitConfirmation(Input):
@@ -659,13 +653,9 @@ def create_app(
     def get_emergency(building_id: str):
         return service.emergency_status(checked_building(building_id))
 
-    @app.post(API_ROOT + "/buildings/{building_id}/emergency-challenges", operation_id="create_emergency_challenge", status_code=201)
-    def create_emergency_challenge(building_id: str, body: EmergencyChallengeCreate, x_admin_token: AdminToken = None):
-        return service.create_challenge(checked_building(building_id), x_admin_token)
-
     @app.put(API_ROOT + "/buildings/{building_id}/emergency", operation_id="put_emergency")
     def put_emergency(building_id: str, body: EmergencyStart, x_admin_token: AdminToken = None):
-        return service.start_emergency(checked_building(building_id), x_admin_token, body.challenge_id, body.code, body.reason)
+        return service.start_emergency(checked_building(building_id), x_admin_token, body.reason)
 
     @app.delete(API_ROOT + "/buildings/{building_id}/emergency", operation_id="delete_emergency")
     def delete_emergency(building_id: str, x_admin_token: AdminToken = None):
@@ -673,8 +663,8 @@ def create_app(
         return Response(status_code=204)
 
     @app.get(API_ROOT + "/buildings/{building_id}/emergency/people", operation_id="list_emergency_people")
-    def list_emergency_people(building_id: str, x_admin_token: AdminToken = None):
-        return service.emergency_roster(checked_building(building_id), x_admin_token)
+    def list_emergency_people(building_id: str):
+        return service.emergency_roster(checked_building(building_id))
 
     @app.put(API_ROOT + "/buildings/{building_id}/emergency/people/{person_id}/exit-confirmation", operation_id="put_exit_confirmation")
     def put_exit_confirmation(building_id: str, person_id: PersonId, body: ExitConfirmation, x_admin_token: AdminToken = None):

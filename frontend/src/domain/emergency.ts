@@ -14,13 +14,13 @@ export function placeLabel(person: Pick<EmergencyPerson, 'status' | 'auto_status
   return person.space_name ?? 'Inside, between rooms'
 }
 
-/** Markers for one floor; people without a known floor are listed but not drawn. */
+/** Markers for one floor: only people still inside, the ones rescuers have to find. */
 export function markersOnFloor(people: EmergencyPerson[], floorId: string): PersonMarker[] {
   return people
-    .filter((person) => person.floor_id === floorId && person.position)
+    .filter((person) => person.status === 'inside' && person.floor_id === floorId && person.position)
     .map((person) => ({
       id: person.id,
-      label: `${personName(person)}: ${statusLabel(person.status)}`,
+      label: personName(person),
       status: person.status,
       stale: person.stale,
       position: person.position!,
@@ -29,6 +29,12 @@ export function markersOnFloor(people: EmergencyPerson[], floorId: string): Pers
 
 export function statusLabel(status: EmergencyPerson['status']): string {
   return status === 'inside' ? 'Inside' : status === 'outside' ? 'Outside' : 'Marked outside'
+}
+
+/** The alarm reason worth showing; the server's default 'Emergency' adds nothing to the word EMERGENCY. */
+export function reasonText(reason: string | null | undefined): string | null {
+  const trimmed = reason?.trim()
+  return trimmed && trimmed.toLowerCase() !== 'emergency' ? trimmed : null
 }
 
 /** Seconds as m:ss, e.g. 125 -> "2:05". */
@@ -40,4 +46,13 @@ export function clockLabel(seconds: number): string {
 /** Seconds since an RFC 3339 time, never negative. */
 export function secondsSince(time: string, now: number): number {
   return Math.max(0, Math.round((now - Date.parse(time)) / 1000))
+}
+
+/** People still inside per floor id, for the floor buttons. */
+export function insideByFloor(people: EmergencyPerson[]): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const person of people) {
+    if (person.status === 'inside' && person.floor_id) counts.set(person.floor_id, (counts.get(person.floor_id) ?? 0) + 1)
+  }
+  return counts
 }

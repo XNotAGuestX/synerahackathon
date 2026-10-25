@@ -69,7 +69,6 @@ ERRORS = {
     "30018_object_state_unavailable": (503, "Saved room objects could not be loaded. Restore the shared object file or use a matching source dataset; the original map has not been substituted."),
     "30019_emergency_not_active": (409, "No emergency is active for this building."),
     "30020_emergency_already_active": (409, "An emergency is already active for this building."),
-    "30021_challenge_invalid": (409, "The confirmation code is wrong or expired. Request a new code."),
     "30022_person_not_found": (404, "Person was not found in this emergency."),
     "40001_model_unavailable": (503, "Model is unavailable."),
     "40002_model_rate_limited": (429, "Model rate limit exceeded."),
@@ -233,7 +232,6 @@ class SessionService:
         # Emergency mode (FR-17): in memory only, so ending the alarm or a restart deletes every position.
         self.emergencies: dict[str, EmergencyMode] = {}
         self.admin_tokens: dict[str, dict] = {}  # sha256(token) -> name, expires; the token itself is not kept
-        self.challenges: dict[str, dict] = {}
         self.pin_failures: list[datetime] = []
         self._emergency_lock = threading.Lock()  # never take a session lock while holding it
         self.first_instruction_wait_s = 2.5
@@ -820,10 +818,9 @@ class SessionService:
     def delete_guidance(self, session_id: str) -> None:
         self.get(session_id).live.stop("cancelled")
 
-    # Emergency mode (FR-17). Admins unlock with EMERGENCY_ADMIN_PIN and then confirm a one-time code to start.
+    # Emergency mode (FR-17). Starting, marking and ending need an admin token from EMERGENCY_ADMIN_PIN.
 
     ADMIN_TOKEN_TTL = timedelta(minutes=30)
-    CHALLENGE_TTL = timedelta(seconds=60)
     PIN_ATTEMPTS, PIN_WINDOW = 5, timedelta(seconds=60)
 
     def put_profile(self, session_id: str, display_name: str) -> dict:
@@ -874,33 +871,12 @@ class SessionService:
             return {"schema_version": 1, "building_id": building_id, "active": mode is not None,
                     "reason": mode.reason if mode else None, "started_at": started}
 
-    def create_challenge(self, building_id: str, token: str | None) -> dict:
+    def start_emergency(self, building_id: str, token: str | None, reason: str) -> dict:
         self.building_data(building_id)
         with self._emergency_lock:
-            key, _ = self.require_admin(token)
+            self.require_admin(token)
             if building_id in self.emergencies:
                 raise ApiError("30020_emergency_already_active")
-            now = self.clock()
-            self.challenges = {cid: item for cid, item in self.challenges.items() if item["expires"] > now}
-            challenge_id = self.new_id()
-            code = f"{secrets.randbelow(10**6):06d}"
-            expires = now + self.CHALLENGE_TTL
-            self.challenges[challenge_id] = {"code": code, "building_id": building_id, "token": key, "expires": expires}
-        return {"schema_version": 1, "id": challenge_id, "code": code, "expires_at": timestamp(expires)}
-
-    def start_emergency(self, building_id: str, token: str | None, challenge_id: str, code: str, reason: str) -> dict:
-        self.building_data(building_id)
-        with self._emergency_lock:
-            key, _ = self.require_admin(token)
-            if building_id in self.emergencies:
-                raise ApiError("30020_emergency_already_active")
-            challenge = self.challenges.pop(challenge_id, None)  # one attempt per code
-            if challenge is None or challenge["building_id"] != building_id or challenge["token"] != key:
-                raise ApiError("30021_challenge_invalid", [{"field": "challenge_id", "code": "not_found"}])
-            if challenge["expires"] <= self.clock():
-                raise ApiError("30021_challenge_invalid", [{"field": "challenge_id", "code": "expired"}])
-            if not hmac.compare_digest(code.encode(), challenge["code"].encode()):
-                raise ApiError("30021_challenge_invalid", [{"field": "code", "code": "mismatch"}])
             # A private copy: the simulation computes routes, which must not touch the maps sessions are cloned from.
             mode = EmergencyMode(self._base_maps[building_id].clone(), clock=lambda: self.clock().timestamp())
             mode.start(reason)
@@ -914,12 +890,11 @@ class SessionService:
             mode = self.emergencies.pop(building_id, None)
             if mode is not None:
                 mode.end()
-            self.challenges = {cid: item for cid, item in self.challenges.items() if item["building_id"] != building_id}
 
-    def emergency_roster(self, building_id: str, token: str | None) -> dict:
+    def emergency_roster(self, building_id: str) -> dict:
+        """Public during an alarm (ADR-0004): every phone shows who is still inside on its map."""
         self.building_data(building_id)
         with self._emergency_lock:
-            self.require_admin(token)
             mode = self.emergencies.get(building_id)
             if mode is None:
                 return {"schema_version": 1, "building_id": building_id, "active": False, "reason": None,

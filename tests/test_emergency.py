@@ -11,7 +11,7 @@ from shapely.geometry import Point
 from final_agent.agent import BuildingAgent
 from final_agent.building_map import BuildingMap, outline
 from final_agent.emergency import (
-    INSIDE, OUTSIDE_AUTO, OUTSIDE_MANUAL, STALE_S, UNOCCUPIED_TYPES, EmergencyMode, EmergencyNotActive, PersonNotFound,
+    INSIDE, OUTSIDE_AUTO, OUTSIDE_MANUAL, PRE_MARKED, PRE_MARKED_BY, STALE_S, UNOCCUPIED_TYPES, EmergencyMode, EmergencyNotActive, PersonNotFound,
     PhoneFix, classify, simulate_people,
 )
 from final_agent.tools import make_emergency_tools
@@ -55,8 +55,11 @@ class EmergencyModeTests(unittest.TestCase):
         clock = FakeClock()
         emergency = EmergencyMode(self.map, clock=clock)
         started = emergency.start("Fire alarm")
-        self.assertEqual(started["counts"][INSIDE], started["counts"]["total"])
-        emergency.fast_forward(600)
+        showcase = [p for p in started["people"] if p["status"] == OUTSIDE_MANUAL]
+        self.assertEqual(len(showcase), PRE_MARKED)
+        self.assertTrue(all(p["manual"]["marked_by"] == PRE_MARKED_BY and p["auto_status"] == OUTSIDE_AUTO for p in showcase))
+        self.assertEqual(started["counts"][INSIDE], started["counts"]["total"] - PRE_MARKED)
+        emergency.fast_forward(60)  # demo pace: everyone who leaves is out within a minute
         report = emergency.report()
         stayers = {pid for pid, person in emergency.people.items() if person.leave_after_s is None}
         self.assertEqual({p["id"] for p in report["people"] if p["status"] == INSIDE}, stayers)

@@ -12,7 +12,6 @@ type CursorPage<T> = { items: T[]; next_cursor?: string | null }
 export type RouteRequest = { start_space_id: string; destination_space_id: string; step_free?: boolean; via?: string[] }
 export type AdminToken = { token: string; name: string; expires_at: string }
 export type EmergencyStatus = { building_id: string; active: boolean; reason: string | null; started_at: string | null }
-export type EmergencyChallenge = { id: string; code: string; expires_at: string }
 export type EmergencyPersonStatus = 'inside' | 'outside' | 'outside_manual'
 export type EmergencyPerson = {
   id: string
@@ -77,10 +76,9 @@ export interface BuildingGateway {
   putProfile(sessionId: string, displayName: string): Promise<void>
   createAdminToken(pin: string, name: string): Promise<AdminToken>
   getEmergency(buildingId: string): Promise<EmergencyStatus>
-  createEmergencyChallenge(buildingId: string, token: string): Promise<EmergencyChallenge>
-  startEmergency(buildingId: string, token: string, challengeId: string, code: string, reason: string): Promise<EmergencyRoster>
+  startEmergency(buildingId: string, token: string): Promise<EmergencyRoster>
   endEmergency(buildingId: string, token: string): Promise<void>
-  listEmergencyPeople(buildingId: string, token: string): Promise<EmergencyRoster>
+  listEmergencyPeople(buildingId: string): Promise<EmergencyRoster>
   markOutside(buildingId: string, token: string, personId: string, note: string): Promise<EmergencyRoster>
   clearOutsideMark(buildingId: string, token: string, personId: string): Promise<void>
 }
@@ -214,14 +212,11 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
     async putProfile(sessionId, displayName) { await request<unknown>(config, `/sessions/${sessionId}/profile`, { method: 'PUT', body: JSON.stringify({ display_name: displayName }) }) },
     async createAdminToken(pin, name) { return request<AdminToken>(config, '/admin-tokens', json({ pin, name }), requestId()) },
     async getEmergency(buildingId) { return request<EmergencyStatus>(config, `/buildings/${encodeURIComponent(buildingId)}/emergency`) },
-    async createEmergencyChallenge(buildingId, token) {
-      return request<EmergencyChallenge>(config, `/buildings/${encodeURIComponent(buildingId)}/emergency-challenges`, { ...json({}), headers: { 'X-Admin-Token': token } }, requestId())
-    },
-    async startEmergency(buildingId, token, challengeId, code, reason) {
-      return request<EmergencyRoster>(config, `/buildings/${encodeURIComponent(buildingId)}/emergency`, { method: 'PUT', body: JSON.stringify({ challenge_id: challengeId, code, reason }), headers: { 'X-Admin-Token': token } })
+    async startEmergency(buildingId, token) {
+      return request<EmergencyRoster>(config, `/buildings/${encodeURIComponent(buildingId)}/emergency`, { method: 'PUT', body: JSON.stringify({}), headers: { 'X-Admin-Token': token } })
     },
     async endEmergency(buildingId, token) { await request<unknown>(config, `/buildings/${encodeURIComponent(buildingId)}/emergency`, { method: 'DELETE', headers: { 'X-Admin-Token': token } }) },
-    async listEmergencyPeople(buildingId, token) { return request<EmergencyRoster>(config, `/buildings/${encodeURIComponent(buildingId)}/emergency/people`, { headers: { 'X-Admin-Token': token } }) },
+    async listEmergencyPeople(buildingId) { return request<EmergencyRoster>(config, `/buildings/${encodeURIComponent(buildingId)}/emergency/people`) },
     async markOutside(buildingId, token, personId, note) {
       return request<EmergencyRoster>(config, `/buildings/${encodeURIComponent(buildingId)}/emergency/people/${encodeURIComponent(personId)}/exit-confirmation`, { method: 'PUT', body: JSON.stringify({ note }), headers: { 'X-Admin-Token': token } })
     },
