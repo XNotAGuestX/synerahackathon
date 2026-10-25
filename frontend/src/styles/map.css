@@ -426,8 +426,13 @@
   stroke: var(--color-surface);
   stroke-width: 9px;
 }
+/* The active route is a bold green line; only the previous route keeps the thin faded style above. */
 .plan .route {
   stroke: var(--color-route);
+  stroke-width: 5px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 1;
   stroke-dasharray: 9px 5px;
   animation: route-flow 1.5s linear infinite;
 }
