@@ -340,7 +340,7 @@ function InteractivePlan({
           pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
           if (pointers.current.size === 1) {
             const interactive = event.target instanceof Element ? event.target.closest('[role="button"]') : null
-            if (interactive instanceof SVGElement) interactive.focus()
+            if (interactive instanceof SVGElement) interactive.focus({ preventScroll: true })
             else onFocusSelection(null)
           }
           if (pointers.current.size === 2) {

@@ -83,7 +83,8 @@ export function EditorPanel({ editor }: { editor: ObjectEditor }) {
     const frame = window.requestAnimationFrame(() => {
       const wanted = editor.focusRequest.target === 'search' ? searchRef.current : editor.focusRequest.target === 'confirm' ? safeRef.current : headingRef.current
       const target = wanted ?? headingRef.current
-      target?.focus()
+      // The panel may sit above the scrolled page (e.g. an item picked in the 3D stack): focus without jumping.
+      target?.focus({ preventScroll: true })
     })
     return () => window.cancelAnimationFrame(frame)
   }, [editor.focusRequest.id])
