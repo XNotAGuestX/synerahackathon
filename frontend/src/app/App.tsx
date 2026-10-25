@@ -70,7 +70,7 @@ export function App() {
   const [booting, setBooting] = useState(true)
   const [revision, setRevision] = useState(1)
   const [inputMode, setInputMode] = useState<InputMode>('text')
-  const [stackOpen, setStackOpen] = useState(false)
+  const [stackOpen, setStackOpen] = useState(true)
   const [themeMode, setThemeMode] = useState<ThemeMode>(initialThemeMode)
   const [stepFree, setStepFree] = useState(() => window.localStorage.getItem('wayfinder-step-free') === 'true')
   const [routingId, setRoutingId] = useState<string | null>(null)

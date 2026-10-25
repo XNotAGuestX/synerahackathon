@@ -246,7 +246,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [tip, setTip] = useState<{ item: Selection; x: number; y: number } | null>(null)
   const [expanded, setExpanded] = useState(false)
-  const [mode, setMode] = useState<StackMode>('single')
+  const [mode, setMode] = useState<StackMode>('all')
   // The floor shown in the stack. It follows the plan's floor, and picking a floor here updates the plan too.
   const [viewedId, setViewedId] = useState(activeFloorId)
   useEffect(() => setViewedId(activeFloorId), [activeFloorId])
