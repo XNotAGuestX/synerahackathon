@@ -488,13 +488,13 @@ def make_workspace_tools(workspace: Workspace, emergency: bool = False) -> list:
         Each floor needs id,name,level,elevation_m,source_path,calibration. calibration contains point_a_px:[x,y],
         point_b_px:[x,y],distance_m; optionally origin_m:[x,y],rotation_deg. Multi-floor imports also need
         alignment_confirmed:true and calibrated common-frame anchors/orientations. Ask for missing scale/elevation/
-        alignment or attribution rather than inventing it. PDF users must export each page as PNG/JPEG first.
+        alignment or attribution rather than inventing it. A one-page PDF is rendered to PNG before extraction.
         """
         return workspace.create_plan(building_id, name, floors, license, attribution)
 
     @register
     def import_plan_image(path: str) -> dict:
-        """Start from just a PNG/JPEG path. Printed dimensions/scale are metres; use visible metric evidence only.
+        """Start from a PNG, JPEG, or one-page PDF path. Printed dimensions/scale are metres; use visible metric evidence only.
         The first single floor uses level 0 and elevation 0 as a local datum, source/license stay explicitly unknown.
         Produces a pending draft or needs_calibration; never claims navigation on an uncalibrated image.
         """
