@@ -555,6 +555,10 @@ def create_app(
         content_type = request.headers.get("Content-Type", "")
         return await asyncio.to_thread(service.transcribe, str(session_id), audio, content_type)
 
+    @app.post(API_ROOT + "/sessions/{session_id}/transcription-tokens", operation_id="create_transcription_token", status_code=201)
+    async def create_transcription_token(session_id: UUID):
+        return await asyncio.to_thread(service.transcription_token, str(session_id))
+
     @app.get(API_ROOT + "/sessions/{session_id}/speech-clips/{clip_id}", operation_id="get_speech_clip")
     def get_speech_clip(session_id: UUID, clip_id: str):
         return Response(content=service.speech_clip(str(session_id), clip_id), media_type="audio/mpeg")

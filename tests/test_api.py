@@ -60,6 +60,11 @@ class FakeSpeech:
         self.synthesized.append(text)
         return b"ID3" + text.encode()
 
+    def realtime_token(self) -> str:
+        if self.failure:
+            raise SpeechError(self.failure, "failed")
+        return "sutkn_test"
+
 
 class RecordingClient(ScriptedClient):
     def __init__(self, turns):
@@ -167,7 +172,7 @@ class ApiTests(unittest.TestCase):
     def test_health_buildings_detail_plans_and_search_match_contract(self):
         defined = {operation["operationId"] for methods in self.contract["paths"].values() for operation in methods.values()}
         implemented = {getattr(route, "operation_id", None) for route in self.app.routes}
-        self.assertEqual(len(defined), 25)
+        self.assertEqual(len(defined), 26)
         self.assertTrue(defined <= implemented)
         health = self.client.get(self.base + "/health", headers={"X-Request-Id": "from-frontend"})
         self.validate(health, "Health")
@@ -658,6 +663,16 @@ class ApiTests(unittest.TestCase):
             fresh = bare.post(self.base + "/sessions", json={"building_id": "test"}, headers={"Idempotency-Key": "s"}).json()
             response = bare.post(self.base + "/sessions/" + fresh["id"] + "/transcriptions", content=b"abc", headers={"Content-Type": "audio/wav", "Idempotency-Key": "t"})
         self.assertEqual((response.status_code, response.json()["code"], response.json()["details"][0]["code"]), (503, "40004_speech_unavailable", "not_configured"))
+
+    def test_transcription_token_for_live_streaming(self):
+        session = self.session()
+        url = self.path(session) + "/transcription-tokens"
+        token = self.post(url, schema="TranscriptionToken").json()
+        self.assertEqual((token["token"], token["sample_rate"]), ("sutkn_test", 16000))
+        self.assertTrue(token["url"].startswith("wss://") and "commit_strategy=manual" in token["url"])
+        self.speech.failure = "auth"
+        failed = self.post(url, status=503).json()
+        self.assertEqual((failed["code"], failed["details"][0]["code"]), ("40004_speech_unavailable", "auth"))
 
     def test_speech_clip_serves_event_audio_and_unknown_is_404(self):
         session = self.session()

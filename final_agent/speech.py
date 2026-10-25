@@ -14,6 +14,9 @@ DEFAULT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # public premade voice; override with
 COMMITTED_API_KEY = "sk_1810f11b626e4598f3f329c64aa3796877f652fd72487d35"
 API_BASE = "https://api.elevenlabs.io/v1"
 OUTPUT_FORMAT = "mp3_44100_64"
+# Browsers stream microphone PCM here while the user talks, authenticated by a single-use token.
+REALTIME_URL = ("wss://api.elevenlabs.io/v1/speech-to-text/realtime"
+                "?model_id=scribe_v2_realtime&audio_format=pcm_16000&language_code=en&commit_strategy=manual")
 MIN_AUDIO_BYTES = 64
 EXTENSIONS = {"audio/wav": "wav", "audio/x-wav": "wav", "audio/webm": "webm", "audio/ogg": "ogg",
               "audio/mp4": "m4a", "audio/mpeg": "mp3"}
@@ -33,6 +36,7 @@ class SpeechProvider(Protocol):
 
     def transcribe(self, audio: bytes, content_type: str) -> str: ...
     def synthesize(self, text: str) -> bytes: ...
+    def realtime_token(self) -> str: ...
 
 
 class ElevenLabsSpeech:
@@ -87,6 +91,14 @@ class ElevenLabsSpeech:
         except (ValueError, KeyError, TypeError) as error:
             raise SpeechError("provider_error", "Speech provider returned an unreadable transcript.") from error
         return str(text).strip()
+
+    def realtime_token(self) -> str:
+        """Single-use token for one realtime transcription socket; valid for 15 minutes."""
+        body = self._call(f"{API_BASE}/single-use-token/realtime_scribe")
+        try:
+            return str(httpx.Response(200, content=body).json()["token"])
+        except (ValueError, KeyError, TypeError) as error:
+            raise SpeechError("provider_error", "Speech provider returned an unreadable token.") from error
 
     def synthesize(self, text: str) -> bytes:
         audio = self._call(f"{API_BASE}/text-to-speech/{self.voice_id}/stream?output_format={OUTPUT_FORMAT}",

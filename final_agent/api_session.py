@@ -24,7 +24,7 @@ from .agent import EFFORT, MODEL, MODELS, VOICE_EFFORT, VOICE_MODEL, VOICE_PROMP
 from .building_map import BuildingMap, MapError, RouteResult
 from .live import LiveState
 from .narration import landmark_candidates, narrate
-from .speech import ClipCache, SpeechError, SpeechProvider
+from .speech import REALTIME_URL, ClipCache, SpeechError, SpeechProvider
 from .storage import RoomNoteStore
 from .tools import ArgumentCheckedTool, as_json, make_tools, route_json
 from .viewer import landmark_targets, node_location, route_polylines
@@ -675,6 +675,17 @@ class SessionService:
         except SpeechError as error:
             raise self.unavailable(error.reason) from error
         return {"schema_version": 1, "text": text, "language": "en"}
+
+    def transcription_token(self, session_id: str) -> dict:
+        """Lets the browser stream audio to the speech provider while the user talks, without our API key."""
+        self.get(session_id)
+        if self.speech is None:
+            raise self.unavailable("not_configured")
+        try:
+            token = self.speech.realtime_token()
+        except SpeechError as error:
+            raise self.unavailable(error.reason) from error
+        return {"schema_version": 1, "token": token, "url": REALTIME_URL, "sample_rate": 16000}
 
     def speech_clip(self, session_id: str, clip_id: str) -> bytes:
         text = self.get(session_id).live.clip_text(clip_id)

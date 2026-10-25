@@ -1018,6 +1018,43 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /api/v1/sessions/{session_id}/transcription-tokens:
+    post:
+      operationId: create_transcription_token
+      tags: [Guidance]
+      summary: Einmal-Token für Live-Transkription
+      description: |
+        Gibt ein Einmal-Token und die WebSocket-URL des Sprachdienstes zurück. Der Browser streamt damit
+        PCM-Audio (16 kHz, mono, 16 bit) schon während der Nutzer spricht und erhält den Text direkt nach
+        dem Commit. Der API-Schlüssel bleibt auf dem Server. Das Token gilt 15 Minuten für eine Verbindung.
+        Ändert nie `revision`. Fällt der Stream aus, nutzt der Client `create_transcription`.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/Idempotency-Key"
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "201":
+          description: Token und Verbindungsdaten
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TranscriptionToken"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/SpeechUnavailable"
+        default:
+          $ref: "#/components/responses/Error"
+
   /api/v1/sessions/{session_id}/speech-clips/{clip_id}:
     get:
       operationId: get_speech_clip
@@ -2902,6 +2939,22 @@ components:
           enum: [live, stale]
           description: stale, wenn die Messung älter als 15 s ist.
 
+    TranscriptionToken:
+      type: object
+      additionalProperties: false
+      required: [schema_version, token, url, sample_rate]
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        token:
+          type: string
+        url:
+          type: string
+          description: WebSocket-URL ohne Token; der Client hängt `&token=` an.
+        sample_rate:
+          type: integer
+          const: 16000
     Transcription:
       type: object
       additionalProperties: false
