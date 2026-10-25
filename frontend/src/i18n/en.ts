@@ -151,5 +151,9 @@ export const copy = {
   stackShafts: 'Lifts and stairs',
   stackOnRoute: 'Your route passes this floor.',
   stackHint: 'Drag to orbit · Right-drag to pan · Scroll to zoom',
-  stackHintSelect: 'Click a floor to open it',
+  stackHintSelect: 'Click a floor to show only it',
+  stackShowing: 'Showing',
+  stackFloorsGroup: 'Floors in the stack',
+  stackAllFloors: 'All floors',
+  stackToneExterior: 'Exterior wall',
 }

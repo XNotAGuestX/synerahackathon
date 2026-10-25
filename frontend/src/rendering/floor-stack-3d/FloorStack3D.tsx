@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 import type { FloorPlan, Point, Route, Space } from '../../domain/types'
 import { copy } from '../../i18n/en'
+import { perimeterSegments } from './perimeter'
 
 type FloorStack3DProps = {
   plans: FloorPlan[]
@@ -11,6 +12,9 @@ type FloorStack3DProps = {
   activeFloorId: string
   onSelectFloor?: (floorId: string) => void
 }
+
+/** `single` shows only the viewed floor; `all` is the exploded overview of every floor. */
+type StackMode = 'single' | 'all'
 
 type Tone = 'room' | 'office' | 'corridor' | 'restroom' | 'lift' | 'stair'
 const tones: Tone[] = ['room', 'office', 'corridor', 'restroom', 'lift', 'stair']
@@ -20,6 +24,8 @@ type Palette = Record<Tone, THREE.Color> & {
   slabEdge: THREE.Color
   wall: THREE.Color
   wallTop: THREE.Color
+  exterior: THREE.Color
+  exteriorEdge: THREE.Color
   primary: THREE.Color
   start: THREE.Color
   destination: THREE.Color
@@ -27,26 +33,37 @@ type Palette = Record<Tone, THREE.Color> & {
   background: THREE.Color
 }
 
+/** A material whose opacity is `base` (set by the palette) times the floor's fade. */
+type Fader = { material: THREE.Material; base: number }
+
+/** Exterior walls are grouped by facing so walls between the camera and the floor can turn see-through. */
+type Facade = { normal: THREE.Vector2; fill: Fader; edge: Fader; facing: number }
+
 type FloorRecord = {
   id: string
+  index: number
   group: THREE.Group
   compactY: number
   explodedY: number
   y: number
-  rooms: Map<Tone, THREE.MeshBasicMaterial>
-  wall: THREE.MeshLambertMaterial
-  wallTop: THREE.LineBasicMaterial
-  slab: THREE.MeshLambertMaterial
-  slabEdge: THREE.LineBasicMaterial
-  halo: THREE.MeshBasicMaterial
+  fade: number
+  box: { x0: number; x1: number; z0: number; z1: number }
+  exteriorHeight: number
+  rooms: Map<Tone, Fader>
+  wall: Fader
+  wallTop: Fader
+  slab: Fader & { material: THREE.MeshLambertMaterial }
+  slabEdge: Fader
+  halo: Fader
+  facades: Facade[]
+  route: Fader[]
   label: HTMLDivElement
 }
 
 type View = { position: THREE.Vector3; target: THREE.Vector3; zoom: number }
 
 type SceneApi = {
-  paint: (activeId: string) => void
-  setHovered: (floorId: string | null) => void
+  focus: (floorId: string, mode: StackMode) => void
   resetView: () => void
 }
 
@@ -93,6 +110,7 @@ function readPalette(element: Element): Palette {
   const stroke = read('--map-space-stroke', '#53616c')
   const surface = read('--color-surface-raised', '#171e27')
   const border = read('--color-border-strong', '#41505c')
+  const text = read('--color-text-primary', '#f3f6f1')
   const primary = read('--color-primary', '#c2f44b')
   const start = read('--color-start', '#9182ff')
   const danger = read('--color-danger', '#ff8a7a')
@@ -107,6 +125,8 @@ function readPalette(element: Element): Palette {
     slabEdge: border,
     wall: mix(space, stroke, 0.45),
     wallTop: stroke,
+    exterior: mix(surface, stroke, 0.55),
+    exteriorEdge: mix(stroke, text, 0.35),
     primary,
     start,
     destination: read('--color-destination', '#ff765b'),
@@ -117,6 +137,10 @@ function readPalette(element: Element): Palette {
 
 function prefersReducedMotion(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function approach(current: number, goal: number, rate: number): number {
+  return current + (goal - current) * Math.min(1, rate)
 }
 
 function wallGeometry(polygons: Point[][], height: number, toWorld: (point: Point) => [number, number]): THREE.BufferGeometry {
@@ -144,6 +168,19 @@ function outlineGeometry(polygons: Point[][], height: number, toWorld: (point: P
     }
   }
   return new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+}
+
+/** Thick exterior wall prisms (outer, inner, end, and top faces), pushed outward from the room edge. */
+function prismPositions(positions: number[], a: [number, number], b: [number, number], normal: [number, number], thickness: number, height: number) {
+  const corners = [a, b, [b[0] + normal[0] * thickness, b[1] + normal[1] * thickness], [a[0] + normal[0] * thickness, a[1] + normal[1] * thickness]]
+  const low = corners.map(([x, z]) => [x, 0, z])
+  const high = corners.map(([x, z]) => [x, height, z])
+  const quad = (p: number[], q: number[], r: number[], t: number[]) => positions.push(...p, ...q, ...r, ...p, ...r, ...t)
+  for (let side = 0; side < 4; side += 1) {
+    const next = (side + 1) % 4
+    quad(low[side], low[next], high[next], high[side])
+  }
+  quad(high[0], high[1], high[2], high[3])
 }
 
 /** Keeps the previous array when its items are the same objects, so a parent's fresh `[...map.values()]` does not rebuild the scene. */
@@ -179,19 +216,40 @@ function ExpandIcon({ expanded }: { expanded: boolean }) {
   )
 }
 
+function LayersIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m12 3 9 5-9 5-9-5 9-5Z" />
+      <path d="m3 13 9 5 9-5" />
+    </svg>
+  )
+}
+
 export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activeFloorId, onSelectFloor }: FloorStack3DProps) {
   const plans = useStableItems(incomingPlans)
   const route = useStableRoute(incomingRoute)
   const host = useRef<HTMLDivElement>(null)
   const api = useRef<SceneApi | null>(null)
   const savedView = useRef<{ key: string; view: View; atHome: boolean } | null>(null)
-  const activeRef = useRef(activeFloorId)
-  const selectRef = useRef(onSelectFloor)
   const expandButton = useRef<HTMLButtonElement>(null)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
-  activeRef.current = activeFloorId
-  selectRef.current = onSelectFloor
+  const [mode, setMode] = useState<StackMode>('single')
+  // The floor shown in the stack. It follows the plan's floor, and picking a floor here updates the plan too.
+  const [viewedId, setViewedId] = useState(activeFloorId)
+  useEffect(() => setViewedId(activeFloorId), [activeFloorId])
+  const viewedRef = useRef(viewedId)
+  const modeRef = useRef(mode)
+  viewedRef.current = viewedId
+  modeRef.current = mode
+
+  const selectFloor = (floorId: string) => {
+    setViewedId(floorId)
+    setMode('single')
+    onSelectFloor?.(floorId)
+  }
+  const selectRef = useRef(selectFloor)
+  selectRef.current = selectFloor
 
   const ordered = useMemo(() => [...plans].sort((left, right) => left.floor.elevation_m - right.floor.elevation_m), [plans])
   const routeFloors = useMemo(() => new Set((route?.legs ?? []).filter((leg) => leg.points.length > 0).map((leg) => leg.floor_id)), [route])
@@ -219,15 +277,14 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
     const toWorld = ([x, y]: Point): [number, number] => [x - centerX, -(y - centerY)]
 
     const pad = span * 0.035
-    const halfX = (maxX - minX) / 2 + pad
-    const halfZ = (maxY - minY) / 2 + pad
     const slabDepth = Math.max(span * 0.014, 0.3)
     const maxStorey = Math.max(...ordered.map((plan) => plan.floor.height_m || 3), 3)
     const wallHeight = Math.min(Math.max(span * 0.016, 0.9), maxStorey * 0.5)
     const gap = Math.max(span * (ordered.length <= 3 ? 0.55 : 0.42), maxStorey * 2, 5)
     const lift = gap * 0.12
+    const away = gap * 0.7
+    const wallThickness = Math.max(span * 0.004, 0.25)
     const baseElevation = ordered[0].floor.elevation_m
-    const topY = gap * (ordered.length - 1)
     const tubeRadius = Math.max(span * 0.0045, 0.14)
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
@@ -255,6 +312,10 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
     const floors: FloorRecord[] = []
     const pickables: THREE.Object3D[] = []
     const floorIndex = new Map<string, number>()
+    const fader = <M extends THREE.Material>(material: M) => ({ material, base: 1 })
+
+    // The route layer ignores depth so walls never chop it into dashes.
+    const overlay = () => new THREE.MeshBasicMaterial({ depthTest: false, depthWrite: false, transparent: true })
 
     ordered.forEach((plan, index) => {
       floorIndex.set(plan.floor.id, index)
@@ -267,10 +328,10 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
 
       // Each slab hugs its own floor, so a smaller upper storey does not hide the one below.
       const own = plan.spaces.flatMap((space) => space.polygon).map(toWorld)
-      const x0 = own.length ? Math.min(...own.map(([x]) => x)) - pad : -halfX
-      const x1 = own.length ? Math.max(...own.map(([x]) => x)) + pad : halfX
-      const z0 = own.length ? Math.min(...own.map(([, z]) => z)) - pad : -halfZ
-      const z1 = own.length ? Math.max(...own.map(([, z]) => z)) + pad : halfZ
+      const x0 = Math.min(...own.map(([x]) => x)) - pad
+      const x1 = Math.max(...own.map(([x]) => x)) + pad
+      const z0 = Math.min(...own.map(([, z]) => z)) - pad
+      const z1 = Math.max(...own.map(([, z]) => z)) + pad
       const slabShape = new THREE.Shape()
       slabShape.moveTo(x0, -z1)
       slabShape.lineTo(x1, -z1)
@@ -280,28 +341,27 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       const slabGeometry = new THREE.ExtrudeGeometry(slabShape, { depth: slabDepth, bevelEnabled: false })
       slabGeometry.rotateX(-Math.PI / 2)
       slabGeometry.translate(0, -slabDepth - 0.01, 0)
-      const slab = new THREE.MeshLambertMaterial({ transparent: true })
-      const slabMesh = new THREE.Mesh(slabGeometry, slab)
+      const slab = fader(new THREE.MeshLambertMaterial({ transparent: true }))
+      const slabMesh = new THREE.Mesh(slabGeometry, slab.material)
       slabMesh.userData.floorId = plan.floor.id
       pickables.push(slabMesh)
-      const slabEdge = new THREE.LineBasicMaterial({ transparent: true })
-      group.add(slabMesh, new THREE.LineSegments(new THREE.EdgesGeometry(slabGeometry), slabEdge))
+      const slabEdge = fader(new THREE.LineBasicMaterial({ transparent: true }))
+      group.add(slabMesh, new THREE.LineSegments(new THREE.EdgesGeometry(slabGeometry), slabEdge.material))
 
-      const halo = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false })
-      const haloMesh = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0 + pad * 2, z1 - z0 + pad * 2), halo)
+      const halo = fader(new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }))
+      const haloMesh = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0 + pad * 2, z1 - z0 + pad * 2), halo.material)
       haloMesh.rotation.x = -Math.PI / 2
-      haloMesh.position.set((x0 + x1) / 2, 0, (z0 + z1) / 2)
-      haloMesh.position.y = -slabDepth - 0.06
+      haloMesh.position.set((x0 + x1) / 2, -slabDepth - 0.06, (z0 + z1) / 2)
       group.add(haloMesh)
 
-      const rooms = new Map<Tone, THREE.MeshBasicMaterial>()
-      const walls: Point[][] = []
+      const rooms = new Map<Tone, Fader>()
+      const polygons: Point[][] = []
       for (const space of plan.spaces) {
         if (space.polygon.length < 3) continue
         const tone = toneOf(space)
         let material = rooms.get(tone)
         if (!material) {
-          material = new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 })
+          material = fader(new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 }))
           rooms.set(tone, material)
         }
         const shape = new THREE.Shape(space.polygon.map((point) => {
@@ -310,18 +370,42 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
         }))
         const geometry = new THREE.ShapeGeometry(shape)
         geometry.rotateX(-Math.PI / 2)
-        const mesh = new THREE.Mesh(geometry, material)
+        const mesh = new THREE.Mesh(geometry, material.material)
         mesh.position.y = 0.02
         mesh.userData.floorId = plan.floor.id
         pickables.push(mesh)
         group.add(mesh)
-        walls.push(space.polygon)
+        polygons.push(space.polygon)
       }
-      const wall = new THREE.MeshLambertMaterial({ transparent: true, side: THREE.DoubleSide, depthWrite: false })
-      const wallTop = new THREE.LineBasicMaterial({ transparent: true })
-      group.add(new THREE.Mesh(wallGeometry(walls, wallHeight, toWorld), wall))
-      group.add(new THREE.LineSegments(outlineGeometry(walls, wallHeight, toWorld), wallTop))
-      group.add(new THREE.LineSegments(outlineGeometry(walls, 0.03, toWorld), wallTop))
+      const wall = fader(new THREE.MeshLambertMaterial({ transparent: true, side: THREE.DoubleSide, depthWrite: false }))
+      const wallTop = fader(new THREE.LineBasicMaterial({ transparent: true }))
+      group.add(new THREE.Mesh(wallGeometry(polygons, wallHeight, toWorld), wall.material))
+      group.add(new THREE.LineSegments(outlineGeometry(polygons, wallHeight, toWorld), wallTop.material))
+      group.add(new THREE.LineSegments(outlineGeometry(polygons, 0.03, toWorld), wallTop.material))
+
+      // Storey-high exterior walls around the floor's outline, bucketed into eight facings.
+      const exteriorHeight = Math.min(Math.max(Math.min(plan.floor.height_m || 3, 4.5), span * 0.03), gap * 0.6)
+      const buckets = new Map<number, number[]>()
+      for (const segment of perimeterSegments(polygons, Math.max(span / 240, 0.25), Math.max(span * 0.006, 0.6))) {
+        const normal: [number, number] = [segment.normal[0], -segment.normal[1]]
+        const key = (Math.round(Math.atan2(normal[1], normal[0]) / (Math.PI / 4)) + 8) % 8
+        const positions = buckets.get(key) ?? []
+        prismPositions(positions, toWorld(segment.a), toWorld(segment.b), normal, wallThickness, exteriorHeight)
+        buckets.set(key, positions)
+      }
+      const facades: Facade[] = []
+      for (const [key, positions] of buckets) {
+        const geometry = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+        geometry.computeVertexNormals()
+        const fill = fader(new THREE.MeshLambertMaterial({ transparent: true, side: THREE.DoubleSide }))
+        const edge = fader(new THREE.LineBasicMaterial({ transparent: true }))
+        const mesh = new THREE.Mesh(geometry, fill.material)
+        mesh.userData.floorId = plan.floor.id
+        pickables.push(mesh)
+        group.add(mesh, new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 25), edge.material))
+        const angle = (key * Math.PI) / 4
+        facades.push({ normal: new THREE.Vector2(Math.cos(angle), Math.sin(angle)), fill, edge, facing: 1 })
+      }
 
       const label = document.createElement('div')
       label.className = 'stack-label'
@@ -340,10 +424,16 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       labelObject.position.set(x0, -slabDepth / 2, z1)
       group.add(labelObject)
 
-      floors.push({ id: plan.floor.id, group, compactY, explodedY, y, rooms, wall, wallTop, slab, slabEdge, halo, label })
+      floors.push({
+        id: plan.floor.id, index, group, compactY, explodedY, y, fade: 1,
+        box: { x0, x1, z0, z1 }, exteriorHeight,
+        rooms, wall, wallTop, slab, slabEdge, halo, facades,
+        route: [fader(overlay()), fader(overlay()), fader(overlay())],
+        label,
+      })
     })
 
-    // Vertical links: lift and stair shafts, and the route's floor changes. Both follow the floors as they move.
+    // Vertical links: lift and stair shafts, and the route's floor changes. They only appear in the overview.
     type Link = { from: [number, THREE.Vector3]; to: [number, THREE.Vector3] }
     const shaftLinks: Record<'lift' | 'stair', Link[]> = { lift: [], stair: [] }
     const connectors = new Map(ordered.flatMap((plan) => plan.connectors).map((connector) => [connector.id, connector]))
@@ -359,8 +449,8 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       for (let index = 1; index < stops.length; index += 1) shaftLinks[kind].push({ from: stops[index - 1], to: stops[index] })
     }
     const shaftMaterials = {
-      lift: new THREE.LineDashedMaterial({ dashSize: span * 0.012, gapSize: span * 0.008, transparent: true, opacity: 0.9 }),
-      stair: new THREE.LineDashedMaterial({ dashSize: span * 0.012, gapSize: span * 0.008, transparent: true, opacity: 0.9 }),
+      lift: new THREE.LineDashedMaterial({ dashSize: span * 0.012, gapSize: span * 0.008, transparent: true }),
+      stair: new THREE.LineDashedMaterial({ dashSize: span * 0.012, gapSize: span * 0.008, transparent: true }),
     }
     const shaftLines = (['lift', 'stair'] as const).map((kind) => {
       const geometry = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(shaftLinks[kind].length * 6), 3))
@@ -370,11 +460,6 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       return { links: shaftLinks[kind], line }
     })
 
-    // The route layer ignores depth so cutaway walls never chop it into dashes.
-    const overlay = { depthTest: false, depthWrite: false, transparent: true }
-    const routeMaterial = new THREE.MeshBasicMaterial(overlay)
-    const startMaterial = new THREE.MeshBasicMaterial(overlay)
-    const destinationMaterial = new THREE.MeshBasicMaterial(overlay)
     const legs = (route?.legs ?? [])
       .filter((leg) => leg.points.length > 0 && floorIndex.has(leg.floor_id))
       .map((leg) => ({ index: floorIndex.get(leg.floor_id)!, points: leg.points.map((point) => { const [x, z] = toWorld(point); return new THREE.Vector3(x, 0.35, z) }) }))
@@ -382,110 +467,139 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       if (leg.points.length < 2) continue
       const path = new THREE.CurvePath<THREE.Vector3>()
       for (let index = 1; index < leg.points.length; index += 1) path.add(new THREE.LineCurve3(leg.points[index - 1], leg.points[index]))
-      floors[leg.index].group.add(new THREE.Mesh(new THREE.TubeGeometry(path, Math.max(leg.points.length * 6, 12), tubeRadius, 8, false), routeMaterial))
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(path, Math.max(leg.points.length * 6, 12), tubeRadius, 8, false), floors[leg.index].route[0].material)
+      tube.renderOrder = 10
+      floors[leg.index].group.add(tube)
     }
+    const linkMaterial = overlay()
     const transfers: { link: Link; mesh: THREE.Mesh }[] = []
     const transferGeometry = new THREE.CylinderGeometry(tubeRadius, tubeRadius, 1, 8, 1, true)
     for (let index = 1; index < legs.length; index += 1) {
       const previous = legs[index - 1]
       const next = legs[index]
       if (previous.index === next.index) continue
-      const mesh = new THREE.Mesh(transferGeometry, routeMaterial)
+      const mesh = new THREE.Mesh(transferGeometry, linkMaterial)
+      mesh.renderOrder = 10
       scene.add(mesh)
       transfers.push({ link: { from: [previous.index, previous.points[previous.points.length - 1]], to: [next.index, next.points[0]] }, mesh })
     }
     let pulse: THREE.Mesh | null = null
+    const pulseMaterial = overlay()
     if (legs.length > 0) {
       const first = legs[0]
       const last = legs[legs.length - 1]
-      const startMarker = new THREE.Mesh(new THREE.SphereGeometry(tubeRadius * 3, 20, 12), startMaterial)
+      const end = last.points[last.points.length - 1]
+      const startMarker = new THREE.Mesh(new THREE.SphereGeometry(tubeRadius * 3, 20, 12), floors[first.index].route[1].material)
       startMarker.position.copy(first.points[0]).setY(tubeRadius * 3)
-      floors[first.index].group.add(startMarker)
-      const pin = new THREE.Mesh(new THREE.ConeGeometry(tubeRadius * 3, tubeRadius * 9, 20), destinationMaterial)
+      const pin = new THREE.Mesh(new THREE.ConeGeometry(tubeRadius * 3, tubeRadius * 9, 20), floors[last.index].route[2].material)
       pin.rotation.x = Math.PI
-      pin.position.copy(last.points[last.points.length - 1]).setY(tubeRadius * 6)
-      floors[last.index].group.add(pin)
-      const ring = new THREE.Mesh(new THREE.RingGeometry(tubeRadius * 3.5, tubeRadius * 5, 32), destinationMaterial)
+      pin.position.copy(end).setY(tubeRadius * 6)
+      const ring = new THREE.Mesh(new THREE.RingGeometry(tubeRadius * 3.5, tubeRadius * 5, 32), floors[last.index].route[2].material)
       ring.rotation.x = -Math.PI / 2
-      ring.position.copy(last.points[last.points.length - 1]).setY(0.08)
-      floors[last.index].group.add(ring)
+      ring.position.copy(end).setY(0.08)
+      for (const marker of [startMarker, pin, ring]) marker.renderOrder = 10
+      floors[first.index].group.add(startMarker)
+      floors[last.index].group.add(pin, ring)
       if (!reducedMotion) {
-        pulse = new THREE.Mesh(new THREE.SphereGeometry(tubeRadius * 2.2, 16, 10), startMaterial)
+        pulse = new THREE.Mesh(new THREE.SphereGeometry(tubeRadius * 2.2, 16, 10), pulseMaterial)
+        pulse.renderOrder = 11
         scene.add(pulse)
       }
     }
 
-    let activeId = activeRef.current
+    let viewedFloor = viewedRef.current
+    let stackMode = modeRef.current
     let hoveredFloor: string | null = null
-    const paint = (nextActive: string) => {
-      activeId = nextActive
+    let linkFade = stackMode === 'all' ? 1 : 0
+    const shown = (floor: FloorRecord) => stackMode === 'all' || floor.id === viewedFloor
+    for (const floor of floors) floor.fade = shown(floor) ? 1 : 0
+
+    const paint = () => {
       const palette = readPalette(element)
       hemisphere.groundColor.copy(palette.background)
       for (const floor of floors) {
-        const active = floor.id === activeId
-        const focused = active || floor.id === hoveredFloor
+        const viewed = floor.id === viewedFloor
+        // In the overview the viewed or hovered floor is solid and the rest are ghosted; a single floor is always solid.
+        const focused = stackMode === 'single' || viewed || floor.id === hoveredFloor
         for (const tone of tones) {
-          const material = floor.rooms.get(tone)
-          if (!material) continue
-          material.color.copy(palette[tone])
-          material.opacity = focused ? 1 : 0.42
+          const room = floor.rooms.get(tone)
+          if (!room) continue
+          ;(room.material as THREE.MeshBasicMaterial).color.copy(palette[tone])
+          room.base = focused ? 1 : 0.42
         }
-        floor.wall.color.copy(palette.wall)
-        floor.wall.opacity = focused ? 0.82 : 0.22
-        floor.wallTop.color.copy(palette.wallTop)
-        floor.wallTop.opacity = focused ? 1 : 0.4
-        floor.slab.color.copy(palette.slab)
-        floor.slab.emissive.copy(active ? palette.primary : palette.background).multiplyScalar(active ? 0.12 : 0)
-        floor.slab.opacity = focused ? 1 : 0.38
-        floor.slabEdge.color.copy(active ? palette.primary : palette.slabEdge)
-        floor.slabEdge.opacity = focused ? 1 : 0.55
-        floor.halo.color.copy(palette.primary)
-        floor.halo.opacity = active ? 0.16 : 0
-        floor.label.classList.toggle('active', active)
+        ;(floor.wall.material as THREE.MeshLambertMaterial).color.copy(palette.wall)
+        floor.wall.base = focused ? 0.82 : 0.22
+        ;(floor.wallTop.material as THREE.LineBasicMaterial).color.copy(palette.wallTop)
+        floor.wallTop.base = focused ? 1 : 0.4
+        floor.slab.material.color.copy(palette.slab)
+        floor.slab.material.emissive.copy(palette.primary).multiplyScalar(viewed ? 0.12 : 0)
+        floor.slab.base = focused ? 1 : 0.38
+        ;(floor.slabEdge.material as THREE.LineBasicMaterial).color.copy(viewed ? palette.primary : palette.slabEdge)
+        floor.slabEdge.base = focused ? 1 : 0.55
+        ;(floor.halo.material as THREE.MeshBasicMaterial).color.copy(palette.primary)
+        floor.halo.base = viewed ? 0.16 : 0
+        for (const facade of floor.facades) {
+          ;(facade.fill.material as THREE.MeshLambertMaterial).color.copy(palette.exterior)
+          facade.fill.base = focused ? 1 : 0.3
+          ;(facade.edge.material as THREE.LineBasicMaterial).color.copy(palette.exteriorEdge)
+          facade.edge.base = focused ? 1 : 0.45
+        }
+        const [tube, start, destination] = floor.route
+        ;(tube.material as THREE.MeshBasicMaterial).color.copy(palette.primary)
+        ;(start.material as THREE.MeshBasicMaterial).color.copy(palette.start)
+        ;(destination.material as THREE.MeshBasicMaterial).color.copy(palette.destination)
+        floor.label.classList.toggle('active', viewed)
         floor.label.classList.toggle('hovered', floor.id === hoveredFloor)
       }
       shaftMaterials.lift.color.copy(palette.start)
       shaftMaterials.stair.color.copy(palette.danger)
-      routeMaterial.color.copy(palette.primary)
-      startMaterial.color.copy(palette.start)
-      destinationMaterial.color.copy(palette.destination)
+      linkMaterial.color.copy(palette.primary)
+      pulseMaterial.color.copy(palette.start)
     }
-    paint(activeId)
+    paint()
 
     const home: View = { position: new THREE.Vector3(), target: new THREE.Vector3(), zoom: 1 }
     const fitHome = (width: number, height: number) => {
-      const target = new THREE.Vector3(0, topY / 2, 0)
+      const visible = floors.filter(shown)
+      const x0 = Math.min(...visible.map((floor) => floor.box.x0))
+      const x1 = Math.max(...visible.map((floor) => floor.box.x1))
+      const z0 = Math.min(...visible.map((floor) => floor.box.z0))
+      const z1 = Math.max(...visible.map((floor) => floor.box.z1))
+      const y0 = Math.min(...visible.map((floor) => floor.explodedY)) - slabDepth
+      const y1 = Math.max(...visible.map((floor) => floor.explodedY + floor.exteriorHeight)) + (stackMode === 'all' ? lift : 0)
+      const target = new THREE.Vector3((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2)
       const probe = new THREE.OrthographicCamera(-width / height, width / height, 1, -1, -span * 40, span * 40)
       probe.position.copy(target).addScaledVector(isoDirection, span * 4)
       probe.lookAt(target)
       probe.updateMatrixWorld()
       let extentX = 0
       let extentY = 0
-      for (const x of [-halfX, halfX]) for (const y of [-slabDepth, topY + lift + wallHeight]) for (const z of [-halfZ, halfZ]) {
+      for (const x of [x0, x1]) for (const y of [y0, y1]) for (const z of [z0, z1]) {
         const local = new THREE.Vector3(x, y, z).applyMatrix4(probe.matrixWorldInverse)
         extentX = Math.max(extentX, Math.abs(local.x))
         extentY = Math.max(extentY, Math.abs(local.y))
       }
       // Leave room on the left for floor labels and at the edges for the overlay chrome.
       const labelRoom = Math.min(180, width * 0.3)
-      const zoom = Math.max(Math.min((width - labelRoom - 48) / (extentX * height), (height - 140) / (extentY * height)), 0.01)
+      const zoom = Math.max(Math.min((width - labelRoom - 48) / (extentX * height), (height - 170) / (extentY * height)), 0.01)
       const worldPerPixel = 2 / (zoom * height)
       const right = new THREE.Vector3().crossVectors(isoDirection.clone().negate(), up).normalize()
       target.addScaledVector(right, -labelRoom * 0.5 * worldPerPixel)
       home.target.copy(target)
       home.position.copy(target).addScaledVector(isoDirection, span * 4)
       home.zoom = zoom
-      controls.minZoom = zoom * 0.35
-      controls.maxZoom = zoom * 8
+      controls.minZoom = zoom * 0.3
+      controls.maxZoom = zoom * 10
     }
 
     let size = { width: 0, height: 0 }
     // While the camera sits at its home view, a resize (Expand, rotation) refits instead of cropping.
     let atHome = savedView.current?.key !== sceneKey || savedView.current.atHome
-    const applyHome = () => {
-      camera.position.copy(home.position)
-      controls.target.copy(home.target)
-      camera.zoom = home.zoom
+    let tween: { from: View; to: View | null; start: number } | null = null
+    const applyView = (view: View) => {
+      camera.position.copy(view.position)
+      controls.target.copy(view.target)
+      camera.zoom = view.zoom
       camera.updateProjectionMatrix()
     }
     const resize = () => {
@@ -501,29 +615,40 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       camera.top = 1
       camera.bottom = -1
       fitHome(width, height)
-      if (atHome) applyHome()
-      else if (first && savedView.current) {
-        camera.position.copy(savedView.current.view.position)
-        controls.target.copy(savedView.current.view.target)
-        camera.zoom = savedView.current.view.zoom
-      }
+      if (atHome) applyView(home)
+      else if (first && savedView.current) applyView(savedView.current.view)
       camera.updateProjectionMatrix()
     }
     resize()
     const observer = new ResizeObserver(resize)
     observer.observe(element)
 
-    const themeObserver = new MutationObserver(() => paint(activeId))
+    const themeObserver = new MutationObserver(paint)
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-system-theme', 'class'] })
 
-    let tween: { from: View; start: number } | null = null
+    const current = (): View => ({ position: camera.position.clone(), target: controls.target.clone(), zoom: camera.zoom })
+    const moveTo = (to: View | null) => {
+      if (reducedMotion) { applyView(to ?? home); tween = null; return }
+      tween = { from: current(), to, start: performance.now() }
+    }
     const resetView = () => {
       atHome = true
-      if (reducedMotion) {
-        applyHome()
-        return
-      }
-      tween = { from: { position: camera.position.clone(), target: controls.target.clone(), zoom: camera.zoom }, start: performance.now() }
+      moveTo(null)
+    }
+    // Switching floors keeps the user's orbit and zoom, and only slides the camera to the new floor.
+    const focus = (floorId: string, nextMode: StackMode) => {
+      if (floorId === viewedFloor && nextMode === stackMode) return
+      const before = home.target.clone()
+      viewedFloor = floorId
+      stackMode = nextMode
+      paint()
+      fitHome(size.width, size.height)
+      if (atHome) { moveTo(null); return }
+      const shift = home.target.clone().sub(before)
+      shift.x = 0
+      shift.z = 0
+      const view = current()
+      moveTo({ position: view.position.add(shift), target: view.target.add(shift), zoom: view.zoom })
     }
     controls.addEventListener('start', () => { tween = null; atHome = false })
 
@@ -534,15 +659,18 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       const rect = renderer.domElement.getBoundingClientRect()
       pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1)
       raycaster.setFromCamera(pointer, camera)
-      const hit = raycaster.intersectObjects(pickables, false)[0]
-      return (hit?.object.userData.floorId as string | undefined) ?? null
+      for (const hit of raycaster.intersectObjects(pickables, false)) {
+        const floorId = hit.object.userData.floorId as string | undefined
+        if (floorId && floors[floorIndex.get(floorId)!].fade > 0.5) return floorId
+      }
+      return null
     }
     const setHovered = (floorId: string | null) => {
       if (floorId === hoveredFloor) return
       hoveredFloor = floorId
-      renderer.domElement.style.cursor = floorId && selectRef.current ? 'pointer' : ''
+      renderer.domElement.style.cursor = floorId && stackMode === 'all' ? 'pointer' : ''
       setHoveredId(floorId)
-      paint(activeId)
+      paint()
     }
     const onPointerMove = (event: PointerEvent) => { if (event.buttons === 0) setHovered(pick(event)) }
     const onPointerDown = (event: PointerEvent) => { downAt = { x: event.clientX, y: event.clientY } }
@@ -550,7 +678,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       if (!downAt || Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y) > 5) { downAt = null; return }
       downAt = null
       const floorId = pick(event)
-      if (floorId) selectRef.current?.(floorId)
+      if (floorId && stackMode === 'all') selectRef.current(floorId)
     }
     const onPointerLeave = () => setHovered(null)
     const canvas = renderer.domElement
@@ -563,21 +691,47 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
     const worldOf = ([index, local]: [number, THREE.Vector3], target: THREE.Vector3) => target.copy(local).setY(local.y + floors[index].y)
     const a = new THREE.Vector3()
     const b = new THREE.Vector3()
+    const view = new THREE.Vector2()
     const routeWorld: THREE.Vector3[] = legs.flatMap((leg) => leg.points.map(() => new THREE.Vector3()))
     const born = performance.now()
     let last = born
     let frame = 0
     const animate = (now: number) => {
       frame = requestAnimationFrame(animate)
-      const delta = Math.min((now - last) / 1000, 0.1)
+      const delta = Math.max(Math.min((now - last) / 1000, 0.1), 0)
       last = now
-      const explode = !animateIn ? 1 : 1 - Math.pow(1 - Math.min((now - born) / 1100, 1), 3)
+      const explode = !animateIn ? 1 : 1 - Math.pow(1 - Math.min(Math.max(now - born, 0) / 1100, 1), 3)
+      const viewedIndex = floorIndex.get(viewedFloor) ?? 0
+      view.set(camera.position.x - controls.target.x, camera.position.z - controls.target.z).normalize()
       for (const floor of floors) {
-        const goal = floor.compactY + (floor.explodedY - floor.compactY) * explode + (floor.id === hoveredFloor || floor.id === activeId ? lift : 0)
-        floor.y = reducedMotion ? goal : floor.y + (goal - floor.y) * Math.min(1, delta * 9)
+        const visible = shown(floor)
+        floor.fade = reducedMotion ? (visible ? 1 : 0) : approach(floor.fade, visible ? 1 : 0, delta * 7)
+        // Hidden floors slide away from the viewed one as they fade out.
+        const offset = visible ? 0 : floor.index > viewedIndex ? away : -away
+        const raise = stackMode === 'all' && (floor.id === hoveredFloor || floor.id === viewedFloor) ? lift : 0
+        const goal = floor.compactY + (floor.explodedY - floor.compactY) * explode + offset + raise
+        floor.y = reducedMotion ? goal : approach(floor.y, goal, delta * 9)
         floor.group.position.y = floor.y
+        floor.group.visible = floor.fade > 0.01
+        floor.label.style.opacity = String(floor.fade)
+        floor.label.style.visibility = floor.fade > 0.01 ? 'visible' : 'hidden'
+        const faders = [...floor.rooms.values(), floor.wall, floor.wallTop, floor.slab, floor.slabEdge, floor.halo, ...floor.route]
+        for (const item of faders) item.material.opacity = item.base * floor.fade
+        for (const facade of floor.facades) {
+          // Walls facing the camera would hide the rooms, so they thin out like a cutaway.
+          const facing = facade.normal.dot(view) > 0.35 ? 0.16 : 1
+          facade.facing = reducedMotion ? facing : approach(facade.facing, facing, delta * 8)
+          facade.fill.material.opacity = facade.fill.base * facade.facing * floor.fade
+          facade.fill.material.depthWrite = facade.facing > 0.9
+          facade.edge.material.opacity = facade.edge.base * Math.max(facade.facing, 0.35) * floor.fade
+        }
       }
+      linkFade = reducedMotion ? (stackMode === 'all' ? 1 : 0) : approach(linkFade, stackMode === 'all' ? 1 : 0, delta * 7)
+      shaftMaterials.lift.opacity = 0.9 * linkFade
+      shaftMaterials.stair.opacity = 0.9 * linkFade
+      linkMaterial.opacity = linkFade
       for (const { links, line } of shaftLines) {
+        line.visible = linkFade > 0.01
         const attribute = line.geometry.getAttribute('position') as THREE.BufferAttribute
         links.forEach((link, index) => {
           worldOf(link.from, a)
@@ -589,6 +743,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
         line.computeLineDistances()
       }
       for (const { link, mesh } of transfers) {
+        mesh.visible = linkFade > 0.01
         worldOf(link.from, a)
         worldOf(link.to, b)
         const length = a.distanceTo(b)
@@ -597,11 +752,13 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
         if (length > 0) mesh.quaternion.setFromUnitVectors(up, b.clone().sub(a).normalize())
       }
       if (pulse && routeWorld.length > 1) {
+        // The pulse runs the whole route, so it only shows when every floor it crosses is visible.
+        pulse.visible = legs.every((leg) => floors[leg.index].fade > 0.99)
         let cursor = 0
         for (const leg of legs) for (const point of leg.points) worldOf([leg.index, point], routeWorld[cursor++])
         let total = 0
         for (let index = 1; index < routeWorld.length; index += 1) total += routeWorld[index - 1].distanceTo(routeWorld[index])
-        let travelled = ((now - born) / 5200 % 1) * total
+        let travelled = ((Math.max(now - born, 0) / 5200) % 1) * total
         for (let index = 1; index < routeWorld.length; index += 1) {
           const piece = routeWorld[index - 1].distanceTo(routeWorld[index])
           if (travelled <= piece || index === routeWorld.length - 1) {
@@ -612,11 +769,12 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
         }
       }
       if (tween) {
+        const to = tween.to ?? home
         const t = Math.min((now - tween.start) / 650, 1)
         const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
-        camera.position.lerpVectors(tween.from.position, home.position, eased)
-        controls.target.lerpVectors(tween.from.target, home.target, eased)
-        camera.zoom = tween.from.zoom + (home.zoom - tween.from.zoom) * eased
+        camera.position.lerpVectors(tween.from.position, to.position, eased)
+        controls.target.lerpVectors(tween.from.target, to.target, eased)
+        camera.zoom = tween.from.zoom + (to.zoom - tween.from.zoom) * eased
         camera.updateProjectionMatrix()
         if (t >= 1) tween = null
       }
@@ -626,13 +784,9 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
     }
     frame = requestAnimationFrame(animate)
 
-    scene.traverse((object) => {
-      const material = (object as THREE.Mesh).material
-      if (material === routeMaterial || material === startMaterial || material === destinationMaterial) object.renderOrder = 10
-    })
-    api.current = { paint, setHovered, resetView }
+    api.current = { focus, resetView }
     return () => {
-      savedView.current = { key: sceneKey, view: { position: camera.position.clone(), target: controls.target.clone(), zoom: camera.zoom }, atHome }
+      savedView.current = { key: sceneKey, view: current(), atHome }
       api.current = null
       cancelAnimationFrame(frame)
       observer.disconnect()
@@ -656,7 +810,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
     }
   }, [ordered, route])
 
-  useEffect(() => { api.current?.paint(activeFloorId) }, [activeFloorId])
+  useEffect(() => { api.current?.focus(viewedId, mode) }, [viewedId, mode])
 
   useEffect(() => {
     if (!expanded) return
@@ -670,15 +824,15 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
     requestAnimationFrame(() => expandButton.current?.focus())
   }
 
-  const focus = ordered.find((plan) => plan.floor.id === hoveredId) ?? ordered.find((plan) => plan.floor.id === activeFloorId) ?? ordered[0]
+  const viewed = ordered.find((plan) => plan.floor.id === viewedId) ?? ordered[0]
+  const focus = (mode === 'all' ? ordered.find((plan) => plan.floor.id === hoveredId) : null) ?? viewed
   const focusCounts = useMemo(() => {
     const counts = new Map<Tone, number>()
     for (const space of focus?.spaces ?? []) counts.set(toneOf(space), (counts.get(toneOf(space)) ?? 0) + 1)
     return counts
   }, [focus])
-  const active = ordered.find((plan) => plan.floor.id === activeFloorId)
   const summary = [
-    `${ordered.length} ${ordered.length === 1 ? copy.stackFloor : copy.stackFloorsCount}`,
+    mode === 'single' && viewed ? `${copy.stackShowing} ${viewed.floor.name}` : `${ordered.length} ${ordered.length === 1 ? copy.stackFloor : copy.stackFloorsCount}`,
     route?.length_m != null ? `${copy.route} ${Math.round(route.length_m)} m` : null,
     routeFloors.size > 1 ? `${copy.stackRouteSpans} ${routeFloors.size} ${copy.stackFloorsCount}` : null,
   ].filter(Boolean).join(' · ')
@@ -687,16 +841,30 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
     <>
       {expanded && <div className="floor-stack-backdrop" aria-hidden="true" onClick={() => setExpanded(false)} />}
       <section className={expanded ? 'floor-stack-3d is-expanded' : 'floor-stack-3d'} aria-label={copy.stackTitle}>
-        <div
-          ref={host}
-          className="stack-viewport"
-          role="img"
-          aria-label={`${copy.stackTitle}: ${summary}${active ? `. ${copy.stackActive} ${active.floor.name}` : ''}`}
-        />
+        <div ref={host} className="stack-viewport" role="img" aria-label={`${copy.stackTitle}: ${summary}`} />
         <header className="stack-head">
-          <div>
+          <div className="stack-heading">
             <span className="eyebrow">{copy.stackTitle}</span>
             <p className="stack-summary mono">{summary}</p>
+            {ordered.length > 1 && (
+              <div className="stack-floors" role="group" aria-label={copy.stackFloorsGroup}>
+                {[...ordered].reverse().map((plan) => (
+                  <button
+                    key={plan.floor.id}
+                    type="button"
+                    aria-pressed={mode === 'single' && plan.floor.id === viewedId}
+                    aria-label={`${copy.showFloor} ${plan.floor.name}`}
+                    title={plan.floor.name}
+                    onClick={() => selectFloor(plan.floor.id)}
+                  >
+                    L{plan.floor.level}
+                  </button>
+                ))}
+                <button type="button" className="stack-floors-all" aria-pressed={mode === 'all'} aria-label={copy.stackAllFloors} onClick={() => setMode(mode === 'all' ? 'single' : 'all')}>
+                  <LayersIcon /><span>{copy.stackAllFloors}</span>
+                </button>
+              </div>
+            )}
           </div>
           <div className="stack-actions">
             <button type="button" onClick={() => api.current?.resetView()} title={copy.stackResetHint} aria-label={copy.stackReset}>
@@ -708,6 +876,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
           </div>
         </header>
         <ul className="stack-legend" aria-label={copy.stackLegend}>
+          <li><span className="stack-swatch tone-exterior" />{copy.stackToneExterior}</li>
           <li><span className="stack-swatch tone-office" />{copy.stackToneOffice}</li>
           <li><span className="stack-swatch tone-corridor" />{copy.stackToneCorridor}</li>
           <li><span className="stack-swatch tone-restroom" />{copy.stackToneRestroom}</li>
@@ -731,7 +900,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
             {routeFloors.has(focus.floor.id) && <p className="stack-info-route">{copy.stackOnRoute}</p>}
           </aside>
         )}
-        <p className="stack-hint">{onSelectFloor ? `${copy.stackHint} · ${copy.stackHintSelect}` : copy.stackHint}</p>
+        <p className="stack-hint">{mode === 'all' ? `${copy.stackHint} · ${copy.stackHintSelect}` : copy.stackHint}</p>
       </section>
     </>
   )

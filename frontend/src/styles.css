@@ -1420,6 +1420,37 @@ button:disabled { cursor: default; }
 }
 .stack-head > * { pointer-events: auto; }
 .stack-summary { margin: var(--space-2) 0 0; color: var(--color-text-secondary); font-size: var(--font-size-label); }
+.stack-heading { display: grid; justify-items: start; gap: var(--space-1); min-width: 0; }
+.stack-floors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-surface) 90%, transparent);
+  backdrop-filter: blur(8px);
+}
+.stack-floors button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: var(--control-height);
+  min-height: var(--control-height);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: var(--font-weight-semibold) var(--font-size-label) var(--font-family-mono);
+  transition: background var(--duration-fast) var(--easing-standard), color var(--duration-fast) var(--easing-standard);
+}
+.stack-floors button:hover { background: var(--color-surface-raised); color: var(--color-text-primary); }
+.stack-floors button[aria-pressed='true'] { background: var(--color-primary); color: var(--color-on-primary); }
+.stack-floors .stack-floors-all { font-family: var(--font-family-sans); }
+.stack-floors .stack-floors-all[aria-pressed='true'] { background: var(--color-primary-a20); color: var(--color-text-primary); }
 .stack-actions {
   display: flex;
   gap: var(--space-1);
@@ -1469,6 +1500,7 @@ button:disabled { cursor: default; }
   border: 1px solid var(--map-space-stroke);
   border-radius: 3px;
 }
+.stack-swatch.tone-exterior { background: color-mix(in srgb, var(--map-space-stroke) 55%, var(--color-surface-raised)); border-color: var(--color-text-secondary); }
 .stack-swatch.tone-office { background: var(--stack-tone-office); }
 .stack-swatch.tone-corridor { background: var(--stack-tone-corridor); }
 .stack-swatch.tone-restroom { background: var(--stack-tone-restroom); }
@@ -1517,7 +1549,8 @@ button:disabled { cursor: default; }
 
 @container map-column (max-width: 640px) {
   .floor-stack-3d { height: clamp(400px, 70vh, 560px); }
-  .stack-actions button span { display: none; }
+  .stack-actions button span,
+  .stack-floors-all span { display: none; }
   .stack-actions button { min-width: var(--control-height); justify-content: center; padding: 0; }
   .stack-legend { display: none; }
   .stack-info { left: var(--space-4); bottom: var(--space-4); width: auto; padding: var(--space-3); }
