@@ -22,6 +22,7 @@ from final_agent.api import create_app, load_contract
 from final_agent.agent import BuildingAgent, MODELS
 from final_agent.api_session import ApiReply
 from final_agent.building_map import BuildingMap
+from final_agent.speech import SpeechError
 from final_agent.storage import RoomNoteStore
 from test_hull import ScriptedClient, ScriptedRunner, call, reply, say
 from test_storage import example_building
@@ -41,6 +42,22 @@ def api_building() -> dict:
         "space_ids": ["left", "upstairs"], "step_free": True, "synthetic": False,
     }]
     return data
+
+
+class FakeSpeech:
+    voice_id, tts_model = "voice", "model"
+
+    def __init__(self, failure: str | None = None) -> None:
+        self.failure, self.synthesized = failure, []
+
+    def transcribe(self, audio: bytes, content_type: str) -> str:
+        if self.failure:
+            raise SpeechError(self.failure, "failed")
+        return f"heard {len(audio)} bytes"
+
+    def synthesize(self, text: str) -> bytes:
+        self.synthesized.append(text)
+        return b"ID3" + text.encode()
 
 
 def answer(text="Done.", intent="unknown", **values):
@@ -100,12 +117,14 @@ class ApiTests(unittest.TestCase):
             writer.writerow(row)
         self.now = datetime(2026, 10, 24, 12, tzinfo=timezone.utc)
         self.model = ScriptedClient([])
+        self.speech = FakeSpeech()
         self.app = self.make_app()
         self.client = TestClient(self.app)
         self.addCleanup(self.client.close)
         self.base = "/api/v1"
 
     def make_app(self, **options):
+        options.setdefault("speech_factory", lambda: self.speech)
         return create_app(self.data, self.root / "output", notes_database=self.root / "notes.sqlite3",
                           client_factory=lambda: self.model, clock=lambda: self.now, api_token="", **options)
 
@@ -137,7 +156,7 @@ class ApiTests(unittest.TestCase):
     def test_health_buildings_detail_plans_and_search_match_contract(self):
         defined = {operation["operationId"] for methods in self.contract["paths"].values() for operation in methods.values()}
         implemented = {getattr(route, "operation_id", None) for route in self.app.routes}
-        self.assertEqual(len(defined), 22)
+        self.assertEqual(len(defined), 24)
         self.assertTrue(defined <= implemented)
         health = self.client.get(self.base + "/health", headers={"X-Request-Id": "from-frontend"})
         self.validate(health, "Health")
@@ -504,6 +523,36 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.client.put(path + "/guidance", json={"route_id": str(uuid4())}).status_code, 404)
         self.assertEqual(self.client.delete(path + "/guidance").status_code, 204)
         self.assertEqual(self.client.get(path + "/guidance").json()["guidance"]["status"], "idle")
+
+    def test_transcription_limits_types_and_unavailable_speech(self):
+        session = self.session()
+        url = self.path(session) + "/transcriptions"
+        send = lambda body, type="audio/wav", key="k": self.client.post(url, content=body, headers={"Content-Type": type, "Idempotency-Key": key})
+        ok = send(b"R" * 80 * 1024)
+        self.assertEqual(ok.status_code, 200, ok.text)
+        self.assertEqual(self.validate(ok, "Transcription"), {"schema_version": 1, "text": "heard 81920 bytes", "language": "en"})
+        self.assertEqual(send(b"R" * (2 * 1024 * 1024 + 1), key="big").json()["code"], "20012_payload_too_large")
+        self.assertEqual(send(b"abc", "text/plain", "plain").json()["details"], [{"field": "Content-Type", "code": "invalid"}])
+        self.assertEqual(send(b"", key="empty").json()["code"], "20001_validation_failed")
+        self.assertEqual(self.client.post(url, content=b"abc", headers={"Content-Type": "audio/wav"}).json()["code"], "20010_idempotency_key_required")
+        self.speech.failure = "rate_limited"
+        failed = send(b"abc", key="fail")
+        self.assertEqual((failed.status_code, failed.json()["code"], failed.json()["details"][0]["code"]), (503, "40004_speech_unavailable", "rate_limited"))
+        with TestClient(self.make_app(speech_factory=lambda: None)) as bare:
+            fresh = bare.post(self.base + "/sessions", json={"building_id": "test"}, headers={"Idempotency-Key": "s"}).json()
+            response = bare.post(self.base + "/sessions/" + fresh["id"] + "/transcriptions", content=b"abc", headers={"Content-Type": "audio/wav", "Idempotency-Key": "t"})
+        self.assertEqual((response.status_code, response.json()["code"], response.json()["details"][0]["code"]), (503, "40004_speech_unavailable", "not_configured"))
+
+    def test_speech_clip_serves_event_audio_and_unknown_is_404(self):
+        session = self.session()
+        _, feed = self.guided_route(session)
+        clip = feed["events"][0]["speech_clip_id"]
+        response = self.client.get(self.path(session) + "/speech-clips/" + clip)
+        self.assertEqual((response.status_code, response.headers["content-type"], response.content), (200, "audio/mpeg", b"ID3" + feed["events"][0]["text"].encode()))
+        self.client.get(self.path(session) + "/speech-clips/" + clip)
+        self.assertEqual(len(self.speech.synthesized), 1)
+        missing = self.client.get(self.path(session) + "/speech-clips/nope")
+        self.assertEqual((missing.status_code, missing.json()["code"]), (404, "30014_speech_clip_not_found"))
 
     def test_unreachable_route_cannot_be_guided(self):
         session = self.session()

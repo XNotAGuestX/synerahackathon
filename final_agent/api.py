@@ -26,9 +26,11 @@ from starlette.exceptions import HTTPException
 from starlette.middleware.cors import CORSMiddleware
 
 from .api_session import ApiError, SessionService, identifier
+from .speech import ElevenLabsSpeech
 
 LOG = logging.getLogger("final_agent.api")
 MAX_BODY = 65536
+MAX_AUDIO_BODY = 2 * 1024 * 1024
 API_ROOT = "/api/v1"
 EXPOSE_HEADERS = ["ETag", "Location", "X-Request-Id", "X-API-Version", "X-Schema-Version", "Retry-After"]
 DEFAULT_ORIGINS = [f"http://{host}:{port}" for host in ("localhost", "127.0.0.1") for port in (3000, 5173)]
@@ -211,13 +213,14 @@ class ProtocolMiddleware:
                     raise ApiError("20010_idempotency_key_required")
                 if not re.fullmatch(r"[\x21-\x7e]{1,128}", key):
                     raise ApiError("20001_validation_failed", [{"field": "Idempotency-Key", "code": "invalid"}])
+            limit = MAX_AUDIO_BODY if scope["path"].endswith("/transcriptions") else MAX_BODY
             body = bytearray()
             while True:
                 message = await receive()
                 if message["type"] == "http.disconnect":
                     return
                 body.extend(message.get("body", b""))
-                if len(body) > MAX_BODY:
+                if len(body) > limit:
                     raise ApiError("20012_payload_too_large")
                 if not message.get("more_body", False):
                     break
@@ -349,10 +352,12 @@ def create_app(
     data_directory: Path = Path("data"), output_directory: Path = Path("agent_output/api"), *,
     notes_database: Path | None = None, api_token: str | None = None, cors_origins: list[str] | None = None,
     client_factory=None, clock=None, new_id=None, rate_limit: int = 0, model_timeout: float = 60,
+    speech_factory=ElevenLabsSpeech.from_env,
 ) -> FastAPI:
     options = {name: value for name, value in (("clock", clock), ("new_id", new_id)) if value is not None}
     service = SessionService(data_directory, output_directory, notes_database=notes_database,
-                             client_factory=client_factory, model_timeout=model_timeout, **options)
+                             client_factory=client_factory, model_timeout=model_timeout,
+                             speech=speech_factory(), **options)
     contract = load_contract()
     app = FastAPI(title=contract["info"]["title"], version="1.0.0")
     app.openapi_schema = contract
@@ -466,6 +471,16 @@ def create_app(
         LOG.debug("trace_id=%s user_text=%s", request.state.trace_id, body.text)
         result = service.message(service.get(str(session_id)), body.model_dump(), revision(request))
         return respond(result, status=201, location=f"{API_ROOT}/sessions/{session_id}/messages/{result['user_message']['id']}", etag=result["session"]["revision"])
+
+    @app.post(API_ROOT + "/sessions/{session_id}/transcriptions", operation_id="create_transcription")
+    async def create_transcription(session_id: UUID, request: Request):
+        audio = await request.body()
+        content_type = request.headers.get("Content-Type", "")
+        return await asyncio.to_thread(service.transcribe, str(session_id), audio, content_type)
+
+    @app.get(API_ROOT + "/sessions/{session_id}/speech-clips/{clip_id}", operation_id="get_speech_clip")
+    def get_speech_clip(session_id: UUID, clip_id: str):
+        return Response(content=service.speech_clip(str(session_id), clip_id), media_type="audio/mpeg")
 
     @app.post(API_ROOT + "/sessions/{session_id}/actions", operation_id="create_action")
     def create_action(session_id: UUID, body: ActionCreate, request: Request):

@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict
 from .agent import BuildingAgent, MissingCredentialsError
 from .building_map import BuildingMap, MapError, RouteResult
 from .live import LiveState
+from .speech import ClipCache, SpeechError, SpeechProvider
 from .storage import RoomNoteStore
 from .tools import ArgumentCheckedTool, as_json, make_tools, route_json
 from .viewer import landmark_targets, node_location, route_polylines
@@ -33,7 +34,7 @@ ERRORS = {
     "20001_validation_failed": (400, "Request validation failed."),
     "20010_idempotency_key_required": (400, "Idempotency-Key is required."),
     "20011_idempotency_key_mismatch": (409, "Idempotency key does not match the request."),
-    "20012_payload_too_large": (413, "Request body exceeds 65536 bytes."),
+    "20012_payload_too_large": (413, "Request body exceeds the size limit."),
     "30001_building_not_found": (404, "Building was not found."),
     "30002_session_not_found": (404, "Session was not found."),
     "30003_floor_not_found": (404, "Floor was not found."),
@@ -45,9 +46,11 @@ ERRORS = {
     "30010_action_conflict": (409, "Action conflicts with the current state."),
     "30012_revision_conflict": (409, "Session revision has changed."),
     "30013_element_not_found": (404, "Element was not found."),
+    "30014_speech_clip_not_found": (404, "Speech clip was not found."),
     "40001_model_unavailable": (503, "Model is unavailable."),
     "40002_model_rate_limited": (429, "Model rate limit exceeded."),
     "40003_model_timeout": (504, "Model timed out."),
+    "40004_speech_unavailable": (503, "Speech service is unavailable."),
 }
 
 
@@ -141,7 +144,9 @@ class SessionService:
         self, data_directory: Path, output_directory: Path, *, notes_database: Path | None = None,
         client_factory: Callable | None = None, clock: Callable = utc_now, new_id: Callable = identifier,
         model_timeout: float = 60, cursor_secret: bytes | None = None,
+        speech: SpeechProvider | None = None,
     ) -> None:
+        self.speech, self.clips = speech, ClipCache()
         self.data_directory = Path(data_directory).resolve()
         self.output_directory = Path(output_directory)
         self.notes_database = Path(notes_database) if notes_database is not None else Path("agent_output/room_notes.sqlite3")
@@ -522,6 +527,37 @@ class SessionService:
 
     def delete_guidance(self, session_id: str) -> None:
         self.get(session_id).live.stop("cancelled")
+
+    AUDIO_TYPES = {"audio/wav", "audio/x-wav", "audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg"}
+
+    def unavailable(self, reason: str) -> ApiError:
+        return ApiError("40004_speech_unavailable", [{"field": "speech", "code": reason}], retry_after=1 if reason == "rate_limited" else None)
+
+    def transcribe(self, session_id: str, audio: bytes, content_type: str) -> dict:
+        self.get(session_id)
+        base = content_type.split(";")[0].strip().lower()
+        if base not in self.AUDIO_TYPES or not audio:
+            raise ApiError("20001_validation_failed", [{"field": "Content-Type" if base not in self.AUDIO_TYPES else "body", "code": "invalid"}])
+        if self.speech is None:
+            raise self.unavailable("not_configured")
+        try:
+            text = self.speech.transcribe(audio, base)
+        except SpeechError as error:
+            raise self.unavailable(error.reason) from error
+        return {"schema_version": 1, "text": text, "language": "en"}
+
+    def speech_clip(self, session_id: str, clip_id: str) -> bytes:
+        text = self.get(session_id).live.clip_text(clip_id)
+        if text is None:
+            raise ApiError("30014_speech_clip_not_found")
+        speech = self.speech
+        if speech is None:
+            raise self.unavailable("not_configured")
+        key = (speech.voice_id, speech.tts_model, "mp3_44100_64", text)
+        try:
+            return self.clips.get_or_make(key, lambda: speech.synthesize(text))
+        except SpeechError as error:
+            raise self.unavailable(error.reason) from error
 
     def message_page(self, session: SessionState, cursor: str | None, limit: int) -> dict:
         with session.lock:
