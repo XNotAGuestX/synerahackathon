@@ -162,7 +162,8 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
   const placeReady = useRef(readPadPlace() != null)
   const hiddenChanged = useRef(false)
   const drag = useRef<{ id: number; dx: number; dy: number } | null>(null)
-  const [place, setPlace] = useState<PadPlace>(() => readPadPlace() ?? { x: 24, y: 24, hidden: false })
+  // On phones the open pad would cover the legend and most of the plan, so it starts folded there.
+  const [place, setPlace] = useState<PadPlace>(() => readPadPlace() ?? { x: 24, y: 24, hidden: window.matchMedia('(max-width: 650px)').matches })
   const [dragging, setDragging] = useState(false)
   const [speed, setSpeed] = useState(readWalkSpeed)
   const speedRef = useRef(speed)
