@@ -1,86 +1,64 @@
-# Emergency roll call — handoff
+# Emergency mode — handoff
 
-Status, 24 October 2026: **mock implemented** on branch `feature/emergency-roll-call`.
-Independent of the scored benchmark: `final_agent.benchmark:answer` never gets these tools.
-Why it is built this way, and whether real phones could do it (opt-in app tracking,
-enterprise Wi-Fi triangulation, badges, law):
-[EMERGENCY_MOCK_REASONING.md](EMERGENCY_MOCK_REASONING.md).
+Status, 25 October 2026: **emergency mode implemented** (FR-17, [ADR-0004](docs/adr/ADR-0004-emergency-mode.md)).
+It replaces the earlier roll-call mock (safe/pending/unsafe with a 2-minute deadline). Independent of the scored
+benchmark: `final_agent.benchmark:answer` never gets these tools. Whether real phones could do this (opt-in app,
+enterprise Wi-Fi triangulation, law): [EMERGENCY_MOCK_REASONING.md](EMERGENCY_MOCK_REASONING.md).
 
 ## What it does
 
-In an emergency an admin asks the chat guide to trigger a roll call. Every employee
-is alerted and their last known location is shared on the floor plans. Everyone
-must confirm "I'm safe" within **2 minutes** (tap in the phone app, or a badge scan
-at the assembly-point reader). Anyone still unconfirmed at the deadline is marked
-**unsafe**. Admins can mark people safe by hand, for example someone who is at the
-assembly point but left their smartphone inside.
+An admin activates emergency mode for a building from the app's **Emergency** tab:
+
+1. Unlock with the PIN from `EMERGENCY_ADMIN_PIN` (plus the admin's name, shown as "marked by").
+2. Enter a reason, press *Prepare*, type the six-digit code shown on screen and press *Activate*.
+
+While the alarm is active:
+
+- Every phone shows an alarm banner and is asked once for a display name.
+- The admin sees a live list with counts: who is **inside**, **outside** or **marked outside**. People still
+  inside come first. Phones whose last position is older than 15 s are flagged *stale* and still count as inside.
+- Coloured dots on the floor plan show where everyone is (red inside, green outside, blue marked outside).
+- *Mark outside* (with a note) covers people who left without their phone. *Undo* removes the mark.
+- *End emergency* deletes every position and mark.
 
 | Piece | Where |
 |---|---|
-| Simulation, 2-minute rule, manual confirmation | `final_agent/emergency.py` |
-| Agent tools `trigger_emergency_roll_call`, `emergency_roll_call_status`, `mark_person_safe`, `end_emergency_roll_call` | `make_emergency_tools` in `final_agent/tools.py` |
-| Map overlay: green safe, amber pending, red unsafe; circle = phone fix, square = badge reader | `draw_emergency` / `draw_floor(people=...)` in `final_agent/viewer.py` |
-| Enabled for interactive chat only, plus a short prompt section | `BuildingAgent(emergency=True)` in `final_agent/agent.py` |
-| Regression tests | `tests/test_emergency.py` |
+| Inside/outside rule, simulated evacuation, real phones, manual marks | `final_agent/emergency.py` |
+| Admin PIN/token, challenge code, per-building state | `SessionService` in `final_agent/api_session.py` |
+| HTTP routes | `final_agent/api.py`, contract in `openapi.yaml` (tag `Emergency`) |
+| App UI | `frontend/src/features/emergency/` |
+| Terminal-chat tools `start_emergency_mode`, `emergency_status`, `mark_person_outside`, `end_emergency_mode` | `make_emergency_tools` in `final_agent/tools.py` |
+| PNG overlay for the terminal chat | `draw_emergency` in `final_agent/viewer.py` |
+| Tests | `tests/test_emergency.py`, emergency test in `tests/test_api.py` |
 
-Status rule: **safe** = confirmed by the person or an admin; **pending** = no reply
-and the deadline has not passed; **unsafe** = no confirmation within 120 s. A late
-manual confirmation turns unsafe into safe. Results give each person's
-`last_seen.id`, so the existing `find_route` can send a responder there.
+Inside means the position lies in any space of the building, balconies included. Outside means it lies in no
+space on a floor with an entrance (the lowest floor if the building has none).
 
-## What is fake
+## What is simulated
 
-Everything about the people, deliberately:
-
-- Twelve fake employees, seeded from the building id, so a building replays
-  identically. They are placed in rooms and halls, never on stairs, in lifts or
-  outdoors.
-- Tracking is either a **smartphone location fix** (a point inside the room) or an
-  **RFID security badge**. A smartphone fix stands for the opt-in app, or for an
-  enterprise Wi-Fi estimate when the person has not opted in. A badge only knows the
-  door reader it last passed, so its position is that door.
-- Reply times are seeded within 8–110 s. A quarter of the people (rounded up, at
-  least one) never reply, so every demo reaches the unsafe case.
-- No device is contacted, nothing is persisted, and ending the roll call discards
-  the data. `emergency_roll_call_status(fast_forward_s=...)` moves the simulated
-  clock for demos; the real clock otherwise runs at wall time.
+- Twelve people per building, seeded from the building id. They start in rooms, never on stairs, in lifts or
+  outdoors. Most walk the shortest route to the nearest entrance after 5–60 s and stop 2.5 m outside. A quarter
+  (at least one) never leave: their phone stays inside, so every demo has someone to mark by hand.
+- Real phones are app sessions that send positions. In the demo the position comes from the walking figure; it can
+  now step 2.5 m out of each entrance. No Wi-Fi infrastructure is connected.
+- Nothing is persisted; a server restart ends the alarm and logs admins out.
 
 ## Demo
 
 ```bash
-uv run python -m final_agent data/dev/proc-factory-dev-003
+EMERGENCY_ADMIN_PIN=2468 uv run python -m final_agent.api
+cd frontend && npm run dev
 ```
 
-1. "Fire alarm in the production hall — trigger the emergency roll call."
-2. "Skip to the deadline. Who is unaccounted for and where were they last seen?"
-   On this building three people are unsafe: Hannah Klein (Quality lab 0.21),
-   Jonas Fischer and Sofia Kaya (badge readers in main aisles H-B3 / H-B1).
-3. "Jonas Fischer is with me at the assembly point, mark him safe."
-4. "Route me from Hall access 0.19 to Sofia Kaya's last known location." (existing
-   routing; 25.4 m to Main aisle H-B1)
-5. "End the roll call."
+1. Phone A: Emergency tab → PIN `2468` → reason → *Prepare* → type the code → *Activate*.
+2. Phone B (second browser or phone, same building): the banner appears; enter a name; walk the figure out of an
+   entrance. On phone A, B switches from inside to outside.
+3. Watch the simulated people leave; mark one of the remaining ones outside, then undo.
+4. *End emergency*: the list empties and the banner disappears on every phone.
 
-Maps are written to `agent_output/emergency_<floor level>.png`.
+## Limits
 
-## Open: user roles are not implemented
-
-The requirement is that **only admins** may trigger, view, correct and end a roll
-call; it shows everyone's location. The app has **no user accounts or roles yet**,
-so for now **every user counts as an admin** and anyone in the chat can use all four
-tools. No role check exists in the code, and nothing pretends to authenticate.
-
-When roles exist:
-
-- Pass the session user into `make_emergency_tools` and refuse the four tools for
-  non-admins with a clear `ToolError`. Keep the rule in that one place.
-- Give non-admins the employee side, which the mock only simulates: receive the
-  alert and confirm their own safety.
-- Add a test that a non-admin cannot trigger the roll call or see anyone's location.
-
-## Other limitations
-
-- Positions are the **last known** fix or badge reader, not live tracking.
-- One roll call per chat session; no audit log or export of the final report.
-- No live (API) conversation check was run for this feature; the tools, the
-  rendering and the 2-minute rule are covered by `tests/test_emergency.py` and a
-  scripted tool-level run on `proc-factory-dev-003`.
+- One admin role, no user accounts. Anyone with the PIN is an admin.
+- Positions come from the app (opt-in). Phones without the app are invisible.
+- No audit log or export of the final list.
+- The HTTP chat does not get the emergency tools; the terminal chat only sees simulated people.

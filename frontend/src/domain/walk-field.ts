@@ -10,6 +10,8 @@ export const OPENING_SNAP_M = 1.05
 export const MIN_PASS_WIDTH_M = BODY_RADIUS_M * 2 + 0.04
 export const WALK_SPEED_M_S = 1.35
 export const ARRIVE_RADIUS_M = 0.6
+/** Walkable strip in front of each open entrance, so the figure can step outside (emergency mode, ADR-0004). */
+export const ENTRANCE_APRON_M = 2.5
 
 const SUBSTEP_M = 0.05
 const EPS = 1e-4
@@ -199,11 +201,30 @@ function firstHit(field: WalkField, from: Point, to: Point): BlockCause | null {
   return cause
 }
 
+/** Strip outside the entrance gap, overlapping the wall slightly so no seam is left at the doorway. Aprons never join
+ *  each other, so the outside is no shortcut between entrances. */
+function entranceApron(plan: FloorPlan, projection: Projection, width: number): Point[] | null {
+  const space = plan.spaces.find((item) => item.id === projection.edge.spaceId)
+  const interval = clipInterval(projection.metres, width / 2, projection.edge.length)
+  if (!space || !interval) return null
+  const a = pointOnEdge(projection.edge, interval[0])
+  const b = pointOnEdge(projection.edge, interval[1])
+  const [nx, ny] = inwardNormal(projection.edge, isCcw(space.polygon))
+  const overlap = 0.05
+  return [
+    [a[0] + nx * overlap, a[1] + ny * overlap],
+    [b[0] + nx * overlap, b[1] + ny * overlap],
+    [b[0] - nx * ENTRANCE_APRON_M, b[1] - ny * ENTRANCE_APRON_M],
+    [a[0] - nx * ENTRANCE_APRON_M, a[1] - ny * ENTRANCE_APRON_M],
+  ]
+}
+
 export function buildWalkField(plan: FloorPlan, closedIds: readonly string[], stepFree: boolean): WalkField {
   const closed = new Set(closedIds)
   const edges = edgesOf(plan.spaces)
   const marks = new Map<Edge, Mark[]>()
   const portals: Portal[] = []
+  const aprons: Point[][] = []
   for (const opening of plan.openings) {
     if (opening.floor_id !== plan.floor.id) continue
     const kind = openingKind(opening, closed, stepFree)
@@ -219,6 +240,10 @@ export function buildWalkField(plan: FloorPlan, closedIds: readonly string[], st
       list.push({ start: interval[0], end: interval[1], kind: kind === 'pass' ? 'gap' : kind })
       marks.set(nearest.edge, list)
     }
+    if (kind === 'pass' && opening.space_ids.includes('outside') && projections.length === 1) {
+      const apron = entranceApron(plan, projections[0], opening.width_m)
+      if (apron) aprons.push(apron)
+    }
     if (kind === 'pass' && projections.length >= 2) {
       const halfClear = opening.width_m / 2 - BODY_RADIUS_M
       if (halfClear > 0) {
@@ -228,7 +253,7 @@ export function buildWalkField(plan: FloorPlan, closedIds: readonly string[], st
     }
   }
   const blocking = edges.flatMap((edge) => blockingFromEdge(edge, marks.get(edge) ?? []))
-  const spaces = plan.spaces.filter((space) => !closed.has(space.id)).map((space) => space.polygon)
+  const spaces = [...plan.spaces.filter((space) => !closed.has(space.id)).map((space) => space.polygon), ...aprons]
   const solids = plan.assets
     .filter((asset) => asset.floor_id === plan.floor.id)
     .map((asset) => ({

@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from . import object_edits
 from .agent import EFFORT, MODEL, MODELS, VOICE_EFFORT, VOICE_MODEL, VOICE_PROMPT, BuildingAgent, MissingCredentialsError
 from .building_map import BuildingMap, MapError, RouteResult
+from .emergency import STATUS_ORDER, EmergencyMode, EmergencyNotActive, PersonNotFound, PhoneFix
 from .live import LiveState
 from .narration import landmark_candidates, narrate
 from .speech import REALTIME_URL, ClipCache, SpeechError, SpeechProvider
@@ -44,6 +45,8 @@ ERRORS = {
     "00001_internal": (500, "An internal error occurred."),
     "00002_rate_limited": (429, "Request rate limit exceeded."),
     "10001_unauthenticated": (401, "Authentication is required."),
+    "10002_forbidden": (403, "Admin rights are required."),
+    "10003_admin_disabled": (403, "Admin features are disabled on this server. Set EMERGENCY_ADMIN_PIN to enable them."),
     "20001_validation_failed": (400, "Request validation failed."),
     "20010_idempotency_key_required": (400, "Idempotency-Key is required."),
     "20011_idempotency_key_mismatch": (409, "Idempotency key does not match the request."),
@@ -64,6 +67,10 @@ ERRORS = {
     "30016_not_removable": (409, "Element comes from the building data and cannot be removed."),
     "30017_speech_clip_not_found": (404, "Speech clip was not found."),
     "30018_object_state_unavailable": (503, "Saved room objects could not be loaded. Restore the shared object file or use a matching source dataset; the original map has not been substituted."),
+    "30019_emergency_not_active": (409, "No emergency is active for this building."),
+    "30020_emergency_already_active": (409, "An emergency is already active for this building."),
+    "30021_challenge_invalid": (409, "The confirmation code is wrong or expired. Request a new code."),
+    "30022_person_not_found": (404, "Person was not found in this emergency."),
     "40001_model_unavailable": (503, "Model is unavailable."),
     "40002_model_rate_limited": (429, "Model rate limit exceeded."),
     "40003_model_timeout": (504, "Model timed out."),
@@ -137,6 +144,7 @@ class SessionState:
     object_revision: int = 0
     action_object_revisions: dict[str, int] = field(default_factory=dict)
     is_working_copy: bool = field(default=False, repr=False)
+    display_name: str | None = None  # shown to admins in emergency mode; never part of revision/history
 
 
 class AskChoice(BaseModel):
@@ -218,9 +226,16 @@ class SessionService:
         self, data_directory: Path, output_directory: Path, *, notes_database: Path | None = None,
         client_factory: Callable | None = None, clock: Callable = utc_now, new_id: Callable = identifier,
         model_timeout: float = 60, cursor_secret: bytes | None = None,
-        speech: SpeechProvider | None = None,
+        speech: SpeechProvider | None = None, admin_pin: str = "",
     ) -> None:
         self.speech, self.clips = speech, ClipCache()
+        self.admin_pin = admin_pin
+        # Emergency mode (FR-17): in memory only, so ending the alarm or a restart deletes every position.
+        self.emergencies: dict[str, EmergencyMode] = {}
+        self.admin_tokens: dict[str, dict] = {}  # sha256(token) -> name, expires; the token itself is not kept
+        self.challenges: dict[str, dict] = {}
+        self.pin_failures: list[datetime] = []
+        self._emergency_lock = threading.Lock()  # never take a session lock while holding it
         self.first_instruction_wait_s = 2.5
         self.data_directory = Path(data_directory).resolve()
         self.output_directory = Path(output_directory)
@@ -804,6 +819,161 @@ class SessionService:
 
     def delete_guidance(self, session_id: str) -> None:
         self.get(session_id).live.stop("cancelled")
+
+    # Emergency mode (FR-17). Admins unlock with EMERGENCY_ADMIN_PIN and then confirm a one-time code to start.
+
+    ADMIN_TOKEN_TTL = timedelta(minutes=30)
+    CHALLENGE_TTL = timedelta(seconds=60)
+    PIN_ATTEMPTS, PIN_WINDOW = 5, timedelta(seconds=60)
+
+    def put_profile(self, session_id: str, display_name: str) -> dict:
+        session = self.get(session_id)  # like a fix, a name never bumps the revision
+        session.display_name = display_name.strip() or None
+        return {"schema_version": 1, "display_name": session.display_name}
+
+    def create_admin_token(self, pin: str, name: str) -> dict:
+        if not self.admin_pin:
+            raise ApiError("10003_admin_disabled")
+        with self._emergency_lock:
+            now = self.clock()
+            self.pin_failures = [at for at in self.pin_failures if now - at < self.PIN_WINDOW]
+            if len(self.pin_failures) >= self.PIN_ATTEMPTS:
+                wait = self.PIN_WINDOW - (now - self.pin_failures[0])
+                raise ApiError("00002_rate_limited", retry_after=max(1, math.ceil(wait.total_seconds())))
+            if not hmac.compare_digest(pin.encode(), self.admin_pin.encode()):
+                self.pin_failures.append(now)
+                raise ApiError("10002_forbidden", [{"field": "pin", "code": "invalid"}])
+            token = secrets.token_urlsafe(32)
+            expires = now + self.ADMIN_TOKEN_TTL
+            self.admin_tokens[hashlib.sha256(token.encode()).hexdigest()] = {"name": name.strip(), "expires": expires}
+        return {"schema_version": 1, "token": token, "name": name.strip(), "expires_at": timestamp(expires)}
+
+    def require_admin(self, token: str | None) -> tuple[str, str]:
+        """(token hash, admin name); call with the emergency lock held. Each use extends the token."""
+        if not self.admin_pin:
+            raise ApiError("10003_admin_disabled")
+        if not token:
+            raise ApiError("10002_forbidden", [{"field": "X-Admin-Token", "code": "required"}])
+        key = hashlib.sha256(token.encode()).hexdigest()
+        record = self.admin_tokens.get(key)
+        if record is None:
+            raise ApiError("10002_forbidden", [{"field": "X-Admin-Token", "code": "invalid"}])
+        now = self.clock()
+        if record["expires"] <= now:
+            del self.admin_tokens[key]
+            raise ApiError("10002_forbidden", [{"field": "X-Admin-Token", "code": "expired"}])
+        record["expires"] = now + self.ADMIN_TOKEN_TTL
+        return key, record["name"]
+
+    def emergency_status(self, building_id: str) -> dict:
+        """Public: every phone polls this to show the alarm banner. It reveals nobody's location."""
+        self.building_data(building_id)
+        with self._emergency_lock:
+            mode = self.emergencies.get(building_id)
+            started = mode.report()["started_at"] if mode else None
+            return {"schema_version": 1, "building_id": building_id, "active": mode is not None,
+                    "reason": mode.reason if mode else None, "started_at": started}
+
+    def create_challenge(self, building_id: str, token: str | None) -> dict:
+        self.building_data(building_id)
+        with self._emergency_lock:
+            key, _ = self.require_admin(token)
+            if building_id in self.emergencies:
+                raise ApiError("30020_emergency_already_active")
+            now = self.clock()
+            self.challenges = {cid: item for cid, item in self.challenges.items() if item["expires"] > now}
+            challenge_id = self.new_id()
+            code = f"{secrets.randbelow(10**6):06d}"
+            expires = now + self.CHALLENGE_TTL
+            self.challenges[challenge_id] = {"code": code, "building_id": building_id, "token": key, "expires": expires}
+        return {"schema_version": 1, "id": challenge_id, "code": code, "expires_at": timestamp(expires)}
+
+    def start_emergency(self, building_id: str, token: str | None, challenge_id: str, code: str, reason: str) -> dict:
+        self.building_data(building_id)
+        with self._emergency_lock:
+            key, _ = self.require_admin(token)
+            if building_id in self.emergencies:
+                raise ApiError("30020_emergency_already_active")
+            challenge = self.challenges.pop(challenge_id, None)  # one attempt per code
+            if challenge is None or challenge["building_id"] != building_id or challenge["token"] != key:
+                raise ApiError("30021_challenge_invalid", [{"field": "challenge_id", "code": "not_found"}])
+            if challenge["expires"] <= self.clock():
+                raise ApiError("30021_challenge_invalid", [{"field": "challenge_id", "code": "expired"}])
+            if not hmac.compare_digest(code.encode(), challenge["code"].encode()):
+                raise ApiError("30021_challenge_invalid", [{"field": "code", "code": "mismatch"}])
+            # A private copy: the simulation computes routes, which must not touch the maps sessions are cloned from.
+            mode = EmergencyMode(self._base_maps[building_id].clone(), clock=lambda: self.clock().timestamp())
+            mode.start(reason)
+            self.emergencies[building_id] = mode
+            return self._roster(building_id, mode)
+
+    def end_emergency(self, building_id: str, token: str | None) -> None:
+        self.building_data(building_id)
+        with self._emergency_lock:
+            self.require_admin(token)
+            mode = self.emergencies.pop(building_id, None)
+            if mode is not None:
+                mode.end()
+            self.challenges = {cid: item for cid, item in self.challenges.items() if item["building_id"] != building_id}
+
+    def emergency_roster(self, building_id: str, token: str | None) -> dict:
+        self.building_data(building_id)
+        with self._emergency_lock:
+            self.require_admin(token)
+            mode = self.emergencies.get(building_id)
+            if mode is None:
+                return {"schema_version": 1, "building_id": building_id, "active": False, "reason": None,
+                        "started_at": None, "elapsed_s": 0.0,
+                        "counts": {**{status: 0 for status in STATUS_ORDER}, "stale": 0, "total": 0}, "people": []}
+            return self._roster(building_id, mode)
+
+    def mark_outside(self, building_id: str, person_id: str, token: str | None, note: str) -> dict:
+        self.building_data(building_id)
+        with self._emergency_lock:
+            _, name = self.require_admin(token)
+            mode = self._active_emergency(building_id)
+            mode.observe(self.phones_for(building_id))
+            try:
+                mode.mark_outside(person_id, note, name)
+            except PersonNotFound as error:
+                raise ApiError("30022_person_not_found", [{"field": "person_id", "code": "not_found"}]) from error
+            return self._roster(building_id, mode)
+
+    def clear_mark(self, building_id: str, person_id: str, token: str | None) -> None:
+        self.building_data(building_id)
+        with self._emergency_lock:
+            self.require_admin(token)
+            mode = self._active_emergency(building_id)
+            try:
+                mode.clear_mark(person_id)
+            except PersonNotFound as error:
+                raise ApiError("30022_person_not_found", [{"field": "person_id", "code": "not_found"}]) from error
+
+    def _active_emergency(self, building_id: str) -> EmergencyMode:
+        mode = self.emergencies.get(building_id)
+        if mode is None:
+            raise ApiError("30019_emergency_not_active")
+        return mode
+
+    def _roster(self, building_id: str, mode: EmergencyMode) -> dict:
+        try:
+            mode.observe(self.phones_for(building_id))
+            return {"schema_version": 1, **mode.report()}
+        except EmergencyNotActive as error:
+            raise ApiError("30019_emergency_not_active") from error
+
+    def phones_for(self, building_id: str) -> list[PhoneFix]:
+        """Latest fix of every session on this building; the session id stays inside the emergency module."""
+        with self._lock:
+            sessions = [session for session in self.sessions.values()
+                        if session.map.data["building"]["id"] == building_id]
+        phones = []
+        for session in sessions:
+            fix = session.live.last_fix()
+            if fix is not None:
+                phones.append(PhoneFix(session.id, session.display_name, fix.floor_id, fix.point,
+                                       fix.measured_at.timestamp()))
+        return phones
 
     AUDIO_TYPES = {"audio/wav", "audio/x-wav", "audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg"}
 

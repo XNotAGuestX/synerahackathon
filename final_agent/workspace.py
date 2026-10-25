@@ -47,7 +47,7 @@ class Workspace:
         self.current_location: dict | None = None
         self.preferences: dict = {}
         self.pending_plan: dict | None = None
-        # Mock roll calls last only for this process and are isolated by building/map instance.
+        # Mock emergencies last only for this process and are isolated by building/map instance.
         self.emergency_tools: dict[str, tuple[BuildingMap, dict]] = {}
         state = self.directory / "session.json"
         if state.exists():
@@ -399,14 +399,14 @@ class ScopedTool(ArgumentCheckedTool):
 
 
 class ScopedEmergencyTool(ArgumentCheckedTool):
-    """Resolve emergency tools at call time without binding a roll call to an old selected map."""
+    """Resolve emergency tools at call time without binding an emergency to an old selected map."""
 
     def __init__(self, template, workspace: Workspace):
         super().__init__(template.func)
         self.workspace = workspace
         self.input_schema = copy.deepcopy(template.input_schema)
         self.input_schema.setdefault("properties", {})["building_id"] = {
-            "type": "string", "description": "Building for this simulated roll call; omitted uses the selected building."}
+            "type": "string", "description": "Building for this simulated emergency; omitted uses the selected building."}
 
     def call(self, input: object) -> str:
         if not isinstance(input, dict):

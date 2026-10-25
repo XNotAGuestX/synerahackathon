@@ -20,7 +20,7 @@ Leser: Frontend, Backend, und wer in der Demo ein Gerät sucht, eine stufenfreie
 - [x] Reproduzierbar: Mocks erzeugt `scripts/generate_api_fixtures.py`. Beispiel-UUIDs und Zeitstempel sind fest.
 - [x] Beobachtbar: Jede Antwort trägt `X-Request-Id`. Das Fehlerpaket trägt dieselbe `trace_id`.
 - [x] Sicher: Keine Geheimnisse im Repository. Ein optionales Bearer-Token kommt nur aus der Umgebung.
-- [x] Geringste Rechte: v1 hat keine Benutzerkonten. Ist `API_TOKEN` gesetzt, gilt ein Token für den Prozess. Ist es leer, läuft die lokale Demo offen.
+- [x] Geringste Rechte: v1 hat keine Benutzerkonten. Ist `API_TOKEN` gesetzt, gilt ein Token für den Prozess. Ist es leer, läuft die lokale Demo offen. Einzige Rolle ist der Notfall-Admin (FR-17): PIN aus `EMERGENCY_ADMIN_PIN`, danach `X-Admin-Token`.
 - [x] Eine Quelle: Wire-Form = OpenAPI. Schließmenge und neue Türen gelten bei der Sitzungs-`revision`.
 - [x] Fehlerisolation: Ein Modellfehler schreibt keine Schließmenge und legt keine ausstehende Aktion an.
 - Zero-dependency rollout gilt für den Vertrag. Die Laufzeit des API-Prozesses wählt das Backend. Diese Ausnahme ist erklärt.
@@ -63,8 +63,9 @@ Eine brechende Änderung braucht eine neue ADR und `/api/v2`. Der Server sendet 
 - FR-14 Geführter Weg: Der Server nennt den nächsten Wegpunkt und die nächste Anweisung, sobald die Position höchstens 3 m vom aktuellen Ziel entfernt ist. Die Ankunft wird gemeldet.
 - FR-15 Falsche Richtung: Pro Wegpunkt höchstens eine Warnung. Danach Stille und keine automatische Neuroute. Die Warnung wird erst nach dem nächsten erreichten Wegpunkt wieder scharf.
 - FR-16 Erzähler: Ein KI-Aufruf pro Route wählt Sätze aus einem festen Phrasenkatalog und füllt Landmarken. Distanzen, Seiten und Namen kommen aus Code. Fällt das Modell aus, gelten die Standardphrasen.
+- FR-17 Notfallmodus: Ein Admin aktiviert den Notfall für ein Gebäude mit PIN und einem angezeigten Einmalcode. Solange er aktiv ist, listet der Server jedes Telefon (simulierte Personen und Sitzungen mit Position) als drinnen oder draußen. Admins markieren Personen von Hand als draußen und nehmen das zurück. Beenden löscht alle Positionen.
 
-FR-1 → `list_buildings`, `get_building`. FR-2 → sessions. FR-3 → `get_floor_plan`. FR-4 → `search_places`. FR-5 → routes. FR-6 → `create_message`. FR-7 → actions. FR-8 → `list_messages` und Session. FR-9 → `Error`. FR-10 → `scripts/generate_api_fixtures.py`. FR-11 → `list_object_types`, actions mit den Editor-Kinds, `FloorPlan.stacking`; Regeln in `docs/superpowers/specs/2026-10-25-object-editor-design.md`. FR-12 → `create_transcription`, `create_transcription_token`, `get_speech_clip`, `create_message` mit `input_mode: voice`. FR-13 → `put_position`. FR-14, FR-15 → `get_guidance`, `put_guidance`, `delete_guidance`. FR-16 → Phrasenkatalog in `final_agent/narration.py`.
+FR-1 → `list_buildings`, `get_building`. FR-2 → sessions. FR-3 → `get_floor_plan`. FR-4 → `search_places`. FR-5 → routes. FR-6 → `create_message`. FR-7 → actions. FR-8 → `list_messages` und Session. FR-9 → `Error`. FR-10 → `scripts/generate_api_fixtures.py`. FR-11 → `list_object_types`, actions mit den Editor-Kinds, `FloorPlan.stacking`; Regeln in `docs/superpowers/specs/2026-10-25-object-editor-design.md`. FR-12 → `create_transcription`, `create_transcription_token`, `get_speech_clip`, `create_message` mit `input_mode: voice`. FR-13 → `put_position`. FR-14, FR-15 → `get_guidance`, `put_guidance`, `delete_guidance`. FR-16 → Phrasenkatalog in `final_agent/narration.py`. FR-17 → `create_admin_token`, `get_emergency`, `create_emergency_challenge`, `put_emergency`, `delete_emergency`, `list_emergency_people`, `put_exit_confirmation`, `delete_exit_confirmation`, `put_profile`; Logik in `final_agent/emergency.py`, ADR-0004.
 
 ### NFR
 
@@ -184,7 +185,8 @@ Normative Details stehen in OpenAPI. Hier steht die Semantik.
 | 500 | `00001_internal` | Unerwarteter Fehler |
 | 429 | `00002_rate_limited` | Gateway- oder App-Limit. Mit `Retry-After`. |
 | 401 | `10001_unauthenticated` | `API_TOKEN` ist gesetzt, Token fehlt oder stimmt nicht. |
-| 403 | `10002_forbidden` | Authentifiziert, aber ohne Recht. v1 kann das ungenutzt lassen. |
+| 403 | `10002_forbidden` | Ohne Admin-Recht: falsche PIN (`field: pin`) oder `X-Admin-Token` fehlt, unbekannt, abgelaufen (`code` `required`, `invalid`, `expired`). |
+| 403 | `10003_admin_disabled` | `EMERGENCY_ADMIN_PIN` ist leer. Admin-Endpunkte sind aus. |
 | 400 | `20001_validation_failed` | Feldweise `details`. Editor: `code` `invalid` oder `unknown_type` (Typ fehlt im Katalog und keine Kategorie) |
 | 400 | `20010_idempotency_key_required` | POST ohne Schlüssel |
 | 409 | `20011_idempotency_key_mismatch` | Gleicher Schlüssel, anderer Body |
@@ -208,6 +210,10 @@ Normative Details stehen in OpenAPI. Hier steht die Semantik.
 | 504 | `40003_model_timeout` | Nur messages |
 | 503 | `40004_speech_unavailable` | Sprachanbieter nicht nutzbar. `details.reason` ist `not_configured`, `auth`, `rate_limited`, `timeout` oder `provider_error`. |
 | 404 | `30017_speech_clip_not_found` | Unbekannte `clip_id` |
+| 409 | `30019_emergency_not_active` | Markieren ohne aktiven Notfall |
+| 409 | `30020_emergency_already_active` | Challenge oder Start, während der Notfall schon läuft |
+| 409 | `30021_challenge_invalid` | Code falsch (`mismatch`), abgelaufen (`expired`) oder Challenge unbekannt (`not_found`). Jede Challenge erlaubt einen Versuch. |
+| 404 | `30022_person_not_found` | Unbekannte `person_id` im Notfall |
 
 Reserviert und nicht umzuwidmen: `30006` und `30011`. Eine Transkription mit falschem Audiotyp ist `20001_validation_failed` mit Feld `Content-Type`. Eine Suche ohne Treffer ist 200 und eine leere Liste. Eine Nachricht mit unklarem Ort ist 201, `intent` ist `clarify` oder `unknown`.
 
@@ -273,6 +279,19 @@ Regeln und Datenmodell stehen in `docs/superpowers/specs/2026-10-25-object-edito
 - Rolltreppe: Keine Kit-Doku nennt Rolltreppen. Annahme: beidseitig begehbar, Kosten wie eine Treppe, nie stufenfrei. Der Router bleibt unverändert.
 - Chat: Die Guide-Tools mit denselben Namen wie in der CLI schlagen nur vor. `ApiReply.intent` ist dann `edit`. `client_context.selected_object_id` (Objekt, Tür oder Verbinder) erreicht den Turn-Kontext.
 
+### Notfallmodus
+
+Entscheidung in ADR-0004. Hier steht der HTTP-Teil.
+
+- Admin: `POST /admin-tokens` tauscht die PIN gegen ein Token (30 min, verlängert sich bei jeder Nutzung). Der Server hält nur den SHA-256-Hash. Nach 5 falschen PINs in 60 s: 429 `00002_rate_limited`.
+- Aktivieren: `POST .../emergency-challenges` liefert einen sechsstelligen Code für 60 s. Die Oberfläche zeigt ihn, der Admin tippt ihn ab, `PUT .../emergency` startet. Ein falscher Code verbraucht die Challenge.
+- Öffentlich ist nur `GET .../emergency` (aktiv, Grund, Start). Liste, Markieren und Beenden brauchen `X-Admin-Token`.
+- Drinnen: Der Punkt liegt in irgendeinem Raum, auch in einem `outdoor`-Raum (Balkon). Draußen: in keinem Raum und auf einer Etage mit Eingang (ohne Eingänge: unterste Etage). Sonst drinnen.
+- Veraltet: Eine Position älter als 15 s ist `stale`. Drinnen bleibt drinnen, bis ein Admin markiert. Draußen bleibt draußen.
+- Sitzungen zählen, wenn sie bis 10 min vor dem Start oder danach eine Position gesendet haben. Sie erscheinen als `D..`, nie mit Sitzungs-ID. Der Name kommt aus `PUT .../profile`.
+- Alles liegt im Speicher. Beenden oder Neustart löscht Positionen, Markierungen, Challenges.
+- Der Client fragt den Status etwa alle 3 s und die Liste als Admin alle 2 s ab.
+
 ### Auth, Limit, CSRF
 
 v1 nutzt keine Cookies und damit kein CSRF-Token. Cross-Origin steuert das Backend über `CORS_ORIGINS`. Über dem Limit: 429 und `Retry-After`. JSON-Bodies höchstens 64 KiB. Einzige Ausnahme ist Audio bis 2 MiB auf `POST .../transcriptions`. Darüber gilt `20012_payload_too_large`.
@@ -302,6 +321,7 @@ Logs auf Info: `trace_id`, Methode, Pfad, Status, Dauer, `session_id`. Der origi
 | OpenAPI-Feld oder Fehlercode | Diese Tabelle, examples, beide Seiten |
 | Geometriefelder in `building.json` | Floor-plan-Schema, Fixture-Skript |
 | Routenkostenmodell | Backend-Route und Kit-Bewertung. HTTP-Feldnamen bleiben. |
+| Notfallmodus | ADR-0004, `final_agent/emergency.py`, Fixtures `emergency-*`, Frontend `features/emergency` |
 | Position, Führung, Sprache | Diese Tabelle, ADR-0003, Fixtures, `final_agent/narration.py`, Frontend `features/voice` |
 | Neuer effect-Typ | OpenAPI oneOf, Frontend-Zweig für unbekannte Typen |
 | Brechende Änderung | Neue ADR, `/api/v2`, CHANGELOG |

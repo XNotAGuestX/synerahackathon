@@ -25,6 +25,7 @@ Ausführung: `docs/specs/map-walker.md`.
 - Der Vertrag bleibt v1. Clients dürfen die Figur ignorieren.
 - Die Oberfläche rechnet weiterhin keine bewertete Route.
 - Gebogene Podeste können eine Lücke an einer Ecke statt an einer rekonstruierten Kehle bekommen.
+- Ergänzt durch ADR-0004: Vor jedem offenen Eingang liegt eine begehbare Fläche von 2,5 m, damit die Figur im Notfallmodus draußen sein kann. Die Flächen sind nicht verbunden.
 
 ## Verworfene Alternativen
 

@@ -141,6 +141,7 @@ class ApiTests(unittest.TestCase):
 
     def make_app(self, **options):
         options.setdefault("speech_factory", lambda: self.speech)
+        options.setdefault("admin_pin", "")  # independent of a developer's EMERGENCY_ADMIN_PIN
         return create_app(self.data, self.root / "output", notes_database=self.root / "notes.sqlite3",
                           client_factory=lambda: self.model, clock=lambda: self.now, api_token="", **options)
 
@@ -169,10 +170,67 @@ class ApiTests(unittest.TestCase):
     def proposal(self, session, **values):
         return self.post(self.path(session) + "/actions", {"kind": "add_door", "first_space": "left", "second_space": "right", **values}, schema="Action").json()
 
+    def test_emergency_mode_needs_admin_pin_challenge_and_lists_phones_inside_and_outside(self):
+        building = self.base + "/buildings/test"
+        self.assertEqual(self.post(self.base + "/admin-tokens", {"pin": "1", "name": "A"}, status=403).json()["code"],
+                         "10003_admin_disabled")
+        self.client = TestClient(self.make_app(admin_pin="2468"))
+        self.addCleanup(self.client.close)
+        wrong = self.post(self.base + "/admin-tokens", {"pin": "0000", "name": "Ada"}, status=403).json()
+        self.assertEqual((wrong["code"], wrong["details"][0]["field"]), ("10002_forbidden", "pin"))
+        token = self.post(self.base + "/admin-tokens", {"pin": "2468", "name": "Ada"}, schema="AdminToken").json()["token"]
+        admin = {"X-Admin-Token": token}
+        self.assertEqual(self.client.get(building + "/emergency/people").json()["details"][0]["code"], "required")
+
+        challenge = self.post(building + "/emergency-challenges", {}, headers=admin, schema="EmergencyChallenge").json()
+        guess = "000000" if challenge["code"] != "000000" else "111111"
+        start = {"challenge_id": challenge["id"], "code": guess, "reason": "Fire drill"}
+        refused = self.client.put(building + "/emergency", json=start, headers=admin)
+        self.assertEqual((refused.status_code, refused.json()["code"]), (409, "30021_challenge_invalid"))
+        start["code"] = challenge["code"]  # a wrong guess used the challenge up
+        self.assertEqual(self.client.put(building + "/emergency", json=start, headers=admin).json()["details"][0]["code"], "not_found")
+        challenge = self.post(building + "/emergency-challenges", {}, headers=admin).json()
+        start.update(challenge_id=challenge["id"], code=challenge["code"])
+        roster = self.validate(self.client.put(building + "/emergency", json=start, headers=admin), "EmergencyRoster")
+        self.assertEqual(roster["counts"]["inside"], roster["counts"]["total"])  # no entrances: nobody can leave
+        status = self.validate(self.client.get(building + "/emergency"), "EmergencyStatus")
+        self.assertEqual((status["active"], status["reason"]), (True, "Fire drill"))
+
+        session = self.session()
+        self.assertEqual(self.client.put(self.path(session) + "/profile", json={"display_name": "Bo"}).json()["display_name"], "Bo")
+        fix = {"floor_id": "F0", "x_m": -2.0, "y_m": 0.0, "measured_at": "2026-10-24T12:00:00Z", "source": "simulated"}
+        self.client.put(self.path(session) + "/position", json=fix)
+        phone = next(p for p in self.client.get(building + "/emergency/people", headers=admin).json()["people"] if p["kind"] == "session")
+        self.assertEqual((phone["name"], phone["status"], phone["space_id"]), ("Bo", "inside", "left"))
+        self.assertNotIn(session["id"], json.dumps(phone))
+        self.now += timedelta(seconds=20)
+        roster = self.client.get(building + "/emergency/people", headers=admin).json()
+        phone = next(p for p in roster["people"] if p["id"] == phone["id"])
+        self.assertTrue(phone["stale"])  # a silent phone inside still counts as inside
+        self.assertEqual((phone["status"], roster["people"][0]["id"]), ("inside", phone["id"]))
+        self.client.put(self.path(session) + "/position", json={**fix, "x_m": 9.0, "measured_at": "2026-10-24T12:00:20Z"})
+        roster = self.validate(self.client.get(building + "/emergency/people", headers=admin), "EmergencyRoster")
+        self.assertEqual(next(p for p in roster["people"] if p["id"] == phone["id"])["status"], "outside")
+
+        stayer = roster["people"][0]
+        marked = self.validate(self.client.put(f"{building}/emergency/people/{stayer['id']}/exit-confirmation",
+                                               json={"note": "at the assembly point"}, headers=admin), "EmergencyRoster")
+        record = next(p for p in marked["people"] if p["id"] == stayer["id"])
+        self.assertEqual((record["status"], record["manual"]["marked_by"]), ("outside_manual", "Ada"))
+        self.assertEqual(self.client.delete(f"{building}/emergency/people/{stayer['id']}/exit-confirmation", headers=admin).status_code, 204)
+        self.assertEqual(self.client.put(f"{building}/emergency/people/Z99/exit-confirmation", json={}, headers=admin).json()["code"],
+                         "30022_person_not_found")
+
+        self.assertEqual(self.client.delete(building + "/emergency", headers=admin).status_code, 204)
+        self.assertFalse(self.client.get(building + "/emergency").json()["active"])
+        self.assertEqual(self.client.get(building + "/emergency/people", headers=admin).json()["people"], [])
+        self.assertEqual(self.client.put(f"{building}/emergency/people/P01/exit-confirmation", json={}, headers=admin).json()["code"],
+                         "30019_emergency_not_active")
+
     def test_health_buildings_detail_plans_and_search_match_contract(self):
         defined = {operation["operationId"] for methods in self.contract["paths"].values() for operation in methods.values()}
         implemented = {getattr(route, "operation_id", None) for route in self.app.routes}
-        self.assertEqual(len(defined), 26)
+        self.assertEqual(len(defined), 35)
         self.assertTrue(defined <= implemented)
         health = self.client.get(self.base + "/health", headers={"X-Request-Id": "from-frontend"})
         self.validate(health, "Health")

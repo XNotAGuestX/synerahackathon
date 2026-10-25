@@ -411,14 +411,14 @@ After commit, locate and route with the reloaded selected building's tools.
 
 # Appended only for interactive sessions, which also get the emergency tools.
 EMERGENCY_PROMPT = """
-# Emergency roll call (mock)
-- The emergency tools simulate the people, their smartphone/badge locations and
-  their replies. Say once that the data is simulated.
-- Trigger a roll call only when the user explicitly asks to start one. Report the
-  time left, the counts and every unsafe or pending person with their last known
-  room and floor, exactly as the tool returns them; never invent people or places.
-- Mark someone safe only when the user says they are safe. Fast-forward the clock
-  only when the user asks to skip ahead.
+# Emergency mode (mock)
+- The emergency tools simulate the phones and how their owners leave the building.
+  Say once that the data is simulated.
+- Start emergency mode only when the user explicitly asks for it. Report the counts
+  and every person still inside with their room and floor, exactly as the tool
+  returns them; never invent people or places.
+- Mark someone outside only when the user says they are outside. Fast-forward only
+  when the user asks to skip ahead.
 """
 
 

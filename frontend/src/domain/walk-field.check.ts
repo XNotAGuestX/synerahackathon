@@ -1,5 +1,5 @@
 import type { Asset, FloorPlan, Opening, Point, Space } from './types.ts'
-import { buildWalkField, moveWalker, spawnPoint, standCause } from './walk-field.ts'
+import { buildWalkField, ENTRANCE_APRON_M, moveWalker, spawnPoint, standCause } from './walk-field.ts'
 
 function fail(message: string): never {
   throw new Error(message)
@@ -138,7 +138,8 @@ const entrance = plan(
 )
 const entranceField = buildWalkField(entrance, [], false)
 assert(standCause(entranceField, [2, 0.1]) == null, 'FR-W2 entrance gap should allow standing inside the doorway')
-assert(standCause(entranceField, [2, -0.3]) === 'outside', 'FR-W2 entrance should not open the outdoors')
+assert(standCause(entranceField, [2, -0.3]) == null, 'FR-W2 entrance apron lets the figure step outside (ADR-0004)')
+assert(standCause(entranceField, [2, -0.3 - ENTRANCE_APRON_M]) === 'outside', 'FR-W2 the outdoors stay closed beyond the apron')
 
 const spawned = spawnPoint(shared, openField, null)
 assert(spawned != null && standCause(openField, spawned) == null, 'FR-W1 spawn should be a standable point')
@@ -152,3 +153,12 @@ for (let step = 0; step < 20; step += 1) wideCross = moveWalker(buildWalkField(w
 assert(wideCross[0] > 4.2, 'FR-W2 a door wider than the shared edge should open that edge')
 
 console.log('walk field check ok')
+
+// Emergency mode: an open entrance lets the figure step outside onto a short apron, but no further.
+const withEntrance = plan([rect('a', 0, 0, 4, 4)], [door('main', [4, 2], 1, ['a', 'outside'], { kind: 'entrance' })])
+const apronField = buildWalkField(withEntrance, [], false)
+let outside: Point = [3.2, 2]
+for (let step = 0; step < 40; step += 1) outside = moveWalker(apronField, outside, [0.15, 0]).point
+assert(outside[0] > 5 && outside[0] <= 4 + ENTRANCE_APRON_M, `entrance apron should hold the figure outside, got ${outside[0]}`)
+assert(standCause(apronField, [5, 3.5]) === 'outside', 'apron is only as wide as the entrance')
+assert(standCause(buildWalkField(withEntrance, ['main'], false), [5, 2]) === 'outside', 'closed entrance has no apron')
