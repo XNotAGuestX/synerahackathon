@@ -64,7 +64,7 @@ Eine brechende Änderung braucht eine neue ADR und `/api/v2`. Der Server sendet 
 - FR-15 Falsche Richtung: Pro Wegpunkt höchstens eine Warnung. Danach Stille und keine automatische Neuroute. Die Warnung wird erst nach dem nächsten erreichten Wegpunkt wieder scharf.
 - FR-16 Erzähler: Ein KI-Aufruf pro Route wählt Sätze aus einem festen Phrasenkatalog und füllt Landmarken. Distanzen, Seiten und Namen kommen aus Code. Fällt das Modell aus, gelten die Standardphrasen.
 
-FR-1 → `list_buildings`, `get_building`. FR-2 → sessions. FR-3 → `get_floor_plan`. FR-4 → `search_places`. FR-5 → routes. FR-6 → `create_message`. FR-7 → actions. FR-8 → `list_messages` und Session. FR-9 → `Error`. FR-10 → `scripts/generate_api_fixtures.py`. FR-11 → `list_object_types`, actions mit den Editor-Kinds, `FloorPlan.stacking`; Regeln in `docs/superpowers/specs/2026-10-25-object-editor-design.md`. FR-12 → `create_transcription`, `get_speech_clip`, `create_message` mit `input_mode: voice`. FR-13 → `put_position`. FR-14, FR-15 → `get_guidance`, `put_guidance`, `delete_guidance`. FR-16 → Phrasenkatalog in `final_agent/narration.py`.
+FR-1 → `list_buildings`, `get_building`. FR-2 → sessions. FR-3 → `get_floor_plan`. FR-4 → `search_places`. FR-5 → routes. FR-6 → `create_message`. FR-7 → actions. FR-8 → `list_messages` und Session. FR-9 → `Error`. FR-10 → `scripts/generate_api_fixtures.py`. FR-11 → `list_object_types`, actions mit den Editor-Kinds, `FloorPlan.stacking`; Regeln in `docs/superpowers/specs/2026-10-25-object-editor-design.md`. FR-12 → `create_transcription`, `create_transcription_token`, `get_speech_clip`, `create_message` mit `input_mode: voice`. FR-13 → `put_position`. FR-14, FR-15 → `get_guidance`, `put_guidance`, `delete_guidance`. FR-16 → Phrasenkatalog in `final_agent/narration.py`.
 
 ### NFR
 
@@ -217,6 +217,7 @@ Reserviert und nicht umzuwidmen: `30006` und `30011`. Eine Transkription mit fal
 |---|---|
 | `put_position` | `PUT /sessions/{id}/position`. Ersetzt die Live-Position. Kein `Idempotency-Key`, keine `revision`. Veraltete Fixes kommen mit `applied: false` zurück. Ein Fix älter als 15 s gilt als `stale`. |
 | `create_transcription` | `POST /sessions/{id}/transcriptions`. Roher Audio-Body, `Idempotency-Key` pro Äußerung. Antwort `{text, language}`. Rauschen ergibt `text: ""`. |
+| `create_transcription_token` | `POST /sessions/{id}/transcription-tokens`. 201 mit Einmal-Token und WebSocket-URL. Der Browser streamt PCM (16 kHz) schon während der Äußerung direkt zum Sprachdienst und committet am Ende. Fallback ist `create_transcription`. |
 | `get_guidance` | `GET /sessions/{id}/guidance?after=n&wait_s=0..25`. Zustand plus Ereignisse nach `after`. Long-Poll. |
 | `put_guidance` | `PUT /sessions/{id}/guidance`, `{route_id}`. Startet die Führung ohne Agenten. |
 | `delete_guidance` | `DELETE /sessions/{id}/guidance`. 204, Status `idle`. |
