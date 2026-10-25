@@ -32,6 +32,9 @@ type FloorStack3DProps = {
 /** `single` shows only the viewed floor; `all` is the exploded overview of every floor. */
 type StackMode = 'single' | 'all'
 
+// Door passage is not finished, so the walk controls stay out of the toolbar.
+const WALK_IN_3D_ENABLED = false
+
 type Tone = 'room' | 'office' | 'corridor' | 'restroom' | 'lift' | 'stair' | 'escape'
 const tones: Tone[] = ['room', 'office', 'corridor', 'restroom', 'lift', 'stair', 'escape']
 
@@ -1246,8 +1249,8 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, previ
             )}
           </div>
           <div className="stack-actions">
-            <button type="button" className={walkActive ? 'is-active' : undefined} aria-pressed={walkActive} title={copy.stackWalkHint} onClick={() => { if (!walkActive && !startSpaceId) { onRequestStart?.(); return } if (!walkActive) { const startFloor = plans.find((plan) => plan.spaces.some((space) => space.id === startSpaceId))?.floor.id; if (startFloor && startFloor !== viewedId) selectFloor(startFloor) } setWalkActive((active) => !active) }}><span aria-hidden="true">●</span><span>{walkActive ? copy.stackWalkStop : copy.stackWalk}</span></button>
-            {walkActive && <button type="button" aria-pressed={firstPerson} title={copy.stackViewHint} onClick={() => setFirstPerson((value) => !value)}><span aria-hidden="true">◉</span><span>{firstPerson ? copy.stackThirdPerson : copy.stackFirstPerson}</span></button>}
+            {WALK_IN_3D_ENABLED && <button type="button" className={walkActive ? 'is-active' : undefined} aria-pressed={walkActive} title={copy.stackWalkHint} onClick={() => { if (!walkActive && !startSpaceId) { onRequestStart?.(); return } if (!walkActive) { const startFloor = plans.find((plan) => plan.spaces.some((space) => space.id === startSpaceId))?.floor.id; if (startFloor && startFloor !== viewedId) selectFloor(startFloor) } setWalkActive((active) => !active) }}><span aria-hidden="true">●</span><span>{walkActive ? copy.stackWalkStop : copy.stackWalk}</span></button>}
+            {WALK_IN_3D_ENABLED && walkActive && <button type="button" aria-pressed={firstPerson} title={copy.stackViewHint} onClick={() => setFirstPerson((value) => !value)}><span aria-hidden="true">◉</span><span>{firstPerson ? copy.stackThirdPerson : copy.stackFirstPerson}</span></button>}
             <button type="button" onClick={() => api.current?.resetView()} title={copy.stackResetHint} aria-label={copy.stackReset}>
               <ResetIcon /><span>{copy.stackReset}</span>
             </button>
