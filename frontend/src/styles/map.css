@@ -1,0 +1,748 @@
+/* ==========================================================================
+   Map column: toolbar, search, plan. The plan fills the first screen of the
+   column; the 3D stack and building tools follow below it.
+   ========================================================================== */
+.map-column {
+  container: map-column / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-5) var(--page-inline);
+}
+.map-column:focus { outline: none; }
+
+/* Exactly one pane high, so the plan takes what the toolbar leaves; it still grows when the pane is very short. */
+.map-primary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  flex: 0 0 100%;
+}
+
+.editing-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-a10);
+  color: var(--color-text-primary);
+  font: var(--font-weight-medium) var(--font-size-label) var(--font-family-mono);
+}
+.editing-banner > span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary);
+}
+
+.map-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.map-title { min-width: 0; }
+.map-toolbar h1 {
+  margin: var(--space-2) 0 0;
+  font: var(--font-weight-semibold) var(--font-size-display-sm) / 1.1 var(--font-family-title);
+  overflow-wrap: anywhere;
+}
+.map-route-target {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-secondary);
+  font: var(--font-weight-medium) var(--font-size-label) var(--font-family-mono);
+  overflow-wrap: anywhere;
+}
+.route-status-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-destination);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-destination) 16%, transparent);
+}
+
+.map-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.edit-map-toggle,
+.stack-toggle,
+.dev-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-height);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-label);
+  transition: background-color var(--duration-fast) var(--easing-standard), border-color var(--duration-fast) var(--easing-standard);
+}
+.edit-map-toggle:hover,
+.stack-toggle:hover,
+.dev-toggle:hover { border-color: var(--color-primary); }
+.edit-map-toggle[aria-pressed='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.stack-toggle[aria-pressed='true'],
+.dev-toggle[aria-pressed='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary-a10);
+}
+/* Developer-only control: visibly secondary to navigation. */
+.dev-toggle {
+  border-style: dashed;
+  color: var(--color-text-secondary);
+  font: var(--font-weight-medium) var(--font-size-caption) var(--font-family-mono);
+}
+
+.floor-rail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.floor-rail button {
+  min-width: var(--touch-target);
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font: var(--font-weight-medium) var(--font-size-label) var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  transition: border-color var(--duration-fast) var(--easing-standard), background-color var(--duration-fast) var(--easing-standard);
+}
+.floor-rail button:hover { border-color: var(--color-border-strong); color: var(--color-text-primary); }
+.floor-rail button.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-a10);
+}
+
+/* Plan stage: row 1 is the plan, row 2 its status and view controls. */
+.plan-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  /* A real minimum, so a short pane scrolls instead of squeezing the plan under the toolbar. */
+  grid-template-rows: minmax(300px, 1fr) auto;
+  grid-template-areas:
+    "map map"
+    "caption tools";
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  flex: 1 1 0;
+}
+.plan-stage > .plan-shell,
+.plan-shell > .map-canvas-region { display: contents; }
+.plan-stage .plan-wrap { grid-area: map; }
+.plan-stage .map-caption { grid-area: caption; }
+
+/* Zoom, detail and legend share one cell so they wrap together. */
+.map-tools {
+  grid-area: tools;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+.plan-wrap {
+  position: relative;
+  height: 100%;
+  min-height: 300px;
+  /* The SVG's intrinsic size must not size the grid row; the row sizes the plan. */
+  contain: size;
+  /* Pins, walker and pad stack inside the plan only, under floating panels such as search results. */
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 22%, var(--color-border));
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(var(--color-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-grid-line) 1px, transparent 1px),
+    var(--color-surface);
+  background-size: 32px 32px;
+  box-shadow: var(--shadow-stage);
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
+.plan {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: clamp(10px, 2vw, 22px);
+  cursor: grab;
+  touch-action: none;
+}
+.plan.panning { cursor: grabbing; }
+
+.plan-empty {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  text-align: center;
+  border-style: dashed;
+  box-shadow: none;
+}
+.plan-empty strong { font: var(--font-weight-semibold) var(--font-size-headline) var(--font-family-title); }
+.plan-empty p { margin: 0; color: var(--color-text-secondary); }
+
+.map-controls,
+.map-caption,
+.map-legend-toggle {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.map-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+}
+.map-controls button {
+  min-width: var(--control-height-sm);
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-label);
+  white-space: nowrap;
+}
+.map-controls button:hover:not(:disabled) { background: var(--color-surface-raised); }
+.map-controls button:disabled { color: var(--color-text-tertiary); cursor: not-allowed; }
+.map-controls span {
+  min-width: 44px;
+  color: var(--color-text-secondary);
+  font: var(--font-weight-medium) var(--font-size-caption) var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.map-caption {
+  justify-self: start;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-4);
+  color: var(--color-text-secondary);
+  font: var(--font-size-caption) var(--font-family-mono);
+  overflow-wrap: anywhere;
+}
+.map-caption strong { color: var(--color-text-primary); font-weight: var(--font-weight-semibold); }
+.map-caption button {
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-a10);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-sans);
+}
+.map-caption[data-editor] { border-color: var(--color-primary); }
+.map-caption[data-editor='invalid'] { border-color: var(--color-danger); border-style: dashed; }
+.map-caption[data-editor='invalid'] strong { color: var(--color-danger); }
+
+/* Legend: a toggle with a panel that opens above it, over the plan. */
+.map-legend-wrap { position: relative; }
+.map-legend-toggle {
+  min-height: var(--control-height);
+  padding: 0 var(--space-4);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-label);
+}
+.map-legend-toggle[aria-expanded='true'] { border-color: var(--color-primary); }
+.map-legend {
+  position: absolute;
+  z-index: 7;
+  right: 0;
+  bottom: calc(100% + var(--space-2));
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  gap: var(--space-2) var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-float);
+  font-size: var(--font-size-caption);
+}
+.map-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 24px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+.map-legend > span b { color: var(--color-text-primary); font-weight: var(--font-weight-medium); }
+
+.legend-sample { display: block; flex: 0 0 auto; box-sizing: border-box; }
+.sample-room { width: 18px; height: 12px; border: 2px solid var(--map-space-stroke); border-radius: 2px; background: var(--map-space); }
+.sample-equipment { width: 16px; height: 11px; margin-inline: 1px; border: 1px solid var(--map-asset-stroke); border-radius: 2px; background: var(--map-asset-machine); }
+.sample-opening { width: 11px; height: 11px; margin-inline: 4px; border: 2px solid var(--map-opening-stroke); border-radius: 50%; background: var(--map-opening); }
+.sample-route { width: 18px; height: 3px; background: repeating-linear-gradient(90deg, var(--color-route) 0 5px, transparent 5px 8px); }
+.sample-closed { width: 18px; height: 12px; border: 2px solid var(--color-danger); border-radius: 2px; background: var(--map-closed); }
+
+/* Narrow map column (phones, and tablets with the guide beside the map) */
+@container map-column (max-width: 600px) {
+  .plan-stage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(300px, 1fr) auto auto;
+    grid-template-areas:
+      "map"
+      "tools"
+      "caption";
+    gap: var(--space-2);
+  }
+  .map-tools { justify-content: stretch; }
+  .map-controls { flex: 1 1 100%; }
+  .map-controls button { flex: 1; min-height: var(--touch-target); }
+  .map-controls span { flex: 0 0 auto; }
+  .map-display-mode { flex: 1 1 auto; }
+  .map-display-mode button { flex: 1; min-height: var(--touch-target); }
+  .map-legend-toggle { min-height: var(--touch-target); }
+  .map-caption { justify-self: stretch; }
+  .map-legend { grid-template-columns: max-content; }
+}
+
+/* SVG plan marks */
+.space {
+  fill: var(--map-space);
+  stroke: var(--map-space-stroke);
+  stroke-width: 0.14;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+}
+/* Room types that matter for wayfinding. Declared before the states below so selection always wins. */
+.space.room-type-stair, .space.room-type-stairs, .space.room-type-emergency-exit, .space.room-type-emergency-corridor { fill: color-mix(in srgb, var(--color-danger) 24%, var(--map-space)); stroke: var(--color-danger); }
+.space.room-type-lift, .space.room-type-elevator { fill: color-mix(in srgb, var(--color-start) 22%, var(--map-space)); stroke: var(--color-start); }
+.space.room-type-corridor, .space.room-type-hallway { fill: color-mix(in srgb, var(--color-warning) 18%, var(--map-space)); stroke: var(--color-warning); }
+.space.room-type-restroom, .space.room-type-toilet { fill: color-mix(in srgb, var(--color-restroom) 22%, var(--map-space)); stroke: var(--color-restroom); }
+.space.room-type-office { fill: color-mix(in srgb, var(--color-primary) 14%, var(--map-space)); }
+.space.reason-match,
+.space.reason-selected { stroke: var(--color-primary); stroke-width: 0.3; }
+.space.reason-preview { fill: var(--map-preview); }
+.space.reason-closed { fill: var(--map-closed); }
+.space.picked {
+  stroke: var(--color-destination);
+  stroke-width: 0.34;
+  fill: color-mix(in srgb, var(--color-destination) 22%, var(--map-space));
+}
+
+.opening {
+  fill: var(--map-opening);
+  stroke: var(--map-opening-stroke);
+  stroke-width: 0.14;
+  cursor: pointer;
+}
+.opening.entrance { fill: var(--color-success); stroke: var(--color-success); }
+.opening.stepped { stroke: var(--color-danger); }
+.opening.picked {
+  stroke: var(--color-destination);
+  stroke-width: 0.32;
+  fill: color-mix(in srgb, var(--color-destination) 30%, transparent);
+}
+
+.asset { cursor: pointer; }
+.asset rect { fill: var(--map-asset); stroke: var(--map-asset-stroke); stroke-width: 0.08; }
+.asset.machine rect { fill: var(--map-asset-machine); }
+.asset.furniture rect { fill: var(--map-asset-furniture); }
+.asset.fixture rect { fill: var(--map-asset-fixture); }
+.asset.equipment rect { fill: var(--map-asset-equipment); }
+.asset.highlighted rect { fill: var(--color-primary); stroke: var(--color-primary-strong); }
+.asset.landmark rect { stroke-width: 0.28; }
+.plan .mock-marker { fill: var(--map-mock-marker); stroke: var(--color-text-primary); stroke-width: 0.12; }
+.asset.picked rect {
+  stroke: var(--color-destination);
+  stroke-width: 0.28;
+  fill: color-mix(in srgb, var(--color-destination) 24%, var(--map-space));
+}
+
+.plan .space,
+.plan .asset,
+.plan .opening { outline: none; -webkit-tap-highlight-color: transparent; }
+.plan .space:focus-visible,
+.plan .asset:focus-visible {
+  outline: none;
+  stroke: var(--color-focus-ring);
+  stroke-width: 0.3;
+}
+
+.room-label { pointer-events: none; font-family: var(--font-family-mono); }
+.room-label text { fill: var(--color-text-secondary); }
+
+.plan .route,
+.plan .route-underlay {
+  fill: none;
+  stroke-width: 5px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.plan .route-underlay {
+  stroke: var(--color-surface);
+  stroke-width: 9px;
+}
+.plan .route {
+  stroke: var(--color-route);
+  stroke-dasharray: 9px 5px;
+  animation: route-flow 1.5s linear infinite;
+}
+.plan .route-progress {
+  fill: none;
+  stroke: var(--color-route);
+  stroke-width: 8px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.plan .route-step { fill: var(--color-surface); stroke: var(--color-route); stroke-width: 2px; vector-effect: non-scaling-stroke; }
+.handoff circle { fill: var(--color-destination); stroke: var(--color-surface); stroke-width: 0.2; }
+/* Endpoint dots keep a thin screen-sized outline; a metre-based stroke would swamp the dot when zoomed. */
+.plan .start { fill: var(--color-start); stroke: var(--color-surface); stroke-width: 2px; vector-effect: non-scaling-stroke; pointer-events: none; }
+.plan .destination { fill: var(--color-destination); stroke: var(--color-surface); stroke-width: 2px; vector-effect: non-scaling-stroke; pointer-events: none; }
+.guidance-ring { fill: none; stroke: var(--color-route); stroke-width: 0.16; stroke-dasharray: 0.5 0.4; pointer-events: none; }
+.step-marker { fill: none; stroke: var(--color-start); stroke-width: 0.16; pointer-events: none; }
+
+.walk-token {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 6;
+  width: 0;
+  height: 0;
+  color: var(--color-primary);
+  pointer-events: none;
+}
+.walk-token.blocked { color: var(--color-danger); }
+.walk-body {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%) scaleX(var(--facing, 1));
+  filter: drop-shadow(0 0 0.5px var(--color-surface));
+}
+.stick-figure { display: block; width: 100%; height: 100%; overflow: visible; }
+.stick-head { fill: var(--color-surface); }
+.stick-arm,
+.stick-leg { transform-box: fill-box; transform-origin: center top; }
+.walk-token.moving .stick-arm.front,
+.walk-token.moving .stick-leg.front { animation: stick-stride var(--duration-slow) var(--easing-standard) infinite alternate; }
+.walk-token.moving .stick-arm.back,
+.walk-token.moving .stick-leg.back { animation: stick-stride var(--duration-slow) var(--easing-standard) infinite alternate-reverse; }
+
+/* A and B are pins above the walker (z-index 6); the tail points at the route endpoint. */
+.walk-mark {
+  --mark-size: 28px;
+  --mark-color: var(--color-start);
+  --mark-on: var(--color-on-start);
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 7;
+  display: grid;
+  width: var(--mark-size);
+  height: var(--mark-size);
+  place-items: center;
+  border: 2px solid var(--color-surface);
+  border-radius: 50%;
+  background: var(--mark-color);
+  box-shadow: var(--shadow-pin);
+  color: var(--mark-on);
+  font: var(--font-weight-bold) var(--font-size-body) / 1 var(--font-family-mono);
+  pointer-events: none;
+}
+.walk-mark::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 0;
+  height: 0;
+  border: 6px solid transparent;
+  border-top: 7px solid var(--mark-color);
+  border-bottom: 0;
+  transform: translateX(-50%);
+}
+.walk-mark[hidden] { display: none; }
+.walk-mark-b { --mark-size: 34px; --mark-color: var(--color-destination); --mark-on: var(--color-on-destination); font-size: var(--font-size-title); }
+
+/* The pad lives inside the plan box, so it can never cover the toolbar, legend or controls. */
+.walk-pad {
+  position: absolute;
+  z-index: 8;
+  left: 0;
+  top: 0;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  width: max-content;
+  max-width: calc(100% - 2 * var(--space-3));
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(8px);
+  touch-action: manipulation;
+  user-select: none;
+}
+.walk-pad.is-hidden { padding-bottom: var(--space-2); }
+/* The map editor owns the arrow keys; the walk pad steps aside while it is open. */
+.walk-pad[hidden] { display: none; }
+.walk-pad.is-dragging { cursor: grabbing; }
+.walk-pad-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 36px;
+  cursor: grab;
+  touch-action: none;
+}
+.walk-pad.is-dragging .walk-pad-bar { cursor: grabbing; }
+.walk-grip {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-tertiary);
+  background-image: radial-gradient(circle, currentColor 1.25px, transparent 1.45px);
+  background-size: 6px 6px;
+  background-position: center;
+}
+.walk-pad-title {
+  flex: 1;
+  color: var(--color-text-tertiary);
+  font: var(--font-weight-medium) var(--font-size-caption) / 1.3 var(--font-family-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.walk-toggle {
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+}
+.walk-toggle:hover { border-color: var(--color-primary); }
+.walk-cross {
+  display: grid;
+  grid-template-columns: repeat(3, var(--control-height));
+  grid-template-areas:
+    ". up ."
+    "left mid right"
+    ". down .";
+  gap: var(--space-1);
+}
+.walk-up { grid-area: up; }
+.walk-down { grid-area: down; }
+.walk-left { grid-area: left; }
+.walk-right { grid-area: right; }
+.walk-mid { grid-area: mid; }
+.walk-cross button,
+.walk-actions button {
+  min-width: var(--control-height);
+  min-height: var(--control-height);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xs);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+.walk-cross button:hover:not(:disabled),
+.walk-actions button:hover:not(:disabled) { border-color: var(--color-primary); }
+.walk-cross button:active:not(:disabled),
+.walk-actions button:active:not(:disabled) { transform: scale(0.98); }
+.walk-cross button[aria-pressed='true'],
+.walk-actions button[aria-pressed='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.walk-cross button:disabled,
+.walk-actions button:disabled { opacity: 0.4; }
+.walk-mid {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  color: var(--color-text-secondary);
+  font: var(--font-weight-medium) var(--font-size-caption) var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+}
+.walk-pad[data-has-destination='false'] .walk-mid small { visibility: hidden; }
+.walk-speed {
+  display: grid;
+  grid-template-columns: auto minmax(72px, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+.walk-speed input {
+  width: 100%;
+  min-height: 24px;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+.walk-speed-value {
+  min-width: 36px;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.walk-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
+.walk-actions button {
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-caption);
+}
+.walk-status {
+  margin: 0;
+  max-width: 220px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  text-align: center;
+}
+.walk-status[data-walk-status='blocked'] { color: var(--color-danger); }
+
+.legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.focus-dot { background: var(--color-start); }
+
+
+@media (pointer: coarse) {
+  .walk-pad-bar { min-height: var(--touch-target); }
+  .walk-cross { grid-template-columns: repeat(3, var(--touch-target)); }
+  .walk-cross button,
+  .walk-actions button,
+  .walk-toggle { min-width: var(--touch-target); min-height: var(--touch-target); }
+}
+
+/* Hover details for rooms, items, and openings */
+.map-tooltip {
+  position: absolute;
+  z-index: 3;
+  left: var(--space-4);
+  top: var(--space-4);
+  max-width: 240px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-surface-raised) 94%, transparent);
+  box-shadow: var(--shadow-float);
+  font-size: var(--font-size-caption);
+  pointer-events: none;
+  transform: translateZ(0);
+}
+.map-tooltip dl { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-4); margin: var(--space-3) 0 0; }
+.map-tooltip dt { color: var(--color-text-tertiary); font-family: var(--font-family-mono); }
+.map-tooltip dd { margin: 0; color: var(--color-text-primary); }
+
+/* Editor marks on the plan */
+.plan.editing-place,
+.plan.editing-wall { cursor: crosshair; }
+.plan.editing-rooms,
+.plan.editing-rooms .space { cursor: pointer; }
+
+.asset.moving-origin { opacity: 0.35; }
+.asset.removing rect { stroke: var(--color-danger); stroke-width: 0.16; stroke-dasharray: 0.3 0.2; fill: var(--color-danger-soft); }
+.asset.stacked rect { stroke-width: 0.12; }
+
+.plan .asset.ghost rect {
+  fill: var(--color-primary-a35);
+  stroke: var(--color-primary);
+  stroke-width: 0.14;
+  stroke-dasharray: 0.35 0.2;
+}
+.plan .asset.ghost.preview rect { fill: var(--color-primary-a20); }
+.plan .asset.ghost.cursor { pointer-events: none; opacity: 0.8; }
+.plan .asset.ghost.draggable { cursor: grab; }
+.plan .asset.ghost.dragging { cursor: grabbing; }
+.plan .asset.ghost.invalid rect {
+  fill: color-mix(in srgb, var(--color-danger) 28%, transparent);
+  stroke: var(--color-danger);
+  stroke-width: 0.18;
+  stroke-dasharray: 0.25 0.15;
+}
+.ghost-centre { fill: var(--color-text-primary); pointer-events: none; }
+.plan .opening.ghost {
+  fill: var(--color-primary-a35);
+  stroke: var(--color-primary);
+  stroke-width: 0.16;
+  stroke-dasharray: 0.25 0.15;
+  pointer-events: none;
+}
+.plan .opening.ghost.invalid { fill: color-mix(in srgb, var(--color-danger) 28%, transparent); stroke: var(--color-danger); }
+.wall-cursor { fill: none; stroke: var(--color-primary); stroke-width: 0.12; pointer-events: none; }
+/* Spaces use a non-scaling stroke, so these widths are screen pixels. */
+.space.editor-picked {
+  fill: var(--color-primary-a20);
+  stroke: var(--color-primary);
+  stroke-width: 2.5px;
+  stroke-dasharray: 6 4;
+}
+
+.stack-badge { pointer-events: none; }
+.stack-badge rect { fill: var(--color-surface); stroke: var(--color-text-primary); stroke-width: 0.06; }
+.stack-badge text { fill: var(--color-text-primary); font-family: var(--font-family-mono); font-weight: var(--font-weight-semibold); }
+
+.map-footer {
+  display: grid;
+  gap: var(--space-3);
+}
+.revision-note {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+}
+.stack-loading { margin: 0; color: var(--color-text-secondary); font: var(--font-size-label) var(--font-family-mono); }

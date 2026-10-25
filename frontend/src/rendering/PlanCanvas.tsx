@@ -33,6 +33,8 @@ export type EditorOverlay = {
 type PlanCanvasProps = {
   plan: FloorPlan | null
   floorName: string
+  /** Shown instead of the plan while it is missing, e.g. during loading. */
+  emptyText?: string
   route: Route | null
   spaceReasons: Map<string, string>
   assetIds: Set<string>
@@ -136,9 +138,9 @@ function clamp(value: number, min: number, max: number): number {
 export function PlanCanvas(props: PlanCanvasProps) {
   if (!props.plan) {
     return (
-      <div className="plan-wrap plan-empty" role="status" data-floor="missing">
+      <div className="plan-wrap plan-empty" data-floor="missing">
         <strong>{props.floorName}</strong>
-        <p>No plan fixture for this floor.</p>
+        <p>{props.emptyText ?? 'This floor has no plan yet.'}</p>
       </div>
     )
   }
@@ -175,7 +177,12 @@ function InteractivePlan({
   const [fitRoute, setFitRoute] = useState(true)
   const [hovered, setHovered] = useState<Selection | null>(null)
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 })
-  const [displayMode, setDisplayMode] = useState<'rooms' | 'items' | 'labels'>('items')
+  const [showItems, setShowItems] = useState(true)
+  const [showNumbers, setShowNumbers] = useState(false)
+  // The legend floats over the plan, so it opens on request only.
+  const [legendOpen, setLegendOpen] = useState(false)
+  // One Tab stop for all rooms; arrow keys move between them.
+  const [rovingId, setRovingId] = useState<string | null>(null)
   const gesture = useRef({ pointerId: -1, x: 0, y: 0, panX: 0, panY: 0, moved: false })
   const pointers = useRef(new Map<number, { x: number; y: number }>())
   const pinch = useRef<{ startDistance: number; startZoom: number; anchorX: number; anchorY: number } | null>(null)
@@ -300,7 +307,7 @@ function InteractivePlan({
   const removedIds = new Set(preview?.removedIds ?? [])
   const fadedIds = new Set([...(editor?.fadedIds ?? []), ...previewAssets.map((asset) => asset.id)])
   const pickedSpaces = new Set(editor?.pickedSpaceIds ?? [])
-  const showAssets = displayMode === 'items' || Boolean(editor) || previewAssets.length > 0 || removedIds.size > 0
+  const showAssets = showItems || Boolean(editor) || previewAssets.length > 0 || removedIds.size > 0
   const orderedAssets = [...plan.assets].sort((left, right) => (layers.get(left.id) ?? 0) - (layers.get(right.id) ?? 0))
   const cursorPoint = editor?.mode === 'place' ? hoverPoint : null
   const wallPoint = editor?.mode === 'wall' ? hoverPoint : null
@@ -320,9 +327,26 @@ function InteractivePlan({
     })
   }
 
+  const tabbableId = plan.spaces.some((space) => space.id === rovingId) ? rovingId
+    : plan.spaces.some((space) => space.id === selectionId) ? selectionId
+      : plan.spaces[0]?.id ?? null
+  const moveRoving = (event: React.KeyboardEvent<SVGPolygonElement>, index: number) => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key]
+    const target = event.key === 'Home' ? 0 : event.key === 'End' ? plan.spaces.length - 1 : step !== undefined ? (index + step + plan.spaces.length) % plan.spaces.length : null
+    if (target === null) return false
+    // The editor nudges a draggable ghost with the arrows; leave them to it.
+    if (editor?.draggable) return false
+    event.preventDefault()
+    // Keep the walk pad from also reading this arrow key.
+    event.stopPropagation()
+    const next = plan.spaces[target]
+    setRovingId(next.id)
+    svgRef.current?.querySelector<SVGPolygonElement>(`polygon[data-space-id="${CSS.escape(next.id)}"]`)?.focus()
+    return true
+  }
+
   return (
     <div className="plan-shell">
-      <div className="map-legend" aria-label="Map legend"><strong>Map legend</strong><span><i className="legend-sample sample-room" /><b>Room</b></span><span><i className="legend-sample sample-equipment" /><b>Equipment</b></span><span><i className="legend-sample sample-opening" /><b>Door / connector</b></span><span><i className="legend-sample sample-route" /><b>Current route</b></span><span><i className="legend-sample sample-closed" /><b>Closed / blocked</b></span><small>Shapes and colors match the map.</small></div>
       <div className="map-canvas-region">
       <div ref={planWrap} className="plan-wrap" aria-label={`${floorName} plan`} data-floor={plan.floor.id}>
       <svg
@@ -443,27 +467,29 @@ function InteractivePlan({
         }}
       >
         <g transform="scale(1 -1)">
-          {plan.spaces.map((space) => {
+          {plan.spaces.map((space, spaceIndex) => {
             const reason = reasons.get(space.id)
             const roomType = (space.room_type || space.type || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-')
             const picked = selectionId === space.id
             const [cx, cy] = centroid(space.polygon)
-            const showLabel = displayMode === 'rooms' && polygonArea(space.polygon) >= 28
+            const showLabel = showNumbers && polygonArea(space.polygon) >= 28
             return (
               <g key={space.id}>
                 <polygon
                   points={space.polygon.map(([x, y]) => `${x},${y}`).join(' ')}
                   className={['space', `room-type-${roomType}`, reason ? `reason-${reason}` : '', picked ? 'picked' : '', pickedSpaces.has(space.id) ? 'editor-picked' : ''].filter(Boolean).join(' ')}
                   role="button"
-                  tabIndex={0}
+                  tabIndex={space.id === tabbableId ? 0 : -1}
+                  data-space-id={space.id}
                   aria-label={space.name}
                   aria-pressed={picked}
                   onMouseEnter={(event) => updateHover(event, spaceTip(plan, space))}
                   onMouseLeave={() => setHovered(null)}
-                  onFocus={() => onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNoteFromPlan(plan, space.id) })}
+                  onFocus={() => { setRovingId(space.id); onFocusSelection({ kind: 'space', id: space.id, name: space.name, floorId: plan.floor.id, floorName: plan.floor.name, note: connectorNoteFromPlan(plan, space.id) }) }}
                   onBlur={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.ownerSVGElement?.contains(event.relatedTarget)) onFocusSelection(null) }}
                   onClick={() => { if (!pointerMode) selectSpace(space) }}
                   onKeyDown={(event) => {
+                    if (moveRoving(event, spaceIndex)) return
                     if (event.key !== 'Enter' && event.key !== ' ') return
                     event.preventDefault()
                     // Keyboard path for the editor: Enter places into this room or picks it as a stop.
@@ -636,9 +662,10 @@ function InteractivePlan({
           {mockPoint && <circle className="mock-marker" cx={mockPoint[0]} cy={mockPoint[1]} r={1.3} />}
         </g>
       </svg>
-      <WalkPad svgRef={svgRef} plan={plan} route={route} closedIds={closedIds} stepFree={stepFree} keysPaused={Boolean(editor)} walkerHere={walkerHere} onMove={onWalkerMove} onChangeFloor={onChangeFloor} />
+      <WalkPad svgRef={svgRef} containerRef={planWrap} plan={plan} route={route} closedIds={closedIds} stepFree={stepFree} keysPaused={Boolean(editor)} walkerHere={walkerHere} onMove={onWalkerMove} onChangeFloor={onChangeFloor} />
       {hovered && <MapTooltip item={hovered} x={hoverPosition.x} y={hoverPosition.y} />}
     </div>
+      <div className="map-tools">
       <div
         className="map-controls"
         role="group"
@@ -650,12 +677,20 @@ function InteractivePlan({
         }}
       >
         <button type="button" aria-label="Zoom out" onClick={() => setZoomAroundCenter(zoom / 1.25)} disabled={zoom <= MIN_ZOOM}>-</button>
-        <span aria-live="polite">{Math.round(zoom * 100)}%</span>
+        <span>{Math.round(zoom * 100)}%</span>
         <button type="button" aria-label="Zoom in" onClick={() => setZoomAroundCenter(zoom * 1.25)} disabled={zoom >= MAX_ZOOM}>+</button>
-        {route?.reachable && <button type="button" aria-label="Fit route" onClick={() => { setFitRoute(true); resetView() }}>Route</button>}
-        <button type="button" aria-label="Fit floor" onClick={() => { setFitRoute(false); resetView() }}>Floor</button>
+        {route?.reachable && <button type="button" onClick={() => { setFitRoute(true); resetView() }}>Fit route</button>}
+        <button type="button" onClick={() => { setFitRoute(false); resetView() }}>Fit floor</button>
       </div>
-      <div className="map-display-mode" role="group" aria-label="Map detail level"><button type="button" aria-pressed={displayMode === 'labels'} onClick={() => setDisplayMode('labels')}>Rooms</button><button type="button" aria-pressed={displayMode === 'items'} onClick={() => setDisplayMode('items')}>Rooms + items</button><button type="button" aria-pressed={displayMode === 'rooms'} onClick={() => setDisplayMode('rooms')}>Rooms + numbers</button></div>
+      <div className="map-display-mode segmented" role="group" aria-label="Map detail">
+        <button type="button" aria-pressed={showItems} onClick={() => setShowItems((value) => !value)}>Items</button>
+        <button type="button" aria-pressed={showNumbers} onClick={() => setShowNumbers((value) => !value)}>Room numbers</button>
+      </div>
+      <div className="map-legend-wrap">
+        <button type="button" className="map-legend-toggle" aria-expanded={legendOpen} aria-controls={legendOpen ? `${plan.floor.id}-legend` : undefined} onClick={() => setLegendOpen((value) => !value)}>Legend</button>
+        {legendOpen && <div id={`${plan.floor.id}-legend`} className="map-legend" role="group" aria-label="Map legend"><span><i className="legend-sample sample-room" /><b>Room</b></span><span><i className="legend-sample sample-equipment" /><b>Equipment</b></span><span><i className="legend-sample sample-opening" /><b>Door / connector</b></span><span><i className="legend-sample sample-route" /><b>Current route</b></span><span><i className="legend-sample sample-closed" /><b>Closed / blocked</b></span></div>}
+      </div>
+      </div>
       </div>
           </div>
   )

@@ -1,0 +1,400 @@
+/* ==========================================================================
+   Place discovery: one search row in the map column. Browsing and results
+   open in a panel that floats over the map instead of pushing it down.
+   ========================================================================== */
+.place-search {
+  position: relative;
+  z-index: 15;
+  min-width: 0;
+}
+
+.discover-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.discover-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.discover-browse-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 0 0 auto;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-label);
+}
+.discover-browse-toggle:hover { border-color: var(--color-border-strong); }
+.discover-browse-toggle[aria-expanded='true'] { border-color: var(--color-primary); }
+.discover-chevron {
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform var(--duration-normal) var(--easing-standard);
+}
+.discover-browse-toggle[aria-expanded='true'] .discover-chevron { transform: translateY(2px) rotate(-135deg); }
+
+.discover-panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: var(--space-4);
+  max-height: min(64svh, 560px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-float);
+  animation: reveal var(--duration-normal) var(--easing-entrance);
+}
+
+.discover-close {
+  width: var(--control-height);
+  height: var(--control-height);
+  margin-left: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-headline);
+  line-height: 1;
+}
+.discover-close:hover { color: var(--color-text-primary); border-color: var(--color-border-strong); }
+
+.discover-icon {
+  position: absolute;
+  left: var(--space-4);
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--color-text-tertiary);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.discover-field input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-8) 0 var(--space-8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  transition: border-color var(--duration-fast) var(--easing-standard);
+}
+.discover-field input::placeholder { color: var(--color-text-tertiary); }
+.discover-field input:hover { border-color: var(--color-border-strong); }
+.discover-field input:focus-visible { outline-offset: 0; border-color: var(--color-primary); }
+
+.discover-clear {
+  position: absolute;
+  right: var(--space-1);
+  width: var(--control-height);
+  height: var(--control-height);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-headline);
+}
+.discover-clear:hover { color: var(--color-text-primary); background: var(--color-surface-sunken); }
+
+.step-free-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 0 0 auto;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-label);
+}
+.step-free-toggle[aria-pressed='true'] { border-color: var(--color-primary); }
+.step-free-label { white-space: nowrap; }
+
+.switch-track {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+  transition: background-color var(--duration-normal) var(--easing-standard);
+}
+.switch-track span {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  transition: transform var(--duration-normal) var(--easing-standard);
+}
+.step-free-toggle[aria-pressed='true'] .switch-track { background: var(--color-primary); }
+.step-free-toggle[aria-pressed='true'] .switch-track span { transform: translateX(12px); background: var(--color-on-primary); }
+
+/* Breadcrumb */
+.discover-crumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  min-width: 0;
+}
+
+.discover-crumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: var(--font-weight-medium) var(--font-size-label) var(--font-family-mono);
+}
+
+.discover-crumb li {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* Chevron is drawn with borders so screen readers do not announce it */
+.discover-crumb li + li::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  margin: 0 var(--space-3) 0 var(--space-2);
+  border-top: 1.5px solid var(--color-text-tertiary);
+  border-right: 1.5px solid var(--color-text-tertiary);
+  transform: rotate(45deg);
+}
+
+.discover-crumb button,
+.discover-crumb [aria-current] {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  max-width: 28ch;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-xs);
+}
+
+.discover-crumb button {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-strong);
+  text-underline-offset: 3px;
+}
+.discover-crumb button:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-raised);
+  text-decoration-color: currentColor;
+}
+
+.discover-crumb [aria-current] {
+  display: inline-block;
+  line-height: 32px;
+  background: var(--color-primary-a10);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  cursor: default;
+}
+
+.discover-count {
+  color: var(--color-text-tertiary);
+  font: var(--font-size-caption) var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Category browse area: always visible, one row per level */
+.discover-browse {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+.browse-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.browse-row + .browse-row {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+.browse-label { overflow-wrap: anywhere; }
+
+/* Category tiles */
+.discover-categories,
+.place-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.discover-categories button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 152px;
+  min-height: 48px;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  text-align: left;
+  transition: border-color var(--duration-fast) var(--easing-standard), transform var(--duration-fast) var(--easing-standard);
+}
+.discover-categories button:hover { border-color: var(--color-primary); }
+.discover-categories button:active { transform: scale(0.98); }
+.discover-categories button[aria-pressed='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.discover-categories button[aria-pressed='true'] .count-chip {
+  background: color-mix(in srgb, var(--color-on-primary) 16%, transparent);
+  color: var(--color-on-primary);
+}
+.discover-types button { min-height: 40px; min-width: 0; }
+.discover-types strong { font-size: var(--font-size-label); }
+.discover-categories strong {
+  font: var(--font-weight-semibold) var(--font-size-body) var(--font-family-title);
+}
+
+.discover-empty {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+}
+
+/* Result cards */
+.place-card {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-surface-raised);
+  transition: border-color var(--duration-fast) var(--easing-standard);
+}
+.place-card:hover { border-color: var(--color-border-strong); }
+
+.place-card button {
+  min-height: var(--touch-target);
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+}
+
+.place-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+}
+.place-main strong {
+  max-width: 24ch;
+  font: var(--font-weight-semibold) var(--font-size-label) var(--font-family-title);
+}
+.place-main span {
+  color: var(--color-text-tertiary);
+  font: var(--font-size-caption) var(--font-family-mono);
+}
+.place-main:hover { background: var(--color-surface-sunken); }
+
+.place-card .place-route {
+  padding: 0 var(--space-4);
+  border-left: 1px solid var(--color-border);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-label);
+  color: var(--color-primary);
+  white-space: nowrap;
+}
+.place-card .place-route:hover { background: var(--color-primary-a10); }
+.place-card .place-route[aria-busy='true'] { color: var(--color-text-secondary); }
+
+.more-button {
+  min-height: var(--touch-target);
+  height: 100%;
+  padding: 0 var(--space-5);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: var(--font-weight-medium) var(--font-size-label) var(--font-family-mono);
+}
+.more-button:hover { color: var(--color-text-primary); border-color: var(--color-primary); }
+
+
+@media (max-width: 650px) {
+  .browse-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+  .discover-browse { padding: var(--space-3); }
+  .discover-panel { padding: var(--space-3); }
+  /* 16px keeps iOS from zooming into the field. */
+  .discover-field input { font-size: var(--font-size-title); }
+  .discover-categories button { min-width: 0; }
+}
+
+@media (max-width: 480px) {
+  /* The switch keeps its accessible name; only the visible word folds away. */
+  .step-free-label { display: none; }
+  .discover-browse-toggle,
+  .step-free-toggle { padding-inline: var(--space-3); }
+}
+
+@media (pointer: coarse) {
+  .discover-crumb button,
+  .discover-crumb [aria-current] { min-height: var(--touch-target); }
+  .discover-crumb [aria-current] { line-height: var(--touch-target); }
+}

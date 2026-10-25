@@ -4,6 +4,7 @@ import { toUiError } from '../api/errors'
 import type { UiError } from '../api/errors'
 import { catalog } from '../api/fixtures'
 import { gateway, requestId } from '../api/gateway'
+import { CampusWalkway } from '../features/campus/CampusWalkway'
 import type { BuildingSummary, InputMode } from '../api/gateway'
 import { readRecovery, writeRecovery } from '../api/recovery'
 import { placeById, withStartOptions } from '../domain/clarify'
@@ -25,12 +26,13 @@ import { useVoice } from '../features/voice/useVoice'
 import { copy } from '../i18n/en'
 import { PlanImport } from '../features/building-ingestion/PlanImport'
 import { PlanCanvas } from '../rendering/PlanCanvas'
+import { SettingsMenu } from './SettingsMenu'
+import type { ThemeMode } from './SettingsMenu'
 const FloorStack3D = lazy(() => import('../rendering/floor-stack-3d/FloorStack3D').then((module) => ({ default: module.FloorStack3D })))
 
 const emptyPresentation = buildPresentation({ guideText: '', understood: null, effects: [], routes: [], pendingSummary: null, decision: null, confirmedEffects: [], confirmedClosedIds: [], confirmedText: catalog.confirmedText, cancelledText: copy.cancelled })
-type ThemeMode = 'system' | 'light' | 'dark'
-
-const themeModes: ThemeMode[] = ['system', 'light', 'dark']
+type Connection = 'connecting' | 'connected' | 'offline' | 'local'
+const themeColors = { light: '#f4f6f1', dark: '#0a0d12' }
 
 function initialThemeMode(): ThemeMode {
   const stored = window.localStorage.getItem('talk-building-theme')
@@ -87,7 +89,11 @@ export function App() {
   const [reload, setReload] = useState(0)
   const [revision, setRevision] = useState(1)
   const [inputMode, setInputMode] = useState<InputMode>('text')
-  const [stackOpen, setStackOpen] = useState(true)
+  // The 3D stack costs a large chunk and a tall panel; it opens by default only on wide screens.
+  const [stackOpen, setStackOpen] = useState(() => !window.matchMedia('(max-width: 1100px)').matches)
+  // Narrow screens show one pane at a time; wide screens ignore this.
+  const [mobileView, setMobileView] = useState<'map' | 'guide'>('map')
+  const [seenMessages, setSeenMessages] = useState(0)
   const [themeMode, setThemeMode] = useState<ThemeMode>(initialThemeMode)
   const [stepFree, setStepFree] = useState(() => window.localStorage.getItem('wayfinder-step-free') === 'true')
   const [routingId, setRoutingId] = useState<string | null>(null)
@@ -101,7 +107,10 @@ export function App() {
   const [mockPoint, setMockPoint] = useState<Point | null>(null)
   const [checkpointNote, setCheckpointNote] = useState<string | null>(null)
   const [importedPlans, setImportedPlans] = useState<Map<string, FloorPlan>>(new Map())
+  // Development-only tools. Production builds drop the debug view and the map editor;
+  // the API also refuses object edits unless the server is started with --map-editing.
   const debugEnabled = import.meta.env.DEV
+  const editingEnabled = import.meta.env.DEV
 
   const floor = floors.find((item) => item.id === floorId) ?? floors[0] ?? catalog.floors[0]
   const plan = plans.get(floor.id) ?? null
@@ -127,8 +136,12 @@ export function App() {
   }, [sessionId, guidedRouteId])
   const route = mapView.route ?? (guidedRouteId && guidedRoute?.id === guidedRouteId ? guidedRoute : null)
   const step = route?.directions[directionIndex]
-  const nextText = !route ? copy.askRoute : route.reachable ? (step ? readableDirection(step.text) : copy.askRoute) : copy.noRoute
+  const nextText = !route ? copy.askRoute : route.reachable ? (step ? readableDirection(step.text) : copy.askRoute) : stepFree ? copy.noRoute : copy.noRouteAny
   const placeName = (id: string | null) => labelFromPlans([...plans.values()], id)
+  // One answer to "where do I start": the chosen place, else the start the guide routed from.
+  const startId = hereId ?? (route?.reachable ? route.start_space_id ?? null : null)
+  const startName = startId ? placeName(startId) : ''
+  const connection: Connection = importedPlans.has(buildingId) ? 'local' : booting ? 'connecting' : ready ? 'connected' : 'offline'
   const destinationAsset = [...plans.values()].flatMap((item) => item.assets).find((asset) => mapView.assetIds.has(asset.id) && asset.space_id === route?.destination_space_id)
   const destinationName = destinationAsset?.name ?? (route ? placeName(route.destination_space_id) : '')
 
@@ -143,14 +156,17 @@ export function App() {
 
   useEffect(() => {
     const root = document.documentElement
+    // The browser chrome colour follows the resolved theme, not a fixed light value.
+    const paintChrome = (resolved: 'light' | 'dark') => document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColors[resolved])
     const applyTheme = (mode: ThemeMode) => {
       root.dataset.theme = mode
       window.localStorage.setItem('talk-building-theme', mode)
+      if (mode !== 'system') paintChrome(mode)
     }
     applyTheme(themeMode)
     if (themeMode !== 'system') return
     const media = window.matchMedia('(prefers-color-scheme: dark)')
-    const handleChange = () => { root.dataset.systemTheme = media.matches ? 'dark' : 'light' }
+    const handleChange = () => { root.dataset.systemTheme = media.matches ? 'dark' : 'light'; paintChrome(media.matches ? 'dark' : 'light') }
     handleChange()
     media.addEventListener('change', handleChange)
     return () => media.removeEventListener('change', handleChange)
@@ -291,13 +307,13 @@ export function App() {
     return new Map(entries)
   }
 
-  const editor = useObjectEditor({ sessionId, plans, floors, floorId: floor.id, selection, onSelect: setSelection, refreshFloors, buttonRef: editButtonRef })
+  const editor = useObjectEditor({ sessionId, plans, floors, floorId: floor.id, selection, onSelect: setSelection, refreshFloors, buttonRef: editButtonRef, enabled: editingEnabled })
 
   // A click on the flat plan or the 3D stack; the 3D stack can pick items on other floors. Items open in the editor.
   const selectOnMap = (next: Selection) => {
     setSelection(next)
     if (next.floorId !== floor.id) { setFloorId(next.floorId); setFloorPinned(true) }
-    if (next.kind === 'asset') editor.editItem(next)
+    if (editingEnabled && next.kind === 'asset') editor.editItem(next)
   }
 
   const openLocationPicker = () => { setLocationFloor(floor?.id ?? ''); setLocationFilter(''); setLocationOpen(true) }
@@ -361,7 +377,8 @@ export function App() {
   }
 
   // Route A (known start) to B (picked place); without a start, ask for it first.
-  const routeToPlace = async (place: DiscoveryPlace, knownStart = hereId, preference = stepFree) => {
+  // `reason` names what changed when an existing route is computed again, so the new reply is not a copy of the old one.
+  const routeToPlace = async (place: DiscoveryPlace, knownStart = startId, preference = stepFree, reason?: string) => {
     if (busyRef.current) return
     if (!sessionRef.current) {
       if (importedPlans.has(buildingId)) setLoadError({ message: copy.importedNoRoute, code: null, traceId: null, requestId: null })
@@ -378,8 +395,9 @@ export function App() {
     try {
       const computed = await gateway.createRoute(sessionRef.current.id, { start_space_id: knownStart, destination_space_id: place.id, step_free: preference, current_space_id: knownStart })
       if (turn !== epoch.current) return
+      const summary = computed.reachable ? computed.length_m === 0 ? `You're already at ${place.name}.` : `${place.name} is ${formatMetres(computed.length_m)} away. Follow the route on the map.` : `No route to ${place.name} with the current constraints.`
       const next: Reply = { id: computed.reachable ? 'accepted' : 'unreachable', userText: null,
-        guideText: computed.reachable ? computed.length_m === 0 ? `You're already at ${place.name}.` : `${place.name} is ${formatMetres(computed.length_m)} away. Follow the route on the map.` : `No route to ${place.name} with the current constraints.`,
+        guideText: reason ? `${reason} ${summary}` : summary,
         understood: null, effects: [{ type: 'draw_route', route_id: computed.id }, { type: 'highlight_assets', asset_ids: place.kind === 'asset' ? [place.id] : [] }], routes: [computed], pending: pendingAction }
       acceptReply(next)
       const message = localMessage(next.guideText, next)
@@ -426,11 +444,12 @@ export function App() {
       updated = true
     } catch (error) { if (turn === epoch.current) setLoadError(toUiError(error)) }
     finally { if (turn === epoch.current) { busyRef.current = false; setBusy(false) } }
-    // A changed preference invalidates the shown route; compute it again for the same A and B.
-    if (updated && turn === epoch.current && route?.reachable && route.destination_space_id) {
+    // A changed preference invalidates the shown route, reachable or not; compute it again for the same A and B.
+    const start = route?.start_space_id ?? startId
+    if (updated && turn === epoch.current && route?.destination_space_id && start) {
       setMapView((current) => ({ ...current, route: null }))
       const place = placeById([...plans.values()], floors, route.destination_space_id)
-      if (place) await routeToPlace(place, route.start_space_id ?? hereId, next)
+      if (place) await routeToPlace(place, start, next, next ? 'Step-free route:' : 'Stairs allowed:')
     }
   }
 
@@ -494,24 +513,117 @@ export function App() {
 
   const locationSpaces = [...plans.values()].flatMap((item) => item.spaces).filter((space) => (!locationFloor || space.floor_id === locationFloor) && `${space.name} ${space.ref ?? ''}`.toLowerCase().includes(locationFilter.toLowerCase())).slice(0, 40)
 
-  return <main className="app-shell">
-    <header className="topbar"><div className="brand"><span className="brand-mark" aria-hidden="true">W</span><span>{copy.title}</span></div><div className="building-meta"><span className="eyebrow">{copy.buildingEyebrow}</span><select className="building-picker" value={buildingId} disabled={busy} onChange={(event) => setBuildingId(event.target.value)} aria-label="Choose building">{(buildings.length ? buildings : [{ id: buildingId, name: catalog.buildingName } as BuildingSummary]).map((building) => <option key={building.id} value={building.id}>{building.name}</option>)}</select><button type="button" className="location-chip" aria-label="Set your location" onClick={openLocationPicker}>⌖ {hereId ? placeName(hereId) : 'Set your location'}</button><span className="status-pill"><span />{ready ? 'API connected' : 'API disconnected'}</span><div className="theme-switcher" role="group" aria-label="Theme"><span className="sr-only">Theme</span>{themeModes.map((mode) => <button key={mode} type="button" className={themeMode === mode ? 'active' : undefined} aria-pressed={themeMode === mode} onClick={() => setThemeMode(mode)}>{mode === 'system' ? 'Auto' : mode === 'light' ? 'Light' : 'Dark'}</button>)}</div></div></header>
+  const roomTypes = useMemo(() => new Set(stackPlans.flatMap((item) => item.spaces.map((space) => (space.room_type || space.type || '').toLowerCase()))), [stackPlans])
+  const suggestions = [
+    [...roomTypes].some((type) => /toilet|restroom/.test(type)) && copy.promptRestroom,
+    [...roomTypes].some((type) => /kitchen/.test(type)) && copy.promptKitchen,
+    [...roomTypes].some((type) => /meeting/.test(type)) && copy.promptMeeting,
+    [...roomTypes].some((type) => /lift|elevator/.test(type)) && copy.promptLift,
+  ].filter((item): item is string => Boolean(item)).slice(0, 3)
+  const guideUnread = mobileView === 'map' ? Math.max(0, messages.filter((message) => message.role === 'guide').length - seenMessages) : 0
+  const showView = (view: 'map' | 'guide') => {
+    setMobileView(view)
+    if (view === 'guide') setSeenMessages(messages.filter((message) => message.role === 'guide').length)
+  }
+  const showMap = () => {
+    showView('map')
+    requestAnimationFrame(() => mapRef.current?.querySelector('.plan-stage')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
+  }
+  const hideRoute = () => { setMapView((current) => ({ ...current, route: null })); setPlaying(false) }
+  // Without loaded floors the fallback floor name would describe a building that is not on screen.
+  const floorTitle = connection === 'connecting' ? copy.loadingBuilding : floors.length === 0 && connection === 'offline' ? copy.planUnavailable : floor.name
+  const connectionLabel = { connecting: copy.connecting, connected: '', offline: copy.offline, local: copy.localPlan }[connection]
+  const nextHeadline = connection === 'connecting' ? copy.connectingBuilding
+    : connection === 'offline' ? copy.offline
+      : busy ? copy.working
+        : guidanceActive && feed.latestInstruction ? feed.latestInstruction.text
+          : checkpointNote ?? nextText
+
+  return <div className="app-shell" data-view={mobileView} data-editing={editor.open ? 'true' : undefined}>
+    <a className="skip-link" href="#map-pane">{copy.skipMap}</a>
+    <a className="skip-link" href="#guide-pane" onClick={() => showView('guide')}>{copy.skipGuide}</a>
+    <header className="topbar">
+      <div className="brand"><span className="brand-mark" aria-hidden="true">W</span><span>{copy.title}</span></div>
+      <div className="building-meta">
+        <span className="eyebrow building-eyebrow" aria-hidden="true">{copy.buildingEyebrow}</span>
+        <select className="building-picker" value={buildingId} disabled={busy} title={buildings.find((item) => item.id === buildingId)?.name} onChange={(event) => setBuildingId(event.target.value)} aria-label="Choose building">{(buildings.length ? buildings : [{ id: buildingId, name: catalog.buildingName } as BuildingSummary]).map((building) => <option key={building.id} value={building.id}>{building.name}</option>)}</select>
+        <CampusWalkway />
+        <button type="button" className="location-chip" title={startName || undefined} onClick={openLocationPicker}><span aria-hidden="true">⌖</span>{startName ? <><span className="sr-only">Starting place: </span><span className="location-chip-name">{startName}</span></> : copy.setLocation}</button>
+        {connection !== 'connected' && <span className={`status-pill is-${connection}`}><span aria-hidden="true" />{connectionLabel}</span>}
+      </div>
+      <SettingsMenu themeMode={themeMode} onThemeMode={setThemeMode} />
+    </header>
     {booting && <p className="app-status" role="status">{copy.loadingPlan}</p>}
-    {loadError && <div className="app-alert" role="alert"><strong>{loadError.code ?? copy.apiUnavailable}</strong><span>{loadError.message}</span>{loadError.traceId && <span>trace {loadError.traceId}</span>}{loadError.requestId && <span>request {loadError.requestId}</span>}{!ready && <button type="button" onClick={() => setReload((value) => value + 1)}>Reconnect</button>}</div>}
-    <PlaceDiscovery plans={[...plans.values()]} floors={floors} stepFree={stepFree} busyId={routingId} onToggleStepFree={() => { void toggleStepFree() }} onFocus={focusDiscoveryPlace} onRoute={(place) => { void routeToPlace(place) }} />
-    <section className="workspace"><div className="map-column" ref={mapRef}><div className="map-toolbar"><div><span className="eyebrow">{copy.planEyebrow}</span><h1>{floor.name}</h1>{route?.reachable && <p className="map-route-target">To {destinationName} · {formatMetres(route.length_m)}</p>}</div><div className="map-toolbar-actions"><button type="button" ref={editButtonRef} className="edit-map-toggle" aria-pressed={editor.open} aria-keyshortcuts="E" title={copy.editor.openHint} onClick={editor.toggle}><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18"><path d="M4 20h4L19 9l-4-4L4 16v4Z M13.5 6.5l4 4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg><span>{editor.open ? copy.editor.done : copy.editor.open}</span></button><div className="floor-rail" role="toolbar" aria-label="Floors">{floors.map((item) => <button type="button" key={item.id} className={item.id === floor.id ? 'active' : undefined} aria-pressed={item.id === floor.id} aria-label={`${copy.showFloor} ${item.name}`} onClick={() => { setFloorId(item.id); setFloorPinned(true) }}>{item.level}</button>)}<button type="button" className="floor-rail-toggle" aria-pressed={stackOpen} onClick={() => setStackOpen((open) => !open)}>{stackOpen ? copy.flatPlan : copy.stackFloors}</button>{debugEnabled && <button type="button" aria-pressed={activePanel === 'debug' && mapFocusActive} onClick={() => { setMapFocusActive(true); setActivePanel('debug') }}>{copy.debug}</button>}</div></div></div><div className="plan-stage"><PlanCanvas plan={plan} floorName={floor.name} route={route} spaceReasons={mapView.spaceReasons} assetIds={mapView.assetIds} closedIds={mapView.closedIds} focusPoint={mapView.focusFloorId === floor.id ? mapView.focusPoint : null} stepPoint={step?.floor_id === floor.id ? step.at : null} storyIndex={directionIndex} selectionId={selection?.id ?? null} onSelect={selectOnMap} onFocusSelection={(focused) => { setMapFocusActive(Boolean(focused)); setActivePanel(debugEnabled && focused ? 'debug' : 'guide') }} mockPoint={mockPoint} markerArmed={markerArmed} stepFree={stepFree} onPlaceMarker={(point) => { setMockPoint(point); setMarkerArmed(false); const near = plan?.spaces.find((space) => space.polygon.length > 0 && Math.hypot(point[0] - space.polygon[0][0], point[1] - space.polygon[0][1]) < 8); if (near) void sendText(`I am at ${near.name}`, { current_space_id: near.id }) }} walkerHere={walkerHere} onWalkerMove={onWalkerMove} onChangeFloor={changeWalkerFloor} guidanceTarget={guidanceTarget} editor={editor.overlay} preview={editor.open ? null : mapView.previewObjects} /><div className="map-caption" role="status" data-editor={editor.open ? (editor.invalid ? 'invalid' : 'on') : undefined}>{editor.caption ? <strong>{editor.caption}</strong> : selection ? <><strong>{selection.name}</strong><span>{selection.floorName}</span>{selection.kind !== 'opening' && <button type="button" disabled={busy} onClick={() => void useLocation(selection.id)}>Use as my location</button>}</> : <><span className="legend-dot focus-dot" /> {hereId ? `Starting at ${placeName(hereId)}` : copy.destinationFocus}</>}</div></div>{stackOpen && <Suspense fallback={<p role="status">Loading 3D view…</p>}><FloorStack3D plans={stackPlans} route={route} activeFloorId={floor.id} onSelectFloor={(id) => { setFloorId(id); setFloorPinned(true) }} onSelect={selectOnMap} selectedId={selection?.id ?? null} /></Suspense>}<PlanImport onApply={(imported) => { const id = `imported:${imported.floor.id}`; setImportedPlans((current) => new Map(current).set(id, imported)); setBuildings((current) => current.some((item) => item.id === id) ? current : [...current, { id, name: `${copy.importedSession}: ${imported.floor.name}`, floors: 1, has_lift: imported.connectors.some((item) => item.kind === 'lift'), has_step_free_entrance: imported.openings.some((item) => item.kind === 'entrance' && item.step_free) }]); setBuildingId(id) }} /><p className="revision-note"><span className="eyebrow">{copy.revision}</span><span className="mono">{revision}</span></p></div>
-      <div className="guide-region">
-        {editor.open ? <EditorPanel editor={editor} /> : <>
-        {mapFocusActive && <div className="panel-tabs" role="tablist" aria-label="Guide views">
+    {loadError && <div className="app-alert" role="alert">
+      <strong>{loadError.message || copy.apiUnavailable}</strong>
+      {!ready && connection !== 'local' && <button type="button" className="small-action is-primary" onClick={() => setReload((value) => value + 1)}>{copy.reconnect}</button>}
+      {ready && <button type="button" className="small-action" onClick={() => setLoadError(null)}>{copy.dismiss}</button>}
+      {(loadError.code || loadError.traceId || loadError.requestId) && <details className="app-alert-details"><summary>{copy.errorDetails}</summary><span className="mono">{[loadError.code, loadError.traceId && `trace ${loadError.traceId}`, loadError.requestId && `request ${loadError.requestId}`].filter(Boolean).join(' · ')}</span></details>}
+    </div>}
+    <main id="main-content" className="workspace">
+      <section id="map-pane" className="map-column" ref={mapRef} aria-label="Map" tabIndex={-1}>
+        <div className="map-primary">
+          {editor.open && <p className="editing-banner"><span aria-hidden="true" />{copy.editingBanner}</p>}
+          <div className="map-toolbar">
+            <div className="map-title">
+              <span className="eyebrow">{copy.planEyebrow}</span>
+              <h1>{floorTitle}</h1>
+              {route?.reachable && <p className="map-route-target"><span className="route-status-dot" aria-hidden="true" />To {destinationName} · {formatMetres(route.length_m)}</p>}
+            </div>
+            <div className="map-toolbar-actions">
+              {editingEnabled && <button type="button" ref={editButtonRef} className="edit-map-toggle" aria-pressed={editor.open} aria-keyshortcuts="E" title={copy.editor.openHint} onClick={() => { if (!editor.open) showView('map'); editor.toggle() }}><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18"><path d="M4 20h4L19 9l-4-4L4 16v4Z M13.5 6.5l4 4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg><span>{editor.open ? copy.editor.done : copy.editor.open}</span></button>}
+              {floors.length > 0 && <div className="floor-rail" role="toolbar" aria-label="Floors">{floors.map((item) => <button type="button" key={item.id} className={item.id === floor.id ? 'active' : undefined} aria-pressed={item.id === floor.id} aria-label={`${copy.showFloor} ${item.name}`} title={item.name} onClick={() => { setFloorId(item.id); setFloorPinned(true) }}>L{item.level}</button>)}</div>}
+              <button type="button" className="stack-toggle" aria-pressed={stackOpen} onClick={() => setStackOpen((open) => !open)}>{copy.stackToggle}</button>
+              {debugEnabled && <button type="button" className="dev-toggle" aria-label={copy.debug} aria-pressed={activePanel === 'debug' && mapFocusActive} onClick={() => { setMapFocusActive(true); setActivePanel('debug'); showView('guide') }}>{copy.debugTitle}</button>}
+            </div>
+          </div>
+          <PlaceDiscovery plans={stackPlans} floors={floors} stepFree={stepFree} busyId={routingId} onToggleStepFree={() => { void toggleStepFree() }} onFocus={focusDiscoveryPlace} onRoute={(place) => { void routeToPlace(place) }} />
+          <div className="plan-stage">
+            <PlanCanvas plan={plan} floorName={floorTitle} emptyText={connection === 'connecting' ? copy.loadingPlan : floors.length === 0 ? copy.planUnavailableBody : copy.emptyPlan} route={route} spaceReasons={mapView.spaceReasons} assetIds={mapView.assetIds} closedIds={mapView.closedIds} focusPoint={mapView.focusFloorId === floor.id ? mapView.focusPoint : null} stepPoint={step?.floor_id === floor.id ? step.at : null} storyIndex={directionIndex} selectionId={selection?.id ?? null} onSelect={selectOnMap} onFocusSelection={(focused) => { setMapFocusActive(Boolean(focused)); setActivePanel(debugEnabled && focused ? 'debug' : 'guide') }} mockPoint={mockPoint} markerArmed={markerArmed} stepFree={stepFree} onPlaceMarker={(point) => { setMockPoint(point); setMarkerArmed(false); const near = plan?.spaces.find((space) => space.polygon.length > 0 && Math.hypot(point[0] - space.polygon[0][0], point[1] - space.polygon[0][1]) < 8); if (near) void sendText(`I am at ${near.name}`, { current_space_id: near.id }) }} walkerHere={walkerHere} onWalkerMove={onWalkerMove} onChangeFloor={changeWalkerFloor} guidanceTarget={guidanceTarget} editor={editor.overlay} preview={editor.open ? null : mapView.previewObjects} />
+            <div className="map-caption" data-editor={editor.open ? (editor.invalid ? 'invalid' : 'on') : undefined}>{editor.caption ? <strong>{editor.caption}</strong> : selection ? <><strong>{selection.name}</strong><span>{selection.floorName}</span>{selection.kind !== 'opening' && <button type="button" disabled={busy} onClick={() => void useLocation(selection.id)}>Use as my location</button>}</> : <><span className="legend-dot focus-dot" aria-hidden="true" /> {startName ? `Starting at ${startName}` : copy.destinationFocus}</>}</div>
+          </div>
+        </div>
+        {stackOpen && <Suspense fallback={<p className="stack-loading">Loading 3D view…</p>}><FloorStack3D plans={stackPlans} route={route} activeFloorId={floor.id} onSelectFloor={(id) => { setFloorId(id); setFloorPinned(true) }} onSelect={selectOnMap} selectedId={selection?.id ?? null} /></Suspense>}
+        <div className="map-footer">
+          <PlanImport onApply={(imported) => { const id = `imported:${imported.floor.id}`; setImportedPlans((current) => new Map(current).set(id, imported)); setBuildings((current) => current.some((item) => item.id === id) ? current : [...current, { id, name: `${copy.importedSession}: ${imported.floor.name}`, floors: 1, has_lift: imported.connectors.some((item) => item.kind === 'lift'), has_step_free_entrance: imported.openings.some((item) => item.kind === 'entrance' && item.step_free) }]); setBuildingId(id) }} />
+          <p className="revision-note"><span className="eyebrow">{copy.revision}</span><span className="mono">{revision}</span></p>
+        </div>
+      </section>
+      <div id="guide-pane" className={`guide-region${editor.open ? ' is-editing' : ''}`} tabIndex={-1}>
+        {editingEnabled && editor.open ? <EditorPanel editor={editor} /> : <>
+        {debugEnabled && mapFocusActive && <div className="panel-tabs" role="tablist" aria-label="Guide views">
           <button type="button" role="tab" aria-selected={activePanel === 'guide'} className={activePanel === 'guide' ? 'active' : undefined} onClick={() => { setActivePanel('guide') }}>Your Guide</button>
           {debugEnabled && <button type="button" role="tab" aria-selected={activePanel === 'debug'} className={activePanel === 'debug' ? 'active' : undefined} onClick={() => { setActivePanel('debug') }}>Debug</button>}
         </div>}
-        {!mapFocusActive || activePanel === 'guide' ? <GuidePanel query={query} messages={messages} busy={busy} ready={ready} activeRoute={route} activeMessageId={activeMessageId} pendingActionId={pendingAction?.id ?? null} directionIndex={directionIndex} onQuery={setQuery} onSubmit={submit} onChoose={(option, role) => { void choose(option, role) }} onRetry={(message) => { void sendText(message.text, {}, message) }} onConfirm={() => { void finishAction(true) }} onCancel={() => { void finishAction(false) }} onShowMap={() => mapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} onShowFloor={(id) => { setFloorId(id); setFloorPinned(true) }} inputMode={inputMode} onInputMode={setInputMode} voice={voice} guidanceActive={guidanceActive} onStopGuidance={() => { void stopGuidance() }} inputRef={inputRef} floors={floors} /> : <DebugPanel selection={selection} presentation={mapView} effects={latestReply?.effects ?? []} facts={plan && selection ? selectionFacts(plan, selection) : null} markerArmed={markerArmed} onArmMarker={() => setMarkerArmed((armed) => !armed)} onLoad={preview} onLeavePreview={() => { setActivePanel('guide'); setReload((value) => value + 1) }} />}
+        {!(debugEnabled && mapFocusActive && activePanel === 'debug') ? <GuidePanel query={query} messages={messages} busy={busy} ready={ready} connection={connection} suggestions={suggestions} stepFree={stepFree} activeRoute={route} activeMessageId={activeMessageId} pendingActionId={pendingAction?.id ?? null} directionIndex={directionIndex} onQuery={setQuery} onSubmit={submit} onChoose={(option, role) => { void choose(option, role) }} onRetry={(message) => { void sendText(message.text, {}, message) }} onConfirm={() => { void finishAction(true) }} onCancel={() => { void finishAction(false) }} onShowMap={showMap} onShowFloor={(id) => { setFloorId(id); setFloorPinned(true); showMap() }} onAllowStairs={() => { void toggleStepFree() }} onChooseStart={openLocationPicker} inputMode={inputMode} onInputMode={setInputMode} voice={voice} guidanceActive={guidanceActive} onStopGuidance={() => { void stopGuidance() }} inputRef={inputRef} floors={floors} /> : <DebugPanel selection={selection} presentation={mapView} effects={latestReply?.effects ?? []} facts={plan && selection ? selectionFacts(plan, selection) : null} markerArmed={markerArmed} onArmMarker={() => setMarkerArmed((armed) => !armed)} onLoad={preview} onLeavePreview={() => { setActivePanel('guide'); setReload((value) => value + 1) }} />}
         </>}
       </div>
-    </section>
+    </main>
     <p className="sr-only" role="status" aria-live="polite"><span key={editor.announcement.id}>{editor.announcement.text}</span></p>
-    <footer className="next-bar"><div><span className="eyebrow">{copy.nextStep}</span><strong>{busy ? copy.working : guidanceActive && feed.latestInstruction ? feed.latestInstruction.text : checkpointNote ?? nextText}</strong></div>{guidanceActive ? <button type="button" className="next-distance" onClick={() => { void stopGuidance() }}>{copy.stopGuidance}</button> : route?.reachable && sessionId && <button type="button" className="next-distance" onClick={() => { void guideMe() }}>{copy.guideMe}</button>}<button type="button" className="next-distance" onClick={() => setPlaying((value) => !value)} disabled={!route?.reachable} aria-pressed={playing}>{playing ? copy.pause : copy.play}</button><button type="button" className="next-distance" onClick={advance} disabled={!route?.reachable}>{route?.reachable ? `${formatMetres(route.length_m)} ->` : `${copy.noRoute} ->`}</button>{route && <button type="button" className="next-distance" aria-label="Hide route" onClick={() => { setMapView((current) => ({ ...current, route: null })); setPlaying(false) }}>×</button>}</footer>
+    <footer className="app-footer">
+      <nav className="view-switch segmented" aria-label={copy.viewSwitch}>
+        <button type="button" aria-pressed={mobileView === 'map'} onClick={() => showView('map')}>{copy.viewMap}</button>
+        <button type="button" aria-pressed={mobileView === 'guide'} onClick={() => showView('guide')}>{copy.viewGuide}{guideUnread > 0 && <span className="unread-badge"><span aria-hidden="true">{guideUnread}</span><span className="sr-only">, {guideUnread} {copy.newMessages}</span></span>}</button>
+      </nav>
+      <div className="next-bar">
+        <div className="next-text"><span className="eyebrow">{copy.nextStep}</span><strong>{nextHeadline}</strong></div>
+        {connection !== 'connecting' && connection !== 'offline' && <div className="next-actions">
+          {guidanceActive
+            ? <button type="button" className="next-action is-primary" onClick={() => { void stopGuidance() }}>{copy.stopGuidance}</button>
+            : route?.reachable && <>
+              {sessionId && <button type="button" className="next-action is-primary" onClick={() => { void guideMe() }}>{copy.guideMe}</button>}
+              <button type="button" className="next-action" onClick={() => setPlaying((value) => !value)} aria-pressed={playing}>{playing ? copy.pause : copy.play}</button>
+              <button type="button" className="next-action" onClick={advance} title={copy.nextDirection}>{formatMetres(route.length_m)} →</button>
+            </>}
+          {route && !route.reachable && !guidanceActive && <>
+            {stepFree && <button type="button" className="next-action is-primary" disabled={busy} onClick={() => { void toggleStepFree() }}>{copy.allowStairs}</button>}
+            <button type="button" className="next-action" onClick={openLocationPicker}>{copy.chooseStart}</button>
+          </>}
+          {!route && !startId && connection === 'connected' && <button type="button" className="next-action" onClick={openLocationPicker}>{copy.setLocation}</button>}
+          {route && <button type="button" className="next-action is-icon" aria-label={copy.hideRoute} title={copy.hideRoute} onClick={hideRoute}>×</button>}
+        </div>}
+      </div>
+    </footer>
     {locationOpen && <div className="drawer-backdrop" onClick={(event) => { if (event.target === event.currentTarget) setLocationOpen(false) }}>
       <aside ref={drawerRef} className="navigation-drawer" role="dialog" aria-modal="true" aria-label="Choose your starting location" onKeyDown={(event) => {
         if (event.key === 'Escape') setLocationOpen(false)
@@ -520,5 +632,5 @@ export function App() {
         <p>Pick the room you are in.</p><input aria-label="Search starting rooms" placeholder="Room name or number" value={locationFilter} onChange={(event) => setLocationFilter(event.target.value)} /><select aria-label="Starting floor" value={locationFloor} onChange={(event) => setLocationFloor(event.target.value)}><option value="">All floors</option>{floors.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><ul className="location-results">{locationSpaces.map((space) => <li key={space.id}><button type="button" disabled={busy} onClick={() => { void useLocation(space.id) }}><strong>{space.name}</strong><span>{floors.find((item) => item.id === space.floor_id)?.name}</span></button></li>)}</ul>{locationSpaces.length === 0 && <p>No rooms match. Try another name or floor.</p>}
       </aside>
     </div>}
-  </main>
+  </div>
 }

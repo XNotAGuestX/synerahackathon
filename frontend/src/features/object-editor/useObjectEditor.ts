@@ -63,6 +63,8 @@ type Options = {
   /** Reload these floors and the session revision. Resolves with the fresh plans. */
   refreshFloors: (floorIds: string[]) => Promise<Map<string, FloorPlan>>
   buttonRef: RefObject<HTMLButtonElement | null>
+  /** False in production builds: the editor never opens, fetches nothing and ignores its shortcut. */
+  enabled?: boolean
 }
 
 export type StopLabel = { id: string; name: string; floorName: string }
@@ -117,7 +119,7 @@ function connectorKindOf(id: string): ConnectorKind {
   return id === 'escalator' || id === 'lift' ? id : 'stairs'
 }
 
-export function useObjectEditor({ sessionId, plans, floors, floorId, selection, onSelect, refreshFloors, buttonRef }: Options) {
+export function useObjectEditor({ sessionId, plans, floors, floorId, selection, onSelect, refreshFloors, buttonRef, enabled = true }: Options) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<EditorStep>('pick')
   const [changingType, setChangingType] = useState(false)
@@ -136,6 +138,7 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
   plansRef.current = plans
 
   useEffect(() => {
+    if (!enabled) return
     let cancelled = false
     gateway.listObjectTypes()
       .then((loaded) => {
@@ -145,7 +148,7 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
       })
       .catch(() => { if (!cancelled) setCatalogOffline(true) })
     return () => { cancelled = true }
-  }, [])
+  }, [enabled])
 
   const entries = useMemo(() => flattenCatalog(catalog), [catalog])
   const stacking = useMemo(() => stackingOf(plans), [plans])
@@ -201,6 +204,7 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
   }
 
   const openEditor = (target: Selection | null = selection) => {
+    if (!enabled) return
     setOpen(true)
     setError(null)
     setConfirming(null)
@@ -618,13 +622,14 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
             : `${fill(text.captionForm, { name: objectDraft?.name || typeLabel(draft) })}${hint ? ` ${hint}` : ''}`
 
   // Keyboard: E toggles; with the editor open, Esc cancels, arrows nudge, R rotates.
-  const latest = useRef({ open, step, saving, toggle, escape, nudgeBy, rotate, movable: false })
-  latest.current = { open, step, saving, toggle, escape, nudgeBy, rotate, movable: Boolean(objectDraft?.position) && step === 'form' }
+  const latest = useRef({ open, step, saving, toggle, escape, nudgeBy, rotate, movable: false, enabled })
+  latest.current = { open, step, saving, toggle, escape, nudgeBy, rotate, movable: Boolean(objectDraft?.position) && step === 'form', enabled }
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const api = latest.current
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
       const typing = typingTarget(event.target)
+      if (!api.enabled) return
       if ((event.key === 'e' || event.key === 'E') && !typing && !event.repeat) {
         event.preventDefault()
         api.toggle()

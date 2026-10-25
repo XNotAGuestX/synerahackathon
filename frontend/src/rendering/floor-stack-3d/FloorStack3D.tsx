@@ -246,6 +246,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [tip, setTip] = useState<{ item: Selection; x: number; y: number } | null>(null)
   const [expanded, setExpanded] = useState(false)
+  const sectionRef = useRef<HTMLElement>(null)
   const [mode, setMode] = useState<StackMode>('all')
   // The floor shown in the stack. It follows the plan's floor, and picking a floor here updates the plan too.
   const [viewedId, setViewedId] = useState(activeFloorId)
@@ -985,7 +986,22 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
   return (
     <>
       {expanded && <div className="floor-stack-backdrop" aria-hidden="true" onClick={() => setExpanded(false)} />}
-      <section className={expanded ? 'floor-stack-3d is-expanded' : 'floor-stack-3d'} aria-label={copy.stackTitle}>
+      <section
+        ref={sectionRef}
+        className={expanded ? 'floor-stack-3d is-expanded' : 'floor-stack-3d'}
+        aria-label={copy.stackTitle}
+        // Expanded, the stack covers the page like a dialog: focus stays inside until it collapses.
+        role={expanded ? 'dialog' : undefined}
+        aria-modal={expanded ? true : undefined}
+        onKeyDown={(event) => {
+          if (!expanded || event.key !== 'Tab') return
+          const items = [...(sectionRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled)') ?? [])]
+          const first = items[0]
+          const last = items.at(-1)
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+        }}
+      >
         <div ref={host} className="stack-viewport" role="img" aria-label={`${copy.stackTitle}: ${summary}`} />
         {tip && <MapTooltip item={tip.item} x={tip.x} y={tip.y} />}
         <header className="stack-head">
@@ -1031,7 +1047,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
           {route && <li><span className="stack-swatch tone-route" />{copy.route}</li>}
         </ul>
         {focus && (
-          <aside className="stack-info" aria-live="polite">
+          <aside className="stack-info">
             <div className="stack-info-title">
               <span className="stack-label-level">L{focus.floor.level}</span>
               <strong>{focus.floor.name}</strong>

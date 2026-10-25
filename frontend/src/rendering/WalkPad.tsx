@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, PointerEvent as ReactPointerEvent, RefObject } from 'react'
-import { createPortal } from 'react-dom'
 import { copy } from '../i18n/en'
 import type { FloorPlan, Point, Route } from '../domain/types'
 import {
@@ -25,6 +24,8 @@ type WalkMode = 'empty' | 'idle' | 'walking' | 'following' | 'blocked' | 'arrive
 
 type WalkPadProps = {
   svgRef: RefObject<SVGSVGElement | null>
+  /** The map box the pad lives in; positions are relative to it so the pad never covers chrome outside the map. */
+  containerRef: RefObject<HTMLDivElement | null>
   plan: FloorPlan
   route: Route | null
   closedIds: string[]
@@ -68,11 +69,12 @@ const CAUSE_COPY: Record<BlockCause, string> = {
   outside: copy.walkOutside,
 }
 
-const PAD_STORAGE_KEY = 'wayfinder-walk-pad'
+// v2: coordinates are relative to the map box, not the viewport.
+const PAD_STORAGE_KEY = 'wayfinder-walk-pad-v2'
 const SPEED_STORAGE_KEY = 'wayfinder-walk-speed'
 const SPEED_MIN_M_S = 0.4
 const SPEED_MAX_M_S = 4
-const VIEWPORT_MARGIN = 8
+const BOX_MARGIN = 8
 const CONNECTOR_NEAR_M = 3
 
 type PadPlace = { x: number; y: number; hidden: boolean }
@@ -109,12 +111,12 @@ function rememberPadPlace(place: PadPlace) {
   }
 }
 
-function clampToViewport(x: number, y: number, width: number, height: number): { x: number; y: number } {
-  const maxX = Math.max(VIEWPORT_MARGIN, window.innerWidth - width - VIEWPORT_MARGIN)
-  const maxY = Math.max(VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN)
+function clampToBox(box: HTMLElement | null, x: number, y: number, width: number, height: number): { x: number; y: number } {
+  const maxX = Math.max(BOX_MARGIN, (box?.clientWidth ?? window.innerWidth) - width - BOX_MARGIN)
+  const maxY = Math.max(BOX_MARGIN, (box?.clientHeight ?? window.innerHeight) - height - BOX_MARGIN)
   return {
-    x: Math.min(maxX, Math.max(VIEWPORT_MARGIN, x)),
-    y: Math.min(maxY, Math.max(VIEWPORT_MARGIN, y)),
+    x: Math.min(maxX, Math.max(BOX_MARGIN, x)),
+    y: Math.min(maxY, Math.max(BOX_MARGIN, y)),
   }
 }
 
@@ -146,7 +148,7 @@ function pixelsPerMetre(svg: SVGSVGElement): number {
   return Math.hypot(end.x - start.x, end.y - start.y)
 }
 
-export function WalkPad({ svgRef, plan, route, closedIds, stepFree, keysPaused = false, walkerHere = true, onMove, onChangeFloor }: WalkPadProps) {
+export function WalkPad({ svgRef, containerRef, plan, route, closedIds, stepFree, keysPaused = false, walkerHere = true, onMove, onChangeFloor }: WalkPadProps) {
   const pausedRef = useRef(keysPaused)
   pausedRef.current = keysPaused
   const tokenRef = useRef<HTMLDivElement>(null)
@@ -183,8 +185,8 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree, keysPaused =
   const placeReady = useRef(readPadPlace() != null)
   const hiddenChanged = useRef(false)
   const drag = useRef<{ id: number; dx: number; dy: number } | null>(null)
-  // On phones the open pad would cover the legend and most of the plan, so it starts folded there.
-  const [place, setPlace] = useState<PadPlace>(() => readPadPlace() ?? { x: 24, y: 24, hidden: window.matchMedia('(max-width: 650px)').matches })
+  // The pad simulates walking for demos; it starts folded so it neither covers the plan nor adds Tab stops.
+  const [place, setPlace] = useState<PadPlace>(() => readPadPlace() ?? { x: BOX_MARGIN, y: BOX_MARGIN, hidden: true })
   const [dragging, setDragging] = useState(false)
   const [speed, setSpeed] = useState(readWalkSpeed)
   const speedRef = useRef(speed)
@@ -294,34 +296,37 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree, keysPaused =
     if (!pad) return
     const width = pad.offsetWidth
     const height = pad.offsetHeight
-    // First placement: the map's lower-left corner, so the pad does not cover the chat column.
-    const map = svgRef.current?.getBoundingClientRect()
+    // First placement: the map's lower-left corner.
+    const box = containerRef.current
     setPlace((current) => {
       const origin = placeReady.current
         ? current
-        : { ...current, x: (map?.left ?? 0) + 16, y: window.innerHeight - height - 88 }
+        : { ...current, x: BOX_MARGIN * 2, y: (box?.clientHeight ?? window.innerHeight) - height - BOX_MARGIN * 2 }
       placeReady.current = true
-      const next = clampToViewport(origin.x, origin.y, width, height)
+      const next = clampToBox(box, origin.x, origin.y, width, height)
       if (next.x === current.x && next.y === current.y) return current
       return { ...current, ...next }
     })
   }, [place.hidden])
 
   useEffect(() => {
-    const onResize = () => {
+    const box = containerRef.current
+    if (!box) return
+    // Keep the pad inside the map when the map box changes size.
+    const observer = new ResizeObserver(() => {
       const pad = padRef.current
       if (!pad) return
       setPlace((current) => {
-        const next = clampToViewport(current.x, current.y, pad.offsetWidth, pad.offsetHeight)
+        const next = clampToBox(box, current.x, current.y, pad.offsetWidth, pad.offsetHeight)
         if (next.x === current.x && next.y === current.y) return current
         const updated = { ...current, ...next }
         rememberPadPlace(updated)
         return updated
       })
-    }
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
+    })
+    observer.observe(box)
+    return () => observer.disconnect()
+  }, [containerRef])
 
   useEffect(() => {
     if (!hiddenChanged.current) return
@@ -548,7 +553,9 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree, keysPaused =
     const active = drag.current
     const pad = padRef.current
     if (!active || active.id !== event.pointerId || !pad) return
-    const next = clampToViewport(event.clientX - active.dx, event.clientY - active.dy, pad.offsetWidth, pad.offsetHeight)
+    const box = containerRef.current
+    const origin = box?.getBoundingClientRect()
+    const next = clampToBox(box, event.clientX - (origin?.left ?? 0) - active.dx, event.clientY - (origin?.top ?? 0) - active.dy, pad.offsetWidth, pad.offsetHeight)
     setPlace((current) => (current.x === next.x && current.y === next.y ? current : { ...current, ...next }))
   }
   const onDragEnd = (event: ReactPointerEvent<HTMLElement>) => {
@@ -622,7 +629,7 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree, keysPaused =
       </div>
       <span ref={originRef} className="walk-mark walk-mark-a" hidden>A</span>
       <span ref={destRef} className="walk-mark walk-mark-b" hidden>B</span>
-      {createPortal(
+      {(
         <div
           ref={padRef}
           className={['walk-pad', place.hidden ? 'is-hidden' : '', dragging ? 'is-dragging' : ''].filter(Boolean).join(' ')}
@@ -647,8 +654,10 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree, keysPaused =
               ? <button ref={showRef} type="button" className="walk-toggle" aria-label={copy.walkShowLabel} onPointerDown={(event) => event.stopPropagation()} onClick={() => setHidden(false)}>{copy.walkShow}</button>
               : <button ref={hideRef} type="button" className="walk-toggle" aria-label={copy.walkHideLabel} onPointerDown={(event) => event.stopPropagation()} onClick={() => setHidden(true)}>{copy.walkHide}</button>}
           </div>
+          {/* One live status for both states; the visible copy below is not announced twice. */}
+          <p className="sr-only" role="status" data-walk-status={mode}>{status}</p>
           {place.hidden
-            ? <p className="sr-only" role="status" data-walk-status={mode}>{status}</p>
+            ? null
             : (
               <>
                 <div className="walk-cross">
@@ -693,11 +702,10 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree, keysPaused =
                   <button type="button" onClick={reset} disabled={mode === 'empty'}>{marks.origin ? copy.returnToA : copy.resetPosition}</button>
                 </div>
                 {connectorNear && walkerHere && <div className="walk-actions"><button type="button" onClick={takeConnector}>{connectorNear.kind === 'lift' ? copy.takeLift : copy.takeStairs}</button></div>}
-                <p className="walk-status" role="status" data-walk-status={mode}>{status}</p>
+                <p className="walk-status" data-walk-status={mode}>{status}</p>
               </>
             )}
-        </div>,
-        document.body,
+        </div>
       )}
     </>
   )
