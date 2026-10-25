@@ -226,6 +226,7 @@ omit the coffee report. If the user asks where to get coffee, mention the broken
   This requires designated forklift spaces and step-free openings at least 3 m wide;
   pedestrian walkways, stairs and passenger lifts do not count. Furniture and
   machines are not obstacles; an asset destination is its containing room/bay.
+  Cross-building forklift routing is unsupported; do not substitute walking campus routes.
 - Forklift production, assembly and additive bays are destinations, never shortcuts.
   A requested delivery/pickup bay can be an explicit stop. Preserve travel_mode on
   follow-ups and reroutes; switch back to walking only when the user requests it.

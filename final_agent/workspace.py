@@ -341,11 +341,13 @@ class ScopedTool(ArgumentCheckedTool):
                 # Preserve a valid requested journey even when the current closures make it unreachable.
                 args.setdefault("step_free", self.workspace.preferences.get("step_free", False))
                 args.setdefault("min_width_m", self.workspace.preferences.get("min_width_m", 0))
+                args.setdefault("travel_mode", (building.active_request or {}).get("travel_mode", "walking"))
                 for reference in [args["start"], *(args.get("via") or []), args["destination"]]:
                     building.resolve_space(reference)
                 retained_request = {"start": args["start"], "destination": args["destination"],
                                     "via": args.get("via"), "step_free": args["step_free"],
-                                    "min_width_m": args["min_width_m"], "entrance": args.get("entrance")}
+                                    "min_width_m": args["min_width_m"], "entrance": args.get("entrance"),
+                                    "travel_mode": args["travel_mode"]}
             try:
                 result = json.loads(current.call(args))
             except ToolError:
