@@ -11,8 +11,9 @@
   --color-destination: #ff765b;
   --color-on-start: #0a0d12;
   --color-on-destination: #17110d;
-  /* The route has its own role so controls and the drawn path can diverge. */
-  --color-route: var(--color-primary);
+  /* The route has its own role so controls and the drawn path can diverge.
+     Green, kept apart from the mint escape zones (--color-success). */
+  --color-route: #34d058;
   --color-primary-a10: color-mix(in srgb, var(--color-primary) 10%, transparent);
   --color-primary-a20: color-mix(in srgb, var(--color-primary) 20%, transparent);
   --color-primary-a35: color-mix(in srgb, var(--color-primary) 35%, transparent);
@@ -126,6 +127,7 @@
   --color-primary: #476f00;
   --color-primary-strong: #3b5c00;
   --color-on-primary: #ffffff;
+  --color-route: #15803d;
   --color-start: #5646c8;
   --color-destination: #c8432c;
   --color-on-start: #ffffff;

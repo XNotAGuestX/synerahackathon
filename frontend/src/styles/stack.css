@@ -176,7 +176,7 @@
 .stack-swatch.tone-lift { background: var(--stack-tone-lift); border-color: var(--color-start); }
 .stack-swatch.tone-stair { background: var(--stack-tone-stair); border-color: var(--color-danger); }
 .stack-swatch.tone-escape { background: var(--stack-tone-escape); border-color: var(--color-success); }
-.stack-swatch.tone-route { height: 4px; border: 0; border-radius: var(--radius-pill); background: var(--color-route); }
+.stack-swatch.tone-route { height: 4px; border: 0; border-radius: var(--radius-pill); background: var(--color-primary); }
 
 .stack-info {
   right: var(--space-4);
