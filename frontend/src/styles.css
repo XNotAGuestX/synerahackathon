@@ -972,8 +972,9 @@ button:disabled { cursor: default; }
   animation: route-flow 1.5s linear infinite;
 }
 .handoff circle { fill: var(--color-destination); stroke: var(--color-surface); stroke-width: 0.2; }
-.plan .start { fill: var(--color-start); stroke: var(--color-surface); stroke-width: 2px; pointer-events: none; }
-.plan .destination { fill: var(--color-destination); stroke: var(--color-surface); stroke-width: 2px; pointer-events: none; }
+/* Endpoint dots keep a thin screen-sized outline; a metre-based stroke would swamp the dot when zoomed. */
+.plan .start { fill: var(--color-start); stroke: var(--color-surface); stroke-width: 2px; vector-effect: non-scaling-stroke; pointer-events: none; }
+.plan .destination { fill: var(--color-destination); stroke: var(--color-surface); stroke-width: 2px; vector-effect: non-scaling-stroke; pointer-events: none; }
 .step-marker { fill: none; stroke: var(--color-start); stroke-width: 0.16; pointer-events: none; }
 .focus-ring { display: none; }
 
@@ -1161,23 +1162,40 @@ button:disabled { cursor: default; }
 .walk-token.moving .stick-arm.back,
 .walk-token.moving .stick-leg.back { animation: stick-stride var(--duration-slow) var(--easing-standard) infinite alternate-reverse; }
 
+/* A and B are pins above the walker (z-index 6); the tail points at the route endpoint. */
 .walk-mark {
+  --mark-size: 28px;
+  --mark-color: var(--color-start);
   position: absolute;
   left: 0;
   top: 0;
-  z-index: 4;
+  z-index: 7;
   display: grid;
-  width: 22px;
-  height: 22px;
+  width: var(--mark-size);
+  height: var(--mark-size);
   place-items: center;
+  border: 2px solid var(--color-surface);
   border-radius: 50%;
-  color: var(--color-background);
-  font: var(--font-weight-bold) var(--font-size-caption) var(--font-family-mono);
+  background: var(--mark-color);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.28);
+  color: #fff;
+  font: var(--font-weight-bold) 14px/1 var(--font-family-mono);
   pointer-events: none;
 }
+.walk-mark::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 0;
+  height: 0;
+  border: 6px solid transparent;
+  border-top: 7px solid var(--mark-color);
+  border-bottom: 0;
+  transform: translateX(-50%);
+}
 .walk-mark[hidden] { display: none; }
-.walk-mark-a { background: var(--color-start); }
-.walk-mark-b { background: var(--color-destination); }
+.walk-mark-b { --mark-size: 34px; --mark-color: var(--color-destination); font-size: 17px; }
 
 .walk-pad {
   position: fixed;

@@ -224,7 +224,8 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
         return
       }
       mark.hidden = false
-      mark.style.transform = `translate(${at.x}px, ${at.y - 20}px) translate(-50%, -50%)`
+      // The pin's tip points at the endpoint; it rises above the walker's head so the figure never hides it.
+      mark.style.transform = `translate(${at.x}px, ${at.y - Math.max(height / 2, 6)}px) translate(-50%, calc(-100% - 7px))`
     }
     place(originRef.current, marksRef.current.origin)
     place(destRef.current, marksRef.current.destination)
