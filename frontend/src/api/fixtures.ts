@@ -12,6 +12,7 @@ import type {
   Connector,
   FloorPlan,
   FloorSummary,
+  ObjectCatalog,
   Opening,
   PendingAction,
   Reply,
@@ -221,4 +222,75 @@ export function connectorNote(spaceId: string): string | null {
     if (connector.space_ids.includes(spaceId)) return `${connector.name} · ${connector.kind}`
   }
   return null
+}
+
+/** Offline sample of `GET /object-types`, so the type picker still renders without the API. */
+export const sampleObjectCatalog: ObjectCatalog = {
+  schema_version: 1,
+  groups: [
+    {
+      id: 'items',
+      label: 'Items',
+      categories: [
+        {
+          id: 'furniture',
+          label: 'Furniture',
+          types: [
+            { id: 'chair', label: 'Chair', action: 'add_object', width_m: 0.5, depth_m: 0.5, height_m: 0.9, count: 0 },
+            { id: 'desk', label: 'Desk', action: 'add_object', width_m: 1.4, depth_m: 0.7, height_m: 0.75, count: 0 },
+            { id: 'meeting_table', label: 'Meeting table', action: 'add_object', width_m: 2, depth_m: 1, height_m: 0.75, count: 0 },
+            { id: 'shelf', label: 'Shelf', action: 'add_object', width_m: 1, depth_m: 0.4, height_m: 2, count: 0 },
+          ],
+        },
+        {
+          id: 'equipment',
+          label: 'Equipment',
+          types: [
+            { id: 'coffee_machine', label: 'Coffee machine', action: 'add_object', width_m: 0.4, depth_m: 0.4, height_m: 0.45, count: 0 },
+            { id: 'fire_extinguisher', label: 'Fire extinguisher', action: 'add_object', width_m: 0.3, depth_m: 0.3, height_m: 0.6, count: 0 },
+            { id: 'printer', label: 'Printer', action: 'add_object', width_m: 0.6, depth_m: 0.5, height_m: 0.5, count: 0 },
+            { id: 'server_rack', label: 'Server rack', action: 'add_object', width_m: 0.6, depth_m: 1, height_m: 2, count: 0 },
+          ],
+        },
+        {
+          id: 'fixture',
+          label: 'Fixture',
+          types: [
+            { id: 'sink', label: 'Sink', action: 'add_object', width_m: 0.6, depth_m: 0.5, height_m: 0.9, count: 0 },
+          ],
+        },
+        {
+          id: 'machine',
+          label: 'Machine',
+          types: [
+            { id: '3d_printer', label: '3d printer', action: 'add_object', width_m: 0.8, depth_m: 0.8, height_m: 1.8, count: 0 },
+            { id: 'cnc_mill', label: 'Cnc mill', action: 'add_object', width_m: 2.5, depth_m: 2, height_m: 2.2, count: 0 },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'connections',
+      label: 'Connections',
+      categories: [
+        {
+          id: 'same_floor',
+          label: 'Same floor',
+          types: [
+            { id: 'door', label: 'Door', action: 'add_opening', width_m: 0.9, depth_m: null, height_m: null, count: 0 },
+            { id: 'opening', label: 'Passage', action: 'add_opening', width_m: 1.2, depth_m: null, height_m: null, count: 0 },
+          ],
+        },
+        {
+          id: 'between_floors',
+          label: 'Between floors',
+          types: [
+            { id: 'stairs', label: 'Stairs', action: 'add_connector', width_m: null, depth_m: null, height_m: null, count: 0 },
+            { id: 'escalator', label: 'Escalator', action: 'add_connector', width_m: null, depth_m: null, height_m: null, count: 0 },
+            { id: 'lift', label: 'Lift', action: 'add_connector', width_m: null, depth_m: null, height_m: null, count: 0 },
+          ],
+        },
+      ],
+    },
+  ],
 }

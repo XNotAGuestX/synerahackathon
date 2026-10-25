@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 from uuid import uuid4
 
 import anthropic
@@ -166,7 +167,7 @@ class ApiTests(unittest.TestCase):
     def test_health_buildings_detail_plans_and_search_match_contract(self):
         defined = {operation["operationId"] for methods in self.contract["paths"].values() for operation in methods.values()}
         implemented = {getattr(route, "operation_id", None) for route in self.app.routes}
-        self.assertEqual(len(defined), 24)
+        self.assertEqual(len(defined), 25)
         self.assertTrue(defined <= implemented)
         health = self.client.get(self.base + "/health", headers={"X-Request-Id": "from-frontend"})
         self.validate(health, "Health")
@@ -193,6 +194,15 @@ class ApiTests(unittest.TestCase):
         empty = self.client.get(path + "/places?q=nonexistent")
         self.assertEqual(empty.status_code, 200)
         self.assertEqual(empty.json()["items"], [])
+
+    def test_measured_asset_height_survives_floor_plan_projection(self):
+        source = self.data / "dev/test/building.json"
+        building = json.loads(source.read_text())
+        building["assets"][0]["height_m"] = 0.42
+        source.write_text(json.dumps(building))
+        session = self.session()
+        plan = self.validate(self.client.get(self.path(session) + "/floors/F0/plan?include=assets"), "FloorPlan")
+        self.assertEqual(plan["assets"][0]["height_m"], 0.42)
 
     def test_route_unreachable_then_door_confirmation_and_reload(self):
         session = self.session()
@@ -452,6 +462,102 @@ class ApiTests(unittest.TestCase):
         self.assertEqual({path.name: path.read_bytes() for path in first.iterdir()},
                          {path.name: path.read_bytes() for path in second.iterdir()})
 
+    def edit(self, session, proposal):
+        """Propose and confirm one editor change; returns the pending action and the confirmed result."""
+        path = self.path(session)
+        action = self.post(path + "/actions", proposal, schema="Action").json()
+        self.assertEqual([effect["type"] for effect in action["preview_effects"]], ["preview_objects", "highlight_spaces"])
+        confirmed = self.post(path + "/actions/" + action["id"] + "/confirmations", status=200, schema="Action").json()
+        self.assertEqual(confirmed["result"]["kind"], proposal["kind"])
+        return action, confirmed["result"]
+
+    def plan(self, session, floor_id="F0"):
+        return self.validate(self.client.get(self.path(session) + f"/floors/{floor_id}/plan"), "FloorPlan")
+
+    def test_object_editor_round_per_kind_with_stacking_files_and_isolation(self):
+        catalog = self.validate(self.client.get(self.base + "/object-types"), "ObjectCatalog")
+        self.assertEqual([group["id"] for group in catalog["groups"]], ["items", "connections"])
+        first, other = self.session(), self.session()
+        action, result = self.edit(first, {"kind": "add_object", "type": "desk", "space": "Right"})
+        self.assertEqual(action["proposal"]["space"], "right")
+        self.assertIsNone(action["proposal"]["height_m"])
+        desk = result["changed_ids"][0]
+        self.assertEqual(action["preview_effects"][0]["assets"][0]["id"], desk)
+        self.assertIn(desk, [asset["id"] for asset in self.plan(first)["assets"]])
+        _, result = self.edit(first, {"kind": "add_object", "type": "printer", "on_top_of": [desk]})
+        printer = result["changed_ids"][0]
+        self.edit(first, {"kind": "update_object", "object_ref": desk, "height_m": 0.9})
+        stacking = {entry["object_id"]: entry for entry in self.plan(first)["stacking"]}
+        self.assertEqual(stacking[desk], {"object_id": desk, "layer": 0, "on_top_of": [], "height_m": 0.9,
+                                          "height_source": "override", "elevation_m": 0.0})
+        self.assertEqual(stacking[printer]["layer"], 1)
+        self.assertEqual(stacking[printer]["on_top_of"], [desk])
+        self.assertEqual(stacking[printer]["height_source"], "catalog")
+        self.assertEqual(stacking[printer]["elevation_m"], 0.9)
+        _, result = self.edit(first, {"kind": "add_opening", "opening_kind": "opening", "first_space": "left", "second_space": "right"})
+        self.assertEqual([opening["kind"] for opening in self.plan(first)["openings"]], ["opening"])
+        _, result = self.edit(first, {"kind": "add_connector", "connector_kind": "escalator", "spaces": ["left", "upstairs"]})
+        escalator = next(item for item in self.plan(first, "F1")["connectors"] if item["id"] == result["changed_ids"][0])
+        self.assertEqual((escalator["kind"], escalator["step_free"]), ("escalator", False))
+        action, result = self.edit(first, {"kind": "remove_object", "object_ref": desk})
+        self.assertEqual(action["preview_effects"][0]["removed_ids"], sorted([desk, printer]))
+        self.assertEqual(result["removed_ids"], sorted([desk, printer]))
+        self.assertEqual(self.plan(first)["stacking"], [])
+        _, result = self.edit(first, {"kind": "undo_edit"})
+        self.assertTrue(result["summary"].startswith("Undo: Remove"))
+        self.assertEqual(len(self.plan(first)["stacking"]), 2)
+        saved = self.root / "output" / first["id"]
+        self.assertLessEqual({desk, printer}, {asset["id"] for asset in json.loads((saved / "building_edited.json").read_text())["assets"]})
+        adapter = json.loads((saved / "stacking_adapter.json").read_text())
+        self.assertEqual([layer["layer"] for layer in adapter["layers"]], [0, 1])
+        self.assertEqual(adapter["layers"][0]["objects"][0]["height_source"], "override")
+        untouched = self.plan(other)
+        self.assertEqual(([asset["id"] for asset in untouched["assets"]], untouched["openings"], untouched["stacking"]), (["printer"], [], []))
+        self.assertFalse((self.root / "output" / other["id"]).exists())
+        self.assertEqual((self.data / "dev/test/building.json").read_bytes(), self.original)
+
+    def test_object_editor_errors_and_failed_save(self):
+        session = self.session()
+        path = self.path(session)
+        cases = [
+            ({"kind": "add_object", "type": "desk", "space": "right", "position": [3.9, 0]}, 409, "30014_invalid_placement", "crosses_wall"),
+            ({"kind": "undo_edit"}, 409, "30015_nothing_to_undo", "nothing_to_undo"),
+            ({"kind": "remove_object", "object_ref": "lift"}, 409, "30016_not_removable", "not_removable"),
+            ({"kind": "update_object", "object_ref": "missing", "name": "X"}, 404, "30013_element_not_found", "not_found"),
+            ({"kind": "add_object", "type": "desk", "space": "nowhere"}, 404, "30004_place_not_found", "not_found"),
+            ({"kind": "add_object", "type": "flux_capacitor", "space": "right"}, 400, "20001_validation_failed", "unknown_type"),
+            ({"kind": "add_object", "type": "desk", "space": "right", "width_m": 0}, 400, "20001_validation_failed", "invalid"),
+            ({"kind": "remove_object", "object_ref": "printer", "name": "X"}, 400, "20001_validation_failed", "unknown_field"),
+        ]
+        for proposal, status, code, detail in cases:
+            with self.subTest(code=code, detail=detail):
+                error = self.post(path + "/actions", proposal, status=status, schema="Error").json()
+                self.assertEqual((error["code"], error["details"][0]["code"]), (code, detail))
+        self.assertIsNone(self.client.get(path).json()["pending_action_id"])
+        action = self.post(path + "/actions", {"kind": "add_object", "type": "desk", "space": "right"}, schema="Action").json()
+        url = path + "/actions/" + action["id"] + "/confirmations"
+        with mock.patch.object(BuildingMap, "save", side_effect=OSError("disk full")), self.assertLogs("final_agent.api", "ERROR"):
+            self.assertEqual(self.post(url, status=500, schema="Error").json()["code"], "00001_internal")
+        self.assertEqual(self.client.get(path).json()["pending_action_id"], action["id"])
+        self.assertEqual([asset["id"] for asset in self.plan(session)["assets"]], ["printer"])
+        self.assertEqual(self.app.state.service.get(session["id"]).map.undo_stack, [])
+        self.assertEqual(self.post(url, status=200).json()["status"], "confirmed")
+
+    def test_chat_editor_tools_only_propose_with_selected_object(self):
+        self.model.turns = [[reply(call("add_object", type="desk", space="right")), reply(answer("Please confirm the desk.", "edit"))]]
+        session = self.session()
+        path = self.path(session)
+        missing = self.post(path + "/messages", {"text": "Move it.", "client_context": {"selected_object_id": "nothing"}}, status=404, schema="Error").json()
+        self.assertEqual((missing["code"], missing["details"][0]["field"]), ("30013_element_not_found", "selected_object_id"))
+        result = self.post(path + "/messages", {"text": "Put a desk in Right.", "client_context": {"selected_object_id": "printer"}}, schema="MessageAccepted").json()
+        self.assertEqual(result["guide_message"]["understood"]["intent"], "edit")
+        self.assertEqual(result["pending_action"]["proposal"]["kind"], "add_object")
+        self.assertIn("preview_objects", [effect["type"] for effect in result["guide_message"]["effects"]])
+        tool_result = next(json.loads(result) for name, error, result in self.model.results if name == "add_object" and not error)
+        self.assertFalse(tool_result["applied"])
+        self.assertEqual([asset["id"] for asset in self.plan(session)["assets"]], ["printer"])
+        self.assertFalse((self.root / "output" / session["id"] / "building_edited.json").exists())
+
     def test_model_does_not_block_reads_and_cannot_overwrite_concurrent_route(self):
         entered, release = threading.Event(), threading.Event()
 
@@ -562,7 +668,7 @@ class ApiTests(unittest.TestCase):
         self.client.get(self.path(session) + "/speech-clips/" + clip)
         self.assertEqual(len(self.speech.synthesized), 1)
         missing = self.client.get(self.path(session) + "/speech-clips/nope")
-        self.assertEqual((missing.status_code, missing.json()["code"]), (404, "30014_speech_clip_not_found"))
+        self.assertEqual((missing.status_code, missing.json()["code"]), (404, "30017_speech_clip_not_found"))
 
     def turn(self, session, script, text="Take me upstairs.", **body):
         self.model = RecordingClient([script])

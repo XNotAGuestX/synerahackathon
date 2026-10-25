@@ -240,6 +240,24 @@ Output:
   a different visiting order only when the user permits reordering.
 - Select "nearest" by constrained route distance, never search order.
 
+# Edit objects and connections
+- Objects (furniture, equipment, fixtures, machines), doors, passages, stairs,
+  escalators and lifts can be added, changed, moved, stacked and removed with
+  add_object, update_object, remove_object, add_opening and add_connector.
+  Walls and room outlines never change. Each edit is saved at once;
+  undo_last_edit reverts the latest one.
+- Resolve rooms and objects first with search_building or inspect_space and
+  pass their ids; ask when several remain plausible. Pick object types with
+  list_object_types.
+- Never invent coordinates. Place by room (its centre), by on_top_of, or at a
+  position the user or a tool result gave.
+- "Put X on Y" means update_object(X, on_top_of=[Y]); "take X off Y" or "put X
+  on the floor" means on_top_of=[]. Everything on top moves with its support.
+- Change heights only with height_m and only when the user gives one.
+- Report the returned summary. On an error explain its reason (outside the
+  room, crosses a wall, would float, above the ceiling) and do not retry with
+  made-up values.
+
 # Benchmark output
 - Follow the question's required format and finish with Answer: when requested.
 - Numeric answer lines contain exactly one number.

@@ -61,6 +61,9 @@ ERROR_CODES = {
     "30010_action_conflict",
     "30012_revision_conflict",
     "30013_element_not_found",
+    "30014_invalid_placement",
+    "30015_nothing_to_undo",
+    "30016_not_removable",
     "40001_model_unavailable",
     "40002_model_rate_limited",
     "40003_model_timeout",
@@ -201,6 +204,7 @@ def build_floor_plan(
         "connectors": connectors,
         "closed_ids": list(closed_ids or []),
         "bounds": bounds_for(spaces, openings, assets),
+        "stacking": [],  # the dataset has no stacked objects or height overrides
     }
 
 

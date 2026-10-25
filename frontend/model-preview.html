@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Object model catalog · Talk to Your Building</title>
+<style>
+  body { margin: 24px auto; max-width: 1080px; padding: 0 20px; font: 16px system-ui; color: #26323b; background: #f3f5f5; }
+  h1 { margin-bottom: 8px; font-size: 26px; } select { padding: 10px; font: inherit; max-width: 100%; }
+  #preview { margin: 20px 0; background: #e3e8eb; border-radius: 12px; overflow: hidden; }
+  .floor-stack-3d canvas { display: block; width: 100%; } td, th { padding: 10px; border-bottom: 1px solid #ccd4d8; text-align: left; }
+  table { width: 100%; border-collapse: collapse; } small { display: block; margin: 8px 0; } #detail { min-height: 50px; }
+  .dimensions { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-top: 16px; }
+  .dimensions label { display: flex; align-items: center; gap: 8px; }
+  .dimensions output { min-width: 4em; font-variant-numeric: tabular-nums; }
+  button { padding: 8px 12px; font: inherit; cursor: pointer; }
+</style>
+<h1>Shared object heights and 3D models</h1>
+<p>96 known types and a grey-block fallback. Drag to orbit; scroll to zoom. Heights are visual estimates in metres.</p>
+<label>Preview <select id="type"><option value="all">All objects + unknown example</option></select></label>
+<div class="dimensions" aria-label="Object dimensions">
+  <label>Width <input id="width-scale" type="range" min="0.25" max="3" step="0.05" value="1"><output id="width-value" for="width-scale">1.00×</output></label>
+  <label>Depth <input id="depth-scale" type="range" min="0.25" max="3" step="0.05" value="1"><output id="depth-value" for="depth-scale">1.00×</output></label>
+  <button id="reset-dimensions" type="button">Reset dimensions</button>
+</div>
+<div id="preview"></div>
+<p id="detail"></p>
+<small>Kenney Furniture Kit (CC0) + original schematic models (CC0). Models use the same loader as the app's floor stack.</small>
+<script type="module">
+  import './src/styles.css'
+  import React from 'react'
+  import { createRoot } from 'react-dom/client'
+  import catalog from '../final_agent/object_catalog.json'
+  import { FloorStack3D } from './src/rendering/floor-stack-3d/FloorStack3D.tsx'
+
+  const select = document.querySelector('#type')
+  const root = createRoot(document.querySelector('#preview'))
+  const widthScale = document.querySelector('#width-scale')
+  const depthScale = document.querySelector('#depth-scale')
+  const types = [...Object.keys(catalog.objects), 'unknown_sensor']
+  for (const type of types) select.add(new Option(type.replaceAll('_', ' '), type))
+  const show = () => {
+    const selected = select.value === 'all' ? types : [select.value]
+    const columns = Math.ceil(Math.sqrt(selected.length))
+    const widthFactor = Number(widthScale.value)
+    const depthFactor = Number(depthScale.value)
+    document.querySelector('#width-value').value = `${widthFactor.toFixed(2)}×`
+    document.querySelector('#depth-value').value = `${depthFactor.toFixed(2)}×`
+    const assets = selected.map((type, i) => {
+      const footprint = catalog.objects[type]?.preview_footprint_m ?? { width_m: 1, depth_m: 1 }
+      return { id: type, type, name: type, category: catalog.objects[type]?.categories[0] ?? 'equipment',
+        space_id: 'room', floor_id: 'floor', source: 'preview', position: [(i % columns) * 4, Math.floor(i / columns) * 4],
+        footprint: { width_m: footprint.width_m * widthFactor, depth_m: footprint.depth_m * depthFactor, rotation_deg: 0 } }
+    })
+    const plan = { floor: { id: 'floor', elevation_m: 0, level: 0, name: 'Model showroom', height_m: 4, space_count: 1 },
+      spaces: [{ id: 'room', floor_id: 'floor', polygon: [[-2,-2],[columns*4,-2],[columns*4,columns*4],[-2,columns*4]] }],
+      assets, openings: [], connectors: [], closed_ids: [], bounds: { min: [-2,-2], max: [columns*4,columns*4] } }
+    root.render(React.createElement(FloorStack3D, { plans: [plan], route: null, activeFloorId: 'floor' }))
+    const entry = catalog.objects[select.value]
+    document.querySelector('#detail').textContent = entry ? `${select.value}: ${entry.height_m} m. ${entry.height_reason} Model: ${entry.model_source} (${entry.model_kind}).` :
+      select.value === 'all' ? '96 known models plus one unknown object. Choose a type to inspect its shape and height rationale.' : 'Unknown sensor: 1 m equipment estimate, grey block until a model is assigned.'
+    if (selected.length === 1) {
+      const footprint = assets[0].footprint
+      document.querySelector('#detail').textContent += ` Width ${footprint.width_m.toFixed(2)} m; depth ${footprint.depth_m.toFixed(2)} m. Height stays unchanged.`
+    }
+  }
+  select.addEventListener('change', show)
+  widthScale.addEventListener('input', show)
+  depthScale.addEventListener('input', show)
+  document.querySelector('#reset-dimensions').addEventListener('click', () => {
+    widthScale.value = '1'
+    depthScale.value = '1'
+    show()
+  })
+  show()
+</script>
+</html>

@@ -6,6 +6,7 @@ import csv
 import hashlib
 import hmac
 import json
+import logging
 import secrets
 import threading
 from dataclasses import dataclass, field
@@ -18,6 +19,7 @@ import anthropic
 from anthropic.lib.tools import BetaBuiltinFunctionTool, ToolError
 from pydantic import BaseModel, ConfigDict
 
+from . import object_edits
 from .agent import EFFORT, MODELS, VOICE_PROMPT, BuildingAgent, MissingCredentialsError
 from .building_map import BuildingMap, MapError, RouteResult
 from .live import LiveState
@@ -27,6 +29,14 @@ from .storage import RoomNoteStore
 from .tools import ArgumentCheckedTool, as_json, make_tools, route_json
 from .viewer import landmark_targets, node_location, route_polylines
 
+LOG = logging.getLogger("final_agent.api")
+EDITED_FILE = "building_edited.json"
+# MapError.reason values of the editor rules that reject a placement (30014 details carry the reason).
+PLACEMENT_REASONS = {
+    "outside_space", "crosses_wall", "floating", "support_cycle", "support_other_space", "would_strand",
+    "exceeds_ceiling", "not_stacked", "same_floor",
+}
+SPACE_FIELDS = {"space", "first_space", "second_space", "spaces"}
 
 ERRORS = {
     "00001_internal": (500, "An internal error occurred."),
@@ -47,7 +57,10 @@ ERRORS = {
     "30010_action_conflict": (409, "Action conflicts with the current state."),
     "30012_revision_conflict": (409, "Session revision has changed."),
     "30013_element_not_found": (404, "Element was not found."),
-    "30014_speech_clip_not_found": (404, "Speech clip was not found."),
+    "30014_invalid_placement": (409, "The edit breaks a placement rule."),
+    "30015_nothing_to_undo": (409, "There is no edit to undo."),
+    "30016_not_removable": (409, "Element comes from the building data and cannot be removed."),
+    "30017_speech_clip_not_found": (404, "Speech clip was not found."),
     "40001_model_unavailable": (503, "Model is unavailable."),
     "40002_model_rate_limited": (429, "Model rate limit exceeded."),
     "40003_model_timeout": (504, "Model timed out."),
@@ -81,6 +94,26 @@ def project(record: dict, fields: str) -> dict:
     return {name: record[name] for name in fields.split()}
 
 
+def edit_error(error: MapError) -> ApiError:
+    """The stable API error for an editor rule violation; details name the field and the rule (reason)."""
+    reason, field_name = error.reason, error.field
+    if reason == "ambiguous":
+        return ApiError("30005_place_ambiguous", [
+            {"field": field_name, "code": "ambiguous", "message": item["id"]} for item in error.candidates
+        ])
+    detail = {"field": field_name, "code": reason or "invalid", "message": str(error)}
+    if reason == "not_found":
+        return ApiError("30004_place_not_found" if field_name in SPACE_FIELDS else "30013_element_not_found", [detail])
+    if reason in PLACEMENT_REASONS:
+        return ApiError("30014_invalid_placement", [detail])
+    codes = {"not_adjacent": "30007_not_adjacent", "nothing_to_undo": "30015_nothing_to_undo",
+             "not_removable": "30016_not_removable"}
+    if reason in codes:
+        return ApiError(codes[reason], [detail])
+    # invalid_field, unknown_type and anything unexpected: the request cannot be applied as given.
+    return ApiError("20001_validation_failed", [{**detail, "code": "unknown_type" if reason == "unknown_type" else "invalid"}])
+
+
 @dataclass
 class SessionState:
     id: str
@@ -111,7 +144,7 @@ class ApiReply(BaseModel):
     """The model supplies wording and intent; the application supplies verified map facts/effects."""
     model_config = ConfigDict(extra="forbid")
     text: str
-    intent: Literal["locate", "route", "count", "close", "add_door", "clarify", "unknown"]
+    intent: Literal["locate", "route", "count", "close", "add_door", "edit", "clarify", "unknown"]
     summary: str
     missing: list[Literal["start", "destination", "asset", "element"]]
     question: str | None
@@ -129,9 +162,13 @@ actual clarification; offer tool-backed place ids, never invented locations. Oth
 question=null, options=[] and missing=[]. Room-report tasks use intent unknown (the HTTP
 contract has no separate report intent); still perform their tools and explain the result.
 
-set_closed and add_door only PROPOSE an action in this mode. They do not apply or save a
-building change. Say that confirmation is required; never say the lift is already closed or
-the door was added. Confirmation/cancellation happens through the UI's action endpoints.
+set_closed, add_door, add_object, update_object, remove_object, add_opening, add_connector and
+undo_last_edit only PROPOSE an action in this mode. They do not apply or save a building change.
+Say that confirmation is required; never say the lift is already closed, the door was added or
+the object was moved. Confirmation/cancellation happens through the UI's action endpoints.
+Use intent edit for object, opening, connector and undo proposals (add_door keeps add_door).
+list_object_types only reads the catalog. selected_object_id in the turn context is the object,
+door or connector selected in the UI; "it" or "this" may refer to it. Use its id as the object.
 If an action is already pending, ask the user to confirm or cancel it before another proposal.
 Do not silently replace it. Do not attempt to confirm an action by another tool.
 show_location and show_route produce JSON map effects, not image files. A successful effect
@@ -225,6 +262,11 @@ class SessionService:
         data = self.building_data(building_id)
         summary = next(item for item in self.buildings(None, None, len(self.manifest))["items"] if item["id"] == building_id)
         return {"schema_version": 1, **summary, **project(data["building"], "units attribution"), "floors": self.floors(BuildingMap(data))}
+
+    @staticmethod
+    def object_types() -> dict:
+        """The object catalog (object_types.json): item and connection types with default sizes and heights."""
+        return object_edits.load_catalog()
 
     def create(self, building_id: str, preferences: dict) -> dict:
         now = timestamp(self.clock())
@@ -327,20 +369,36 @@ class SessionService:
             collections = {
                 "spaces": [project(space, "id floor_id type room_type name ref polygon synthetic") for space in spaces],
                 "openings": [self.opening(item) for item in session.map.openings.values() if item["floor_id"] == floor_id],
-                "assets": [project(item, "id name category type space_id floor_id position footprint source")
-                           for item in session.map.assets.values() if item["floor_id"] == floor_id],
-                "connectors": [project(item, "id kind name floor_ids space_ids step_free synthetic")
-                               for item in session.map.connectors.values() if floor_id in item["floor_ids"]],
+                "assets": [self.asset(item) for item in session.map.assets.values() if item["floor_id"] == floor_id],
+                "connectors": [self.connector(item) for item in session.map.connectors.values() if floor_id in item["floor_ids"]],
             }
+            # Heights and stacks of this floor's objects listed in stacking_adapter.json; others use the catalog height.
+            stacking = [
+                {"object_id": entry["object_id"], "layer": layer["layer"],
+                 **project(entry, "on_top_of height_m height_source elevation_m")}
+                for layer in session.map.stacking_document()["layers"] for entry in layer["objects"]
+                if session.map.assets[entry["object_id"]]["floor_id"] == floor_id
+            ]
             return copy.deepcopy({
                 "schema_version": 1, "session_id": session.id, "revision": session.revision,
                 "floor": floor, "included": included, "closed_ids": sorted(session.map.closed), "bounds": bounds,
                 **{name: items if name in included else [] for name, items in collections.items()},
+                "stacking": stacking,
             })
 
     @staticmethod
     def opening(record: dict) -> dict:
         return project(record, "id floor_id space_ids kind position width_m step_free synthetic")
+
+    @staticmethod
+    def asset(record: dict) -> dict:
+        # An imported asset's own height_m is optional on the wire (see the 3D object catalog).
+        return {**project(record, "id name category type space_id floor_id position footprint source"),
+                **({"height_m": record["height_m"]} if "height_m" in record else {})}
+
+    @staticmethod
+    def connector(record: dict) -> dict:
+        return project(record, "id kind name floor_ids space_ids step_free synthetic")
 
     def places(self, session: SessionState, query: str, level: int | None, kind: str | None, cursor: str | None, limit: int) -> dict:
         with session.lock:
@@ -453,11 +511,47 @@ class SessionService:
             try:
                 session.map.shared_wall(proposal["first_space"], proposal["second_space"])
                 if not self.existing_door(session.map, proposal):
-                    trial = copy.deepcopy(session.map)
-                    trial.add_door(proposal["first_space"], proposal["second_space"], proposal["step_free"])
+                    session.map.clone().add_door(proposal["first_space"], proposal["second_space"], proposal["step_free"])
             except MapError as error:
                 raise ApiError("30007_not_adjacent") from error
         return proposal
+
+    def check_edit(self, session: SessionState, proposal: dict) -> tuple[dict, str, list[dict]]:
+        """An editor proposal checked on a copy: the normalized proposal, its summary and the preview effects."""
+        try:
+            checked = object_edits.check_edit(session.map, proposal)
+        except MapError as error:
+            raise edit_error(error) from error
+        preview = checked["preview"]
+        effects = [
+            {"type": "preview_objects", "floor_ids": preview["floor_ids"],
+             "assets": [self.asset(item) for item in preview["assets"]],
+             "openings": [self.opening(item) for item in preview["openings"]],
+             "connectors": [self.connector(item) for item in preview["connectors"]],
+             "removed_ids": preview["removed_ids"]},
+            {"type": "highlight_spaces", "space_ids": preview["space_ids"], "reason": "preview"},
+        ]
+        return checked["proposal"], checked["summary"], effects
+
+    def apply_change(self, session: SessionState, proposal: dict) -> dict:
+        """Apply a confirmed building change and save the session's files; on any failure nothing changes."""
+        target = self.output_directory / session.id / EDITED_FILE
+        try:
+            with session.map.transaction():
+                if proposal["kind"] == "add_door":
+                    opening = self.existing_door(session.map, proposal)
+                    if opening is None:
+                        opening = object_edits.apply_edit(session.map, proposal)["openings"][0]
+                    result = {"kind": "add_door", "opening": self.opening(opening)}
+                else:
+                    result = project(object_edits.apply_edit(session.map, proposal), "kind summary changed_ids removed_ids floor_ids")
+                session.map.save(target)
+        except MapError as error:
+            raise edit_error(error) from error
+        except (OSError, TypeError, ValueError) as error:
+            LOG.exception("Saving %s failed; the edit was rolled back", target)
+            raise ApiError("00001_internal") from error
+        return result
 
     @staticmethod
     def existing_door(building_map: BuildingMap, proposal: dict) -> dict | None:
@@ -470,21 +564,25 @@ class SessionService:
             self.match(session, revision)
             if session.pending_action_id is not None:
                 raise ApiError("30010_action_conflict")
-            proposal = self.validate_proposal(session, proposal)
-            if proposal["kind"] == "set_closed":
-                element = proposal["element_ref"]
-                record = session.map.spaces.get(element, session.map.connectors.get(element, session.map.openings.get(element, {})))
-                summary = f"{'Close' if proposal['closed'] else 'Reopen'} {record.get('name', element)}."
-                ids = [element] if element in session.map.spaces else session.map.connectors.get(element, session.map.openings.get(element, {})).get("space_ids", [])
-                ids = [item for item in ids if item in session.map.spaces]
+            if proposal["kind"] in object_edits.EDIT_KINDS:
+                # The normalized proposal is stored; confirming applies exactly what the preview showed.
+                proposal, summary, effects = self.check_edit(session, proposal)
             else:
-                ids = [proposal["first_space"], proposal["second_space"]]
-                summary = f"Add a door between {session.map.spaces[ids[0]]['name']} and {session.map.spaces[ids[1]]['name']}."
+                proposal = self.validate_proposal(session, proposal)
+                if proposal["kind"] == "set_closed":
+                    element = proposal["element_ref"]
+                    record = session.map.spaces.get(element, session.map.connectors.get(element, session.map.openings.get(element, {})))
+                    summary = f"{'Close' if proposal['closed'] else 'Reopen'} {record.get('name', element)}."
+                    ids = [element] if element in session.map.spaces else session.map.connectors.get(element, session.map.openings.get(element, {})).get("space_ids", [])
+                    ids = [item for item in ids if item in session.map.spaces]
+                else:
+                    ids = [proposal["first_space"], proposal["second_space"]]
+                    summary = f"Add a door between {session.map.spaces[ids[0]]['name']} and {session.map.spaces[ids[1]]['name']}."
+                effects = [{"type": "highlight_spaces", "space_ids": ids, "reason": "preview"}]
             now = self.clock()
             action = {
                 "schema_version": 1, "id": self.new_id(), "session_id": session.id, "status": "pending",
-                "summary": summary, "proposal": proposal,
-                "preview_effects": [{"type": "highlight_spaces", "space_ids": ids, "reason": "preview"}],
+                "summary": summary, "proposal": proposal, "preview_effects": effects,
                 "result": None, "created_at": timestamp(now), "expires_at": timestamp(now + timedelta(minutes=15)), "resolved_at": None,
             }
             session.actions[action["id"]] = action
@@ -514,16 +612,17 @@ class SessionService:
                 raise ApiError("30010_action_conflict")
             self.match(session, revision)
             if confirm:
-                proposal = self.validate_proposal(session, action["proposal"])
-                with session.map.transaction():
-                    if proposal["kind"] == "set_closed":
+                proposal = action["proposal"]
+                if proposal["kind"] == "set_closed":
+                    proposal = self.validate_proposal(session, proposal)
+                    with session.map.transaction():
                         element_id = session.map.set_closed(proposal["element_ref"], proposal["closed"])
-                        result = {"kind": "set_closed", "element_id": element_id, "closed": proposal["closed"], "closed_ids": sorted(session.map.closed)}
-                    else:
-                        opening = self.existing_door(session.map, proposal)
-                        if opening is None:
-                            opening = session.map.add_door(proposal["first_space"], proposal["second_space"], proposal["step_free"])
-                        result = {"kind": "add_door", "opening": self.opening(opening)}
+                    result = {"kind": "set_closed", "element_id": element_id, "closed": proposal["closed"], "closed_ids": sorted(session.map.closed)}
+                else:
+                    if proposal["kind"] == "add_door":
+                        proposal = self.validate_proposal(session, proposal)
+                    # Building changes go through the editor (undo entry) and are saved in the same transaction.
+                    result = self.apply_change(session, proposal)
                 action["result"] = result
                 session.map.last_route = None
                 session.map.active_request = None
@@ -579,7 +678,7 @@ class SessionService:
     def speech_clip(self, session_id: str, clip_id: str) -> bytes:
         text = self.get(session_id).live.clip_text(clip_id)
         if text is None:
-            raise ApiError("30014_speech_clip_not_found")
+            raise ApiError("30017_speech_clip_not_found")
         speech = self.speech
         if speech is None:
             raise self.unavailable("not_configured")
@@ -594,13 +693,8 @@ class SessionService:
             return self.page(copy.deepcopy(session.transcript), cursor, limit, ["messages", session.id])
 
     def working_copy(self, session: SessionState) -> SessionState:
-        building_map = BuildingMap(copy.deepcopy(session.map.data))
-        building_map.closed = set(session.map.closed)
-        building_map.last_route = copy.deepcopy(session.map.last_route)
-        building_map.active_request = copy.deepcopy(session.map.active_request)
-        building_map.selection = copy.deepcopy(session.map.selection)
         return SessionState(
-            session.id, building_map, session.created_at, session.updated_at, dict(session.preferences),
+            session.id, session.map.clone(), session.created_at, session.updated_at, dict(session.preferences),
             session.revision, session.last_route_id, session.pending_action_id,
             copy.deepcopy(session.routes), copy.deepcopy(session.actions),
             copy.deepcopy(session.transcript), copy.deepcopy(session.history),
@@ -642,6 +736,9 @@ class SessionService:
         selected = context.get("selected_space_id")
         if selected is not None and selected not in work.map.spaces:
             raise ApiError("30004_place_not_found", [{"field": "selected_space_id", "code": "not_found"}])
+        selected_object = context.get("selected_object_id")
+        if selected_object is not None and not any(selected_object in index for index in (work.map.assets, work.map.openings, work.map.connectors)):
+            raise ApiError("30013_element_not_found", [{"field": "selected_object_id", "code": "not_found"}])
         step_free = (context.get("preferences") or work.preferences)["step_free"]
         voice = body.get("input_mode") == "voice"
         store = RoomNoteStore(self.notes_database)
@@ -790,6 +887,148 @@ class TurnTools:
             """
             return self.proposal({"kind": "add_door", "first_space": first_space, "second_space": second_space, "step_free": step_free})
 
+        # Object editor: the same names, arguments and proposals as the CLI tools, but only proposed.
+        def floor_id_at(floor_level: int | None) -> str | None:
+            if floor_level is None:
+                return None
+            try:
+                return work.map.floor_by_level(floor_level)["id"]
+            except MapError as error:
+                raise ToolError(str(error)) from error
+
+        def add_object(
+            type: str, space: str | None = None, name: str | None = None, category: str | None = None,
+            position: list[float] | None = None, floor_level: int | None = None, rotation_deg: float = 0,
+            width_m: float | None = None, depth_m: float | None = None, height_m: float | None = None,
+            on_top_of: list[str] | None = None,
+        ) -> str:
+            """PROPOSE adding an object (furniture, equipment, fixture, machine) to a room or on top of other objects.
+
+            Nothing changes until the user confirms the pending action in the UI. With only `space` the object
+            goes to the room's centre point; with only `on_top_of` onto the centre of those objects; `position`
+            (local metres) needs `space` or `floor_level`. Never invent coordinates. Size and height default to
+            the catalog (list_object_types). Errors name the failed rule (crosses_wall, floating, ...).
+
+            Args:
+                type: Object type id, e.g. "desk", "coffee_machine", "printer" (see list_object_types).
+                space: Room for the object: space id or exact room number/name.
+                name: Display name; default "<Type> <room number>".
+                category: furniture, equipment, fixture or machine; required only for a type the catalog lacks.
+                position: [x, y] centre in the building's local metres, inside the room.
+                floor_level: Floor of `position` when no space is given (0 = ground floor).
+                rotation_deg: Anticlockwise rotation in degrees (default 0).
+                width_m: Footprint width in metres along the unrotated x axis (default: catalog).
+                depth_m: Footprint depth in metres (default: catalog).
+                height_m: Height in metres; set only when the user states one (default: catalog).
+                on_top_of: Objects (ids or exact names) it stands on, all in the same room.
+            """
+            return self.proposal({
+                "kind": "add_object", "type": type, "space": space, "name": name, "category": category,
+                "position": position, "floor_id": floor_id_at(floor_level), "rotation_deg": rotation_deg,
+                "width_m": width_m, "depth_m": depth_m, "height_m": height_m, "on_top_of": on_top_of,
+            })
+
+        def update_object(
+            object: str, name: str | None = None, type: str | None = None, category: str | None = None,
+            space: str | None = None, position: list[float] | None = None, floor_level: int | None = None,
+            rotation_deg: float | None = None, width_m: float | None = None, depth_m: float | None = None,
+            height_m: float | None = None, on_top_of: list[str] | None = None, step_free: bool | None = None,
+            opening_kind: Literal["door", "opening"] | None = None,
+        ) -> str:
+            """PROPOSE changing, moving, turning, resizing or restacking an object, or changing a door or connector.
+
+            Nothing changes until the user confirms the pending action in the UI. Only the given arguments
+            change. "Put X on Y" is on_top_of=[Y]; "take X off" / "put it on the floor" is on_top_of=[].
+            Moving to another room without on_top_of puts it on the floor there; everything on top moves along.
+            Doors accept opening_kind, width_m and step_free; stairs/escalators/lifts accept name and step_free.
+
+            Args:
+                object: Object, door or connector to change: id or exact name (the selected object's id if "it").
+                name: New display name (objects, stairs and lifts).
+                type: New object type id, e.g. "printer".
+                category: New category: furniture, equipment, fixture or machine.
+                space: Move the object to this room (to its centre unless position is given).
+                position: New [x, y] centre in local metres.
+                floor_level: Move to this floor (same x, y unless space or position is given).
+                rotation_deg: New anticlockwise rotation in degrees.
+                width_m: New footprint width in metres (doors: opening width).
+                depth_m: New footprint depth in metres.
+                height_m: New height in metres; only when the user asks for one.
+                on_top_of: Objects it stands on (ids or exact names); [] puts it on the floor.
+                step_free: Doors and lifts: whether it can be used without steps.
+                opening_kind: Doors only: "door" or "opening" (a doorless passage).
+            """
+            return self.proposal({
+                "kind": "update_object", "object_ref": object, "name": name, "type": type, "category": category,
+                "space": space, "position": position, "floor_id": floor_id_at(floor_level),
+                "rotation_deg": rotation_deg, "width_m": width_m, "depth_m": depth_m, "height_m": height_m,
+                "on_top_of": on_top_of, "step_free": step_free, "opening_kind": opening_kind,
+            })
+
+        def remove_object(object: str) -> str:
+            """PROPOSE removing an object with everything on top of it, or a door/connector added in this session.
+
+            Nothing changes until the user confirms. Doors, stairs and lifts from the building data cannot be
+            removed (propose closing them with set_closed instead).
+
+            Args:
+                object: Object, door or connector to remove: id or exact name.
+            """
+            return self.proposal({"kind": "remove_object", "object_ref": object})
+
+        def add_opening(
+            opening_kind: Literal["door", "opening"] = "door", first_space: str | None = None,
+            second_space: str | None = None, position: list[float] | None = None, floor_level: int | None = None,
+            width_m: float | None = None, step_free: bool = True,
+        ) -> str:
+            """PROPOSE a door or a doorless passage between two neighbouring rooms on one floor.
+
+            Nothing changes until the user confirms. Give both rooms (middle of their shared wall), or a position
+            on the wall plus floor_level. The shared wall must be at least as long as the width.
+
+            Args:
+                opening_kind: "door" (default) or "opening" for a passage without a door.
+                first_space: One room: space id or exact room number/name.
+                second_space: The other room on the same floor.
+                position: [x, y] on the wall in local metres, instead of the rooms.
+                floor_level: Floor of `position` (0 = ground floor).
+                width_m: Width in metres (default 0.9 for doors, the catalog width for passages).
+                step_free: Whether it can be passed without a step (default true).
+            """
+            return self.proposal({
+                "kind": "add_opening", "opening_kind": opening_kind, "first_space": first_space,
+                "second_space": second_space, "position": position, "floor_id": floor_id_at(floor_level),
+                "width_m": width_m, "step_free": step_free,
+            })
+
+        def add_connector(
+            connector_kind: Literal["stairs", "escalator", "lift"], spaces: list[str], name: str | None = None,
+            step_free: bool | None = None,
+        ) -> str:
+            """PROPOSE stairs, an escalator or a lift between rooms stacked above each other on different floors.
+
+            Nothing changes until the user confirms. Give one room per floor; consecutive stops must overlap in
+            plan. Stairs and escalators are never step-free; lifts are step-free by default.
+
+            Args:
+                connector_kind: "stairs", "escalator" or "lift".
+                spaces: At least two rooms (ids or exact room numbers/names), each on a different floor.
+                name: Display name; default "Stairs N", "Escalator N" or "Lift N".
+                step_free: Lifts only: false if the lift cannot be used without steps.
+            """
+            return self.proposal({
+                "kind": "add_connector", "connector_kind": connector_kind, "spaces": spaces, "name": name,
+                "step_free": step_free,
+            })
+
+        def undo_last_edit() -> str:
+            """PROPOSE undoing the latest confirmed map edit (object, door, passage or connector change).
+
+            Nothing changes until the user confirms. Current closures stay as they are. An error means there
+            is nothing left to undo.
+            """
+            return self.proposal({"kind": "undo_edit"})
+
         def show_location(element: str) -> str:
             """Select a verified room or asset and send its highlight/focus to the frontend map. No PNG.
 
@@ -839,7 +1078,10 @@ class TurnTools:
             return as_json({"guidance": "will stop after this reply"})
 
         work_live = work.live
-        overrides = {function.__name__: ArgumentCheckedTool(function) for function in (set_closed, add_door, show_location, show_route)}
+        overrides = {function.__name__: ArgumentCheckedTool(function) for function in (
+            set_closed, add_door, add_object, update_object, remove_object, add_opening, add_connector,
+            undo_last_edit, show_location, show_route,
+        )}
         originals = make_tools(work.map, service.output_directory / work.id, notes_store=store, session_id=work.id)
         self.tools = [ObservedTool(overrides.get(tool.name, tool), self.observe, step_free, self.failed) for tool in originals]
         self.tools += [ArgumentCheckedTool(function) for function in (start_guidance, stop_guidance)]

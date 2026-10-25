@@ -21,7 +21,7 @@ Der Nutzer soll freihändig sprechen und den Weg gesprochen geführt bekommen. D
 
 ## Folgen
 
-- Der Vertrag bleibt v1. Neue Operationen: `put_position`, `create_transcription`, `get_guidance`, `put_guidance`, `delete_guidance`, `get_speech_clip`. Neue Codes: `30014_speech_clip_not_found`, `40004_speech_unavailable`.
+- Der Vertrag bleibt v1. Neue Operationen: `put_position`, `create_transcription`, `get_guidance`, `put_guidance`, `delete_guidance`, `get_speech_clip`. Neue Codes: `30017_speech_clip_not_found`, `40004_speech_unavailable`.
 - Jeder offene Long-Poll belegt einen Threadpool-Thread, bis er endet. Abgebrochene Polls tun das bis zum Timeout. Das ist für die Demo vertretbar.
 - Das Rate-Limit muss etwa einen Fix pro Sekunde plus Long-Polls tragen.
 - Lautsprecher-Echo kann Barge-in auslösen. Für die Demo gelten Kopfhörer.

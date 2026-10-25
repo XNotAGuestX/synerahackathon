@@ -18,6 +18,7 @@ import shapely
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import nearest_points
 
+from . import stacking
 from .storage import BuildingSpatialIndex, JsonBuildingStore
 
 OUTSIDE = "outside"
@@ -40,6 +41,7 @@ NEW_DOOR_WIDTH_M = 0.9
 MAX_INSPECTED_ASSET_IDS = 50
 KIT_DISTANCE_MODEL = "kit-1.1.0"
 GEOMETRY_EPSILON = 1e-9
+UNDO_LIMIT = 20
 
 
 Point2 = tuple[float, float]
@@ -132,20 +134,27 @@ def walking_path(polygon: Polygon, start: Point2, end: Point2) -> list[Point2]:
 
 
 class MapError(ValueError):
-    """Raised for anything the user should be told about (unknown place, no route, ...)."""
+    """Raised for anything the user should be told about (unknown place, no route, ...).
 
-    def __init__(self, message: str, *, reason: str | None = None, candidates: list[dict] | None = None) -> None:
+    reason is a stable code (not_found, ambiguous, crosses_wall, ...); field names the offending input.
+    """
+
+    def __init__(
+        self, message: str, *, reason: str | None = None, candidates: list[dict] | None = None,
+        field: str | None = None,
+    ) -> None:
         super().__init__(message)
         self.reason = reason
         self.candidates = candidates or []
+        self.field = field
 
 
 def check_number(name: str, value: float, minimum: float | None = None) -> float:
     """Validate a numeric tool argument at the boundary: finite and, optionally, at least minimum."""
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-        raise MapError(f"{name} must be a finite number, got {value!r}.")
+        raise MapError(f"{name} must be a finite number, got {value!r}.", reason="invalid_field", field=name)
     if minimum is not None and value < minimum:
-        raise MapError(f"{name} must be at least {minimum}, got {value}.")
+        raise MapError(f"{name} must be at least {minimum}, got {value}.", reason="invalid_field", field=name)
     return float(value)
 
 
@@ -197,10 +206,27 @@ class BuildingMap:
         self.located_asset_ids: list[str] = []
         # Set only by select() (a locate action); search, landmarks, previews and analyses never touch it.
         self.selection: dict | None = None
+        # Object -> the objects it stands on, and user-set object heights; both live in stacking_adapter.json.
+        self.stacking: dict[str, list[str]] = {}
+        self.height_overrides: dict[str, float] = {}
+        # Editor changes, newest last: {"snapshot", "summary", "floor_ids"} (see object_edits.apply_edit).
+        self.undo_stack: list[dict] = []
 
     @classmethod
     def load(cls, path: Path) -> "BuildingMap":
-        return cls(JsonBuildingStore.load(path))
+        """Read building.json (or a directory containing it) and the stacking_adapter.json next to it, if any."""
+        path = Path(path)
+        building_map = cls(JsonBuildingStore.load(path))
+        adapter = (path if path.is_dir() else path.parent) / stacking.STACKING_FILE
+        try:
+            building_map.stacking, building_map.height_overrides = stacking.load(
+                adapter, building_map.data["building"].get("id"), set(building_map.assets)
+            )
+        except ValueError as error:
+            raise MapError(
+                f"{adapter} is invalid: {error}", reason="invalid_field", field=stacking.STACKING_FILE
+            ) from error
+        return building_map
 
     @classmethod
     def load_cached(cls, path: Path, walks_cache: dict[Path, dict]) -> "BuildingMap":
@@ -1893,27 +1919,143 @@ class BuildingMap:
             return named[0]
         return self.resolve_space(reference)
 
-    @contextlib.contextmanager
-    def transaction(self) -> Iterator[None]:
-        """Undo closures, added openings, the active route and the spatial index if the block raises.
+    def resolve_object(self, reference: str) -> str:
+        """Accept an asset id or unique asset name (any case), an opening id, or a connector id or name."""
+        if not isinstance(reference, str) or not reference.strip():
+            raise MapError("Give an object: an id or the exact name of an object, lift or staircase.",
+                           reason="invalid_field")
+        if reference in self.assets or reference in self.openings or reference in self.connectors:
+            return reference
+        lowered = reference.strip().lower()
+        named = sorted(
+            [asset["id"] for asset in self.assets.values() if asset["name"].lower() == lowered]
+            + [item["id"] for item in self.connectors.values() if (item.get("name") or "").lower() == lowered]
+        )
+        if len(named) == 1:
+            return named[0]
+        if named:
+            raise MapError(
+                f"'{reference}' names {len(named)} objects. Use one of these ids: {', '.join(named)}.",
+                reason="ambiguous", candidates=[{"id": object_id} for object_id in named],
+            )
+        raise MapError(
+            f"No object, opening or connector matches '{reference}'. Find it with search_building first.",
+            reason="not_found",
+        )
 
-        Wrap an edit together with its save: a failed save then leaves the map exactly as it was.
+    # ---------- edit state: snapshots, undo, clones ----------
+
+    EDITABLE_COLLECTIONS = {"assets": "assets", "openings": "openings", "vertical_connectors": "connectors"}
+
+    def snapshot(self) -> dict:
+        """Copy of everything an edit can change. restore() copies it again, so a snapshot is never altered."""
+        return {
+            **{collection: copy.deepcopy(self.data[collection]) for collection in self.EDITABLE_COLLECTIONS},
+            "stacking": copy.deepcopy(self.stacking),
+            "height_overrides": dict(self.height_overrides),
+            "closed": set(self.closed),
+            "walks": dict(self.walks),
+            "last_route": self.last_route,
+            "located_asset_ids": list(self.located_asset_ids),
+            "selection": copy.deepcopy(self.selection),
+        }
+
+    def restore(self, snapshot: dict, keep_closures: bool = False) -> None:
+        """Return to a snapshot and drop the spatial index; the undo stack is left alone.
+
+        keep_closures keeps the current closures, located assets and selection (for undo), minus
+        elements that no longer exist; otherwise they come back from the snapshot too.
         """
-        closed, openings = set(self.closed), dict(self.openings)
-        opening_list, last_route = list(self.data["openings"]), self.last_route
-        walks = dict(self.walks)
-        try:
-            yield
-        except BaseException:
+        for collection, index_name in self.EDITABLE_COLLECTIONS.items():
+            self.data[collection][:] = copy.deepcopy(snapshot[collection])
+            index = getattr(self, index_name)
+            index.clear()
+            index.update((record["id"], record) for record in self.data[collection])
+        self.stacking = copy.deepcopy(snapshot["stacking"])
+        self.height_overrides = dict(snapshot["height_overrides"])
+        if not keep_closures:
             self.closed.clear()
-            self.closed.update(closed)
-            self.openings.clear()
-            self.openings.update(openings)
-            self.data["openings"][:] = opening_list
-            self.last_route = last_route
-            self.walks = walks
-            self._spatial_index = None
+            self.closed.update(snapshot["closed"])
+            self.located_asset_ids = list(snapshot["located_asset_ids"])
+            self.selection = copy.deepcopy(snapshot["selection"])
+        self.walks = dict(snapshot["walks"])
+        self.last_route = snapshot["last_route"]
+        self._spatial_index = None
+        self.forget_missing()
+
+    @contextlib.contextmanager
+    def transaction(self) -> Iterator[dict]:
+        """Restore everything an edit touches if the block raises; yields the snapshot taken before it.
+
+        Covers assets, openings, connectors, stacking, height overrides, closures, walks, the active
+        route, selection and undo entries pushed inside. Wrap an edit together with its save: a failed
+        save then leaves the map exactly as it was.
+        """
+        before, undo_stack = self.snapshot(), list(self.undo_stack)
+        try:
+            yield before
+        except BaseException:
+            self.restore(before)
+            self.undo_stack[:] = undo_stack
             raise
+
+    def push_undo(self, snapshot: dict, summary: str, floor_ids: list[str]) -> None:
+        """Record the state before an edit; only the newest UNDO_LIMIT entries are kept."""
+        self.undo_stack.append({"snapshot": snapshot, "summary": summary, "floor_ids": list(floor_ids)})
+        del self.undo_stack[:-UNDO_LIMIT]
+
+    def undo(self) -> dict:
+        """Return to the state before the latest edit, keeping current closures; returns the undone entry."""
+        if not self.undo_stack:
+            raise MapError("There is no edit to undo.", reason="nothing_to_undo")
+        entry = self.undo_stack.pop()
+        self.restore(entry["snapshot"], keep_closures=True)
+        self.last_route = None
+        return entry
+
+    def clone(self) -> "BuildingMap":
+        """An independent copy for trials and chat turns, including closures, stacking, undo and view state."""
+        other = BuildingMap(copy.deepcopy(self.data))
+        other.closed = set(self.closed)
+        other.stacking = copy.deepcopy(self.stacking)
+        other.height_overrides = dict(self.height_overrides)
+        other.undo_stack = list(self.undo_stack)  # entries are never altered, so both maps can share them
+        other.walks = dict(self.walks)
+        other.last_route = copy.deepcopy(self.last_route)
+        other.active_request = copy.deepcopy(self.active_request)
+        other.located_asset_ids = list(self.located_asset_ids)
+        other.selection = copy.deepcopy(self.selection)
+        return other
+
+    def forget_missing(self) -> None:
+        """Drop closures, located assets and a selection whose element is gone; a selected asset keeps its room."""
+        self.closed.intersection_update({*self.spaces, *self.openings, *self.connectors})
+        self.located_asset_ids = [asset_id for asset_id in self.located_asset_ids if asset_id in self.assets]
+        if self.selection is None:
+            return
+        selected = self.selection["id"]
+        if self.selection["kind"] == "asset" and selected in self.assets:
+            asset = self.assets[selected]
+            self.selection.update(space_id=asset["space_id"], floor_id=asset["floor_id"])
+        elif selected not in self.spaces:
+            self.selection = None
+
+    def mark_edited(self, walk_space_ids: Iterable[str] = ()) -> None:
+        """After an edit: drop the spatial index, the active route and the walks of spaces whose openings changed."""
+        for space_id in walk_space_ids:
+            self.walks.pop(space_id, None)
+        self._spatial_index = None
+        self.last_route = None
+
+    def stacking_document(self) -> dict:
+        """The stacking_adapter.json document for the current stacks and heights."""
+        from .object_edits import effective_height  # object_edits imports this module, so import late
+
+        listed = set(stacking.layers(self.stacking)) | set(self.height_overrides)
+        heights = {object_id: effective_height(self, object_id) for object_id in listed}
+        return stacking.to_document(
+            self.data["building"].get("id"), self.stacking, self.height_overrides, heights
+        )
 
     def set_closed(self, reference: str, closed: bool) -> str:
         element = self.find_element(reference)
@@ -1923,6 +2065,25 @@ class BuildingMap:
             self.closed.discard(element)
         self.last_route = None
         return element
+
+    def wall_at(self, floor_id: str, position: Point2) -> tuple[str, str]:
+        """The two spaces of the floor whose outlines pass closest to the point, both within the wall tolerance."""
+        if floor_id not in self.floors:
+            raise MapError(f"Unknown floor id {floor_id!r}.", reason="invalid_field", field="floor_id")
+        if not isinstance(position, (list, tuple)) or len(position) != 2:
+            raise MapError("position must contain two finite metre coordinates.", reason="invalid_field",
+                           field="position")
+        point = Point([check_number("position", value) for value in position])
+        nearest = sorted(
+            (self.valid_polygon(space_id).boundary.distance(point), space_id)
+            for space_id, space in self.spaces.items() if space["floor_id"] == floor_id
+        )
+        if len(nearest) < 2 or nearest[1][0] > SHARED_WALL_TOLERANCE_M:
+            raise MapError(
+                f"No wall between two spaces at ({point.x:.2f}, {point.y:.2f}) on {self.floor_name(floor_id)}; "
+                "pick a point on the wall between two rooms.", reason="not_adjacent", field="position",
+            )
+        return nearest[0][1], nearest[1][1]
 
     def shared_wall(
         self, first_id: str, second_id: str, tolerance_m: float = SHARED_WALL_TOLERANCE_M
@@ -1937,9 +2098,9 @@ class BuildingMap:
         """
         tolerance_m = check_number("tolerance_m", tolerance_m, 0)
         if first_id == second_id:
-            raise MapError("A space does not share a wall with itself.")
+            raise MapError("A space does not share a wall with itself.", reason="not_adjacent")
         if self.spaces[first_id]["floor_id"] != self.spaces[second_id]["floor_id"]:
-            raise MapError("Spaces on different floors cannot share a wall or a door.")
+            raise MapError("Spaces on different floors cannot share a wall or a door.", reason="not_adjacent")
         contact = self.space_wall_contact(first_id, second_id, tolerance_m)
         runs = [
             {"length_m": self.run_length(run), "start": list(run[0]), "end": list(run[-1])}
@@ -1955,39 +2116,51 @@ class BuildingMap:
             "total_length_m": contact["total_length_m"], "runs": runs, "midpoint": midpoint,
         }
 
+    OPENING_KINDS = ("door", "opening")
+
     def add_door(
         self, first: str, second: str, step_free: bool = True, width_m: float = NEW_DOOR_WIDTH_M,
-        position: Point2 | None = None,
+        position: Point2 | None = None, kind: str = "door",
     ) -> dict:
-        """Add a door on a shared wall, defaulting to the midpoint; preserve explicit kit positions."""
+        """Add a door (kind="opening": a doorless passage) on a shared wall, by default at its midpoint.
+
+        Explicit kit positions are preserved.
+        """
+        if kind not in self.OPENING_KINDS:
+            raise MapError(f"kind must be door or opening, got {kind!r}.", reason="invalid_field",
+                           field="opening_kind")
         first_id, second_id = self.resolve_space(first), self.resolve_space(second)
         if first_id == second_id:
-            raise MapError("A door must join two different spaces.")
+            raise MapError("A door must join two different spaces.", reason="not_adjacent")
         width_m = check_number("width_m", width_m)
         if width_m <= 0:
-            raise MapError(f"width_m must be greater than 0, got {width_m}.")
+            raise MapError(f"width_m must be greater than 0, got {width_m}.", reason="invalid_field", field="width_m")
         wall = self.shared_wall(first_id, second_id)
         longest = wall["runs"][0]["length_m"] if wall["runs"] else 0.0
         if longest < width_m - GEOMETRY_EPSILON:
             raise MapError(
                 f"{self.describe_space(first_id)} and {self.describe_space(second_id)} do not share a wall "
-                f"long enough for a {width_m:g} m door (longest shared stretch {longest:.2f} m)."
+                f"long enough for a {width_m:g} m {'door' if kind == 'door' else 'passage'} "
+                f"(longest shared stretch {longest:.2f} m).", reason="not_adjacent",
             )
         # Micrometre precision drops floating-point noise such as -4e-16 from the stored coordinates.
         if position is not None:
             if not isinstance(position, (list, tuple)) or len(position) != 2:
-                raise MapError("position must contain two finite metre coordinates.")
+                raise MapError("position must contain two finite metre coordinates.", reason="invalid_field",
+                               field="position")
             position = [check_number("position", value) for value in position]
             point = Point(position)
             if any(self.valid_polygon(space_id).boundary.distance(point) > SHARED_WALL_TOLERANCE_M
                    for space_id in (first_id, second_id)):
-                raise MapError("The explicit door position must lie on the shared wall.")
+                raise MapError("The explicit door position must lie on the shared wall.", reason="not_adjacent",
+                               field="position")
         position = [round(value, 6) + 0.0 for value in (position if position is not None else wall["midpoint"])]
         for existing in self.openings.values():
             if set(existing["space_ids"]) == {first_id, second_id} and (
                 math.dist(position, existing["position"]) <= width_m
             ):
-                raise MapError(f"{existing['id']} already joins these spaces within {width_m:g} m of that spot.")
+                raise MapError(f"{existing['id']} already joins these spaces within {width_m:g} m of that spot.",
+                               reason="not_adjacent")
         floor_id = self.spaces[first_id]["floor_id"]
         taken = {*self.openings, *self.spaces, *self.assets, *self.connectors, *self.floors}
         number = len(self.openings) + 1
@@ -1997,7 +2170,7 @@ class BuildingMap:
             "id": f"{floor_id}-O-new{number}",
             "floor_id": floor_id,
             "space_ids": [first_id, second_id],
-            "kind": "door",
+            "kind": kind,
             "position": position,
             "width_m": width_m,
             "step_free": step_free,
@@ -2012,10 +2185,15 @@ class BuildingMap:
         return opening
 
     def save(self, path: Path) -> None:
+        """Write the building with its closures and stacking_adapter.json next to it; each file is replaced atomically."""
+        path = Path(path)
+        target = path / "building.json" if path.is_dir() else path
+        document = self.stacking_document()
         snapshot = {
             **self.data,
             "navigation_state": {
                 **self.data.get("navigation_state", {}), "closed": sorted(self.closed)
             },
         }
-        JsonBuildingStore.save(path, snapshot)
+        JsonBuildingStore.save(target, snapshot)
+        stacking.save(target.parent / stacking.STACKING_FILE, document)

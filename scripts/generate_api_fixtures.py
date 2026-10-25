@@ -69,6 +69,16 @@ def generate(data: Path, output: Path) -> list[dict]:
         examples["guidance-feed"] = ("GuidanceFeed", service.put_guidance(state.id, route["id"]))
         service.delete_guidance(state.id)
         examples["transcription"] = ("Transcription", {"schema_version": 1, "text": "How do I get from H-A2 to H-A1?", "language": "en"})
+        # Object editor: catalog, one add_object proposal with its preview, its confirmation and a broken rule.
+        examples["object_types"] = ("ObjectCatalog", service.object_types())
+        edit = service.propose(state, {"kind": "add_object", "type": "desk", "space": "H-A1"}, None)
+        examples["action_add_object_pending"] = ("Action", edit)
+        examples["action_add_object_confirmed"] = ("Action", service.finish_action(state, edit["id"], True, None))
+        try:
+            service.propose(state, {"kind": "add_object", "type": "desk", "space": "H-A1", "position": [0, 0]}, None)
+            raise RuntimeError("The invalid placement example was accepted.")
+        except ApiError as error:
+            examples["error_invalid_placement"] = ("Error", json.loads(error_response(error, str(UUID(int=999))).body))
         for code, name in (("20001_validation_failed", "error_validation"), ("30002_session_not_found", "error_not_found"), ("40001_model_unavailable", "error_model")):
             response = error_response(ApiError(code), str(UUID(int=999)))
             examples[name] = ("Error", json.loads(response.body))

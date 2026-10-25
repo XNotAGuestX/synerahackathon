@@ -29,6 +29,8 @@ type WalkPadProps = {
   route: Route | null
   closedIds: string[]
   stepFree: boolean
+  /** The map editor owns the arrow keys while it is open. */
+  keysPaused?: boolean
   // False when the walker is on another floor than the one shown: it is hidden and emits nothing.
   walkerHere?: boolean
   onMove?: (floorId: string, point: Point, source: 'walk' | 'jump') => void
@@ -144,7 +146,9 @@ function pixelsPerMetre(svg: SVGSVGElement): number {
   return Math.hypot(end.x - start.x, end.y - start.y)
 }
 
-export function WalkPad({ svgRef, plan, route, closedIds, stepFree, walkerHere = true, onMove, onChangeFloor }: WalkPadProps) {
+export function WalkPad({ svgRef, plan, route, closedIds, stepFree, keysPaused = false, walkerHere = true, onMove, onChangeFloor }: WalkPadProps) {
+  const pausedRef = useRef(keysPaused)
+  pausedRef.current = keysPaused
   const tokenRef = useRef<HTMLDivElement>(null)
   const originRef = useRef<HTMLSpanElement>(null)
   const destRef = useRef<HTMLSpanElement>(null)
@@ -381,7 +385,7 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree, walkerHere =
       paint()
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey || typingTarget(event.target)) return
+      if (event.metaKey || event.ctrlKey || event.altKey || typingTarget(event.target) || pausedRef.current) return
       if (event.key === 'Escape' && followRef.current) {
         followRef.current = false
         setFollowing(false)
@@ -624,6 +628,7 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree, walkerHere =
           aria-expanded={!place.hidden}
           data-has-destination={hasDestination ? 'true' : 'false'}
           data-walk-hidden={place.hidden ? 'true' : 'false'}
+          hidden={keysPaused}
           style={{ transform: `translate(${place.x}px, ${place.y}px)` }}
         >
           <div

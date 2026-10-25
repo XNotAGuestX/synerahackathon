@@ -56,6 +56,22 @@
     "schema": "FloorPlan"
   },
   {
+    "file": "object_types.json",
+    "schema": "ObjectCatalog"
+  },
+  {
+    "file": "action_add_object_pending.json",
+    "schema": "Action"
+  },
+  {
+    "file": "action_add_object_confirmed.json",
+    "schema": "Action"
+  },
+  {
+    "file": "error_invalid_placement.json",
+    "schema": "Error"
+  },
+  {
     "file": "error_validation.json",
     "schema": "Error"
   },

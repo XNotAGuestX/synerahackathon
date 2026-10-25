@@ -49,21 +49,22 @@ Eine brechende Änderung braucht eine neue ADR und `/api/v2`. Der Server sendet 
 
 - FR-1: Gebäude seitenweise listen und den Etagenindex lesen.
 - FR-2: Sitzung anlegen, Stufenfrei-Präferenz ersetzen, Sitzung löschen.
-- FR-3: Zeichenbare Geometrie pro Etage lesen, inklusive bestätigter neuer Türen. `closed_ids` entspricht der Sitzung derselben `revision`.
+- FR-3: Zeichenbare Geometrie pro Etage lesen, inklusive bestätigter neuer Türen und Editor-Änderungen. `closed_ids` und `stacking` entsprechen der Sitzung derselben `revision`.
 - FR-4: Räume und Geräte nach Wörtern suchen.
 - FR-5: Route berechnen und die Polylinie pro Etage liefern. Unerreichbar bleibt eine Route mit `reachable: false`.
 - FR-6: Einen Satz senden und Antworttext, `understood`, `effects` und die zitierten Routen erhalten.
-- FR-7: Schließen, Wiederöffnen oder eine Tür vorschlagen. Erst die Bestätigung ändert die Sitzung.
+- FR-7: Schließen, Wiederöffnen, eine Tür oder eine Editor-Änderung (FR-11) vorschlagen. Erst die Bestätigung ändert die Sitzung. Chat und Editor-Buttons nutzen denselben Ablauf `propose → confirm`.
 - FR-8: Den Dialog seitenweise lesen. Nach einem Reload stellen `last_route_id` und `pending_action_id` die Karte wieder her.
 - FR-9: Fehler haben stabile Codes. Kein Stacktrace in der Antwort.
 - FR-10: Beispielantworten lassen sich aus dem dev-Datensatz erzeugen.
-- FR-11 Sprachschleife: Bei aktivem Voice-Modus bleibt das Mikrofon offen. Jede Äußerung wird transkribiert, als Nutzernachricht gezeigt, vom Agenten beantwortet und gesprochen. Voice-Antworten sind ein bis zwei kurze Sätze. Ein Provider-Fehler zeigt einen Fehler, Texteingabe bleibt nutzbar.
-- FR-12 Live-Position: Der Client sendet Positionsfixes in Plan-Metern. Der Server löst sie zu einem Raum auf. Der Agent nutzt eine frische Live-Position als Routenstart. Ein Fix ändert `revision` nicht und löst kein `30012_revision_conflict` aus.
-- FR-13 Geführter Weg: Der Server nennt den nächsten Wegpunkt und die nächste Anweisung, sobald die Position höchstens 3 m vom aktuellen Ziel entfernt ist. Die Ankunft wird gemeldet.
-- FR-14 Falsche Richtung: Pro Wegpunkt höchstens eine Warnung. Danach Stille und keine automatische Neuroute. Die Warnung wird erst nach dem nächsten erreichten Wegpunkt wieder scharf.
-- FR-15 Erzähler: Ein KI-Aufruf pro Route wählt Sätze aus einem festen Phrasenkatalog und füllt Landmarken. Distanzen, Seiten und Namen kommen aus Code. Fällt das Modell aus, gelten die Standardphrasen.
+- FR-11: Objekt-Editor. Objekte anlegen, ändern, verschieben, auf andere Objekte stellen, entfernen. Türen, Durchgänge, Treppen, Rolltreppen und Aufzüge hinzufügen. Die letzte Änderung rückgängig machen. Wände und Raumumrisse bleiben unveränderlich.
+- FR-12 Sprachschleife: Bei aktivem Voice-Modus bleibt das Mikrofon offen. Jede Äußerung wird transkribiert, als Nutzernachricht gezeigt, vom Agenten beantwortet und gesprochen. Voice-Antworten sind ein bis zwei kurze Sätze. Ein Provider-Fehler zeigt einen Fehler, Texteingabe bleibt nutzbar.
+- FR-13 Live-Position: Der Client sendet Positionsfixes in Plan-Metern. Der Server löst sie zu einem Raum auf. Der Agent nutzt eine frische Live-Position als Routenstart. Ein Fix ändert `revision` nicht und löst kein `30012_revision_conflict` aus.
+- FR-14 Geführter Weg: Der Server nennt den nächsten Wegpunkt und die nächste Anweisung, sobald die Position höchstens 3 m vom aktuellen Ziel entfernt ist. Die Ankunft wird gemeldet.
+- FR-15 Falsche Richtung: Pro Wegpunkt höchstens eine Warnung. Danach Stille und keine automatische Neuroute. Die Warnung wird erst nach dem nächsten erreichten Wegpunkt wieder scharf.
+- FR-16 Erzähler: Ein KI-Aufruf pro Route wählt Sätze aus einem festen Phrasenkatalog und füllt Landmarken. Distanzen, Seiten und Namen kommen aus Code. Fällt das Modell aus, gelten die Standardphrasen.
 
-FR-1 → `list_buildings`, `get_building`. FR-2 → sessions. FR-3 → `get_floor_plan`. FR-4 → `search_places`. FR-5 → routes. FR-6 → `create_message`. FR-7 → actions. FR-8 → `list_messages` und Session. FR-9 → `Error`. FR-10 → `scripts/generate_api_fixtures.py`. FR-11 → `create_transcription`, `get_speech_clip`, `create_message` mit `input_mode: voice`. FR-12 → `put_position`. FR-13, FR-14 → `get_guidance`, `put_guidance`, `delete_guidance`. FR-15 → Phrasenkatalog in `final_agent/narration.py`.
+FR-1 → `list_buildings`, `get_building`. FR-2 → sessions. FR-3 → `get_floor_plan`. FR-4 → `search_places`. FR-5 → routes. FR-6 → `create_message`. FR-7 → actions. FR-8 → `list_messages` und Session. FR-9 → `Error`. FR-10 → `scripts/generate_api_fixtures.py`. FR-11 → `list_object_types`, actions mit den Editor-Kinds, `FloorPlan.stacking`; Regeln in `docs/superpowers/specs/2026-10-25-object-editor-design.md`. FR-12 → `create_transcription`, `get_speech_clip`, `create_message` mit `input_mode: voice`. FR-13 → `put_position`. FR-14, FR-15 → `get_guidance`, `put_guidance`, `delete_guidance`. FR-16 → Phrasenkatalog in `final_agent/narration.py`.
 
 ### NFR
 
@@ -184,26 +185,29 @@ Normative Details stehen in OpenAPI. Hier steht die Semantik.
 | 429 | `00002_rate_limited` | Gateway- oder App-Limit. Mit `Retry-After`. |
 | 401 | `10001_unauthenticated` | `API_TOKEN` ist gesetzt, Token fehlt oder stimmt nicht. |
 | 403 | `10002_forbidden` | Authentifiziert, aber ohne Recht. v1 kann das ungenutzt lassen. |
-| 400 | `20001_validation_failed` | Feldweise `details` |
+| 400 | `20001_validation_failed` | Feldweise `details`. Editor: `code` `invalid` oder `unknown_type` (Typ fehlt im Katalog und keine Kategorie) |
 | 400 | `20010_idempotency_key_required` | POST ohne Schlüssel |
 | 409 | `20011_idempotency_key_mismatch` | Gleicher Schlüssel, anderer Body |
 | 413 | `20012_payload_too_large` | Über der in OpenAPI genannten Größe |
 | 404 | `30001_building_not_found` | Gebäude fehlt |
 | 404 | `30002_session_not_found` | Sitzung fehlt |
 | 404 | `30003_floor_not_found` | Etage fehlt |
-| 404 | `30004_place_not_found` | Start oder Ziel nicht auflösbar |
+| 404 | `30004_place_not_found` | Start, Ziel oder Raum einer Editor-Proposal (`space`, `first_space`, `second_space`, `spaces`) nicht auflösbar. `details[].field` nennt das Feld. |
 | 409 | `30005_place_ambiguous` | `details` nennt Kandidaten-Ids |
-| 409 | `30007_not_adjacent` | Die zwei Räume teilen keine Wand oder keine Etage |
+| 409 | `30007_not_adjacent` | Die zwei Räume teilen keine Wand oder keine Etage, die Wand ist zu kurz, an der Position liegt keine Wand oder dort ist schon eine Öffnung |
 | 404 | `30008_action_not_found` | Aktion fehlt |
 | 409 | `30009_action_expired` | Aktion abgelaufen |
 | 409 | `30010_action_conflict` | Bestätigen oder Abbrechen widerspricht dem Zustand |
 | 409 | `30012_revision_conflict` | `If-Match` passt nicht zur `revision` |
-| 404 | `30013_element_not_found` | Aufzug, Tür oder Raum zum Schließen fehlt |
+| 404 | `30013_element_not_found` | Aufzug, Tür oder Raum zum Schließen fehlt. Editor: Objekt oder Träger fehlt (`details[].field` `object_ref` oder `on_top_of`). Unbekannte `client_context.selected_object_id` (`field: selected_object_id`). |
+| 409 | `30014_invalid_placement` | Editor-Regel verletzt. `details[].code` ist die Regel: `outside_space`, `crosses_wall`, `floating`, `support_cycle`, `support_other_space`, `would_strand`, `exceeds_ceiling`, `not_stacked`, `same_floor`. `details[].message` erklärt sie auf Englisch. |
+| 409 | `30015_nothing_to_undo` | Undo ohne bestätigte Gebäudeänderung in dieser Sitzung |
+| 409 | `30016_not_removable` | Tür, Treppe oder Aufzug aus dem Datensatz. Nur Schließen ist möglich. |
 | 503 | `40001_model_unavailable` | Nur messages |
 | 429 | `40002_model_rate_limited` | Nur messages. Mit `Retry-After`. |
 | 504 | `40003_model_timeout` | Nur messages |
 | 503 | `40004_speech_unavailable` | Sprachanbieter nicht nutzbar. `details.reason` ist `not_configured`, `auth`, `rate_limited`, `timeout` oder `provider_error`. |
-| 404 | `30014_speech_clip_not_found` | Unbekannte `clip_id` |
+| 404 | `30017_speech_clip_not_found` | Unbekannte `clip_id` |
 
 Reserviert und nicht umzuwidmen: `30006` und `30011`. Eine Transkription mit falschem Audiotyp ist `20001_validation_failed` mit Feld `Content-Type`. Eine Suche ohne Treffer ist 200 und eine leere Liste. Eine Nachricht mit unklarem Ort ist 201, `intent` ist `clarify` oder `unknown`.
 
@@ -251,6 +255,22 @@ In Array-Reihenfolge anwenden. Unbekannter `type`: dieses Element überspringen.
 | `set_closures` | Lokale Schließmenge durch die volle `closed_ids`-Liste ersetzen. |
 | `ask` | Klärungsoptionen zeigen, kein Formular. |
 | `building_patched` | Diese `floor_ids` neu per GET plan laden. |
+| `preview_objects` | Vorschau einer Editor-Aktion als Geister zeichnen: `assets`, `openings`, `connectors` im Zustand danach, `removed_ids` ausgeblendet. Ändert den Plan nicht. |
+
+### Objekt-Editor
+
+Regeln und Datenmodell stehen in `docs/superpowers/specs/2026-10-25-object-editor-design.md`. Hier steht der HTTP-Teil.
+
+- Katalog: `GET /api/v1/object-types` liefert `final_agent/object_types.json`, ohne Sitzung. Objekttypen tragen Default-Breite, -Tiefe und -Höhe.
+- Kinds: `add_object`, `update_object`, `remove_object`, `add_opening`, `add_connector`, `undo_edit`. Fehlende Felder oder `null` bedeuten Default beim Anlegen und „unverändert“ beim Ändern.
+- Vorschlagen prüft die Änderung auf einer Kopie der Sitzungskarte. Die Aktion speichert die normalisierte Proposal: Ids statt Namen, berechnete Position, gefüllte Defaults. Ohne Angabe bleibt `height_m` `null`, dann gilt die Katalog-Höhe. `preview_effects` = `preview_objects` plus `highlight_spaces` mit `reason: preview`.
+- Bestätigen wendet die gespeicherte Proposal an. `result` ist `EditResult`: `kind`, `summary`, `changed_ids`, `removed_ids`, `floor_ids`. Der Client lädt die Pläne aus `floor_ids` neu.
+- Sitzungsdateien: Jede bestätigte Gebäudeänderung (Editor-Kinds und `add_door`) schreibt in derselben Transaktion `agent_output/api/<session_id>/building_edited.json` und daneben `stacking_adapter.json`. Scheitert das Speichern, wird alles zurückgerollt: 500 `00001_internal`, die Aktion bleibt `pending` und kann erneut bestätigt werden. Andere Sitzungen und der Datensatz bleiben unverändert.
+- Undo: Ein Stapel von höchstens 20 Einträgen pro Sitzung. Jede bestätigte Gebäudeänderung außer `undo_edit` legt einen Eintrag an, auch eine bestätigte `add_door`-Tür. `undo_edit` stellt den Stand davor wieder her und behält die aktuellen Schließungen, minus Ids, die es dann nicht mehr gibt. Zusammenfassung `Undo: <summary>`. Ein leerer Stapel ergibt `30015_nothing_to_undo`.
+- Entfernen: Ein Objekt geht samt allem, was darauf steht. Öffnungen und Verbinder nur, wenn sie in der Sitzung hinzugefügt wurden.
+- Stapel und Höhen: `FloorPlan.stacking` listet die Objekte der Etage, die gestapelt sind, etwas tragen oder einen Höhen-Override haben, mit `layer`, `on_top_of`, `height_m`, `height_source` und `elevation_m`. Alle anderen stehen am Boden und haben die Katalog-Höhe.
+- Rolltreppe: Keine Kit-Doku nennt Rolltreppen. Annahme: beidseitig begehbar, Kosten wie eine Treppe, nie stufenfrei. Der Router bleibt unverändert.
+- Chat: Die Guide-Tools mit denselben Namen wie in der CLI schlagen nur vor. `ApiReply.intent` ist dann `edit`. `client_context.selected_object_id` (Objekt, Tür oder Verbinder) erreicht den Turn-Kontext.
 
 ### Auth, Limit, CSRF
 

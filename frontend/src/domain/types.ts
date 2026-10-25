@@ -36,6 +36,7 @@ export type Asset = {
   name: string
   category: string
   type: string
+  height_m?: number
   space_id: string
   floor_id: string
   position: Point
@@ -53,6 +54,16 @@ export type Connector = {
   synthetic: boolean
 }
 
+/** One row of `stacking_adapter.json` for this floor. Objects not listed have the catalog height. */
+export type StackingEntry = {
+  object_id: string
+  layer: number
+  on_top_of: string[]
+  height_m: number
+  height_source: 'override' | 'catalog'
+  elevation_m: number
+}
+
 export type FloorPlan = {
   floor: FloorSummary
   spaces: Space[]
@@ -61,6 +72,8 @@ export type FloorPlan = {
   connectors: Connector[]
   closed_ids: string[]
   bounds: { min: Point; max: Point }
+  /** Always sent by the editor-aware API. Optional for imported plans and older fixtures. */
+  stacking?: StackingEntry[]
 }
 
 export type Direction = { text: string; floor_id: string; at: Point }
@@ -106,13 +119,140 @@ export type ViewEffect =
   | { type: 'set_closures'; closed_ids: string[] }
   | AskEffect
   | { type: 'building_patched'; floor_ids: string[] }
+  | PreviewObjectsEffect
   | { type: string; [key: string]: unknown }
+
+/** State after a proposed edit, for every new or changed element. Drawn as ghosts. */
+export type PreviewObjectsEffect = {
+  type: 'preview_objects'
+  floor_ids: string[]
+  assets: Asset[]
+  openings: Opening[]
+  connectors: Connector[]
+  removed_ids: string[]
+}
+
+export type ActionProposal = { kind: string; element_ref?: string; closed?: boolean; [key: string]: unknown }
 
 export type PendingAction = {
   id: string
   status: string
   summary: string
-  proposal: { kind: string; element_ref?: string; closed?: boolean }
+  proposal: ActionProposal
+}
+
+/* Object editor: catalog, proposals and results (spec 3.3, 4.2, 4.4). */
+
+export type CatalogAction = 'add_object' | 'add_opening' | 'add_connector'
+
+export type ObjectType = {
+  id: string
+  label: string
+  action: CatalogAction
+  width_m: number | null
+  depth_m: number | null
+  height_m?: number | null
+  count: number
+}
+
+export type ObjectCategory = { id: string; label: string; types: ObjectType[] }
+export type ObjectGroup = { id: string; label: string; categories: ObjectCategory[] }
+export type ObjectCatalog = { schema_version: number; groups: ObjectGroup[] }
+
+export type EditKind = 'add_object' | 'update_object' | 'remove_object' | 'add_opening' | 'add_connector' | 'undo_edit'
+export type OpeningKind = 'door' | 'opening'
+export type ConnectorKind = 'stairs' | 'escalator' | 'lift'
+
+export type AddObjectProposal = {
+  kind: 'add_object'
+  type: string
+  category?: string | null
+  name?: string | null
+  space?: string | null
+  floor_id?: string | null
+  position?: Point | null
+  rotation_deg?: number | null
+  width_m?: number | null
+  depth_m?: number | null
+  height_m?: number | null
+  on_top_of?: string[] | null
+}
+
+export type UpdateObjectProposal = {
+  kind: 'update_object'
+  object_ref: string
+  name?: string | null
+  type?: string | null
+  category?: string | null
+  space?: string | null
+  floor_id?: string | null
+  position?: Point | null
+  rotation_deg?: number | null
+  width_m?: number | null
+  depth_m?: number | null
+  height_m?: number | null
+  on_top_of?: string[] | null
+  step_free?: boolean | null
+  opening_kind?: OpeningKind | null
+}
+
+export type RemoveObjectProposal = { kind: 'remove_object'; object_ref: string }
+
+export type AddOpeningProposal = {
+  kind: 'add_opening'
+  opening_kind?: OpeningKind
+  first_space?: string | null
+  second_space?: string | null
+  floor_id?: string | null
+  position?: Point | null
+  width_m?: number | null
+  step_free?: boolean
+}
+
+export type AddConnectorProposal = {
+  kind: 'add_connector'
+  connector_kind: ConnectorKind
+  spaces: string[]
+  name?: string | null
+  step_free?: boolean | null
+}
+
+export type UndoEditProposal = { kind: 'undo_edit' }
+
+export type EditProposal =
+  | AddObjectProposal
+  | UpdateObjectProposal
+  | RemoveObjectProposal
+  | AddOpeningProposal
+  | AddConnectorProposal
+  | UndoEditProposal
+
+export type EditResult = {
+  kind: EditKind
+  summary: string
+  changed_ids: string[]
+  removed_ids: string[]
+  floor_ids: string[]
+}
+
+export type Action = {
+  id: string
+  session_id?: string
+  status: string
+  summary: string
+  proposal: ActionProposal
+  preview_effects: ViewEffect[]
+  result: ({ kind: string; [key: string]: unknown }) | null
+  created_at?: string
+  expires_at?: string
+  resolved_at?: string | null
+}
+
+/** Sent with each chat message so the guide can resolve "here" and "it". */
+export type ClientContext = {
+  floor_level: number | null
+  selected_space_id?: string | null
+  selected_object_id?: string | null
 }
 
 export type Selection = {
