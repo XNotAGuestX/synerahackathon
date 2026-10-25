@@ -28,11 +28,8 @@ export function createCapture(onFrame: (frame: Float32Array) => void) {
       if (!window.isSecureContext) throw new MicrophoneError(copy.speechSecureContext)
       if (!navigator.mediaDevices?.getUserMedia || typeof AudioWorkletNode === 'undefined') throw new MicrophoneError(copy.speechMicrophoneUnavailable)
       stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
-      try {
-        context = new AudioContext({ sampleRate: SAMPLE_RATE })
-      } catch {
-        context = new AudioContext()
-      }
+      // Native rate: Firefox refuses to connect a 48 kHz microphone to a 16 kHz context; we downsample below.
+      context = new AudioContext()
       const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }))
       try { await context.audioWorklet.addModule(url) } finally { URL.revokeObjectURL(url) }
       const ratio = context.sampleRate / SAMPLE_RATE

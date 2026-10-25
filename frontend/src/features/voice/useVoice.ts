@@ -93,7 +93,8 @@ export function useVoice({ active, sessionId, send }: Options) {
       audio.onerror = finish
       audio.src = urlRef.current
       await audio.play()
-    } catch {
+    } catch (failure) {
+      if (failure instanceof DOMException && failure.name === 'NotAllowedError') setError(copy.voicePlaybackBlocked)
       finish()
     }
   }, [queue, refresh])
