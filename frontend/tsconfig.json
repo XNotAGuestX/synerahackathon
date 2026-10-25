@@ -16,5 +16,5 @@
     "jsx": "react-jsx"
   },
   "include": ["src", "vite.config.ts"],
-  "exclude": ["src/domain/effects.check.ts", "src/domain/walk-field.check.ts"]
+  "exclude": ["src/domain/effects.check.ts", "src/domain/walk-field.check.ts", "src/features/live/position-sync.check.ts"]
 }

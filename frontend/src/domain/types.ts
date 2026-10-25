@@ -135,3 +135,41 @@ export type Reply = {
   routes: Route[]
   pending: PendingAction | null
 }
+
+export type PositionSource = 'simulated' | 'wifi' | 'manual'
+export type PositionFix = { floor_id: string; x_m: number; y_m: number; accuracy_m: number | null; measured_at: string; source: PositionSource }
+export type LivePosition = {
+  floor_id: string
+  floor_level: number | null
+  x_m: number
+  y_m: number
+  accuracy_m: number | null
+  measured_at: string
+  received_at: string
+  source: PositionSource
+  space_id: string | null
+  space_name: string | null
+  tracking: 'live' | 'stale'
+}
+export type GuidanceWaypoint = { index: number; kind: string; floor_id: string; at: Point; text: string }
+export type Guidance = {
+  status: 'idle' | 'active' | 'arrived' | 'stopped'
+  route_id: string | null
+  destination_space_id: string | null
+  destination_name: string | null
+  target_index: number | null
+  waypoints: GuidanceWaypoint[]
+  remaining_m: number | null
+  tracking: 'none' | 'live' | 'stale'
+}
+export type GuidanceEvent = {
+  seq: number
+  kind: 'instruction' | 'wrong_way' | 'arrived' | 'stopped'
+  text: string
+  route_id: string | null
+  waypoint_index: number | null
+  speech_clip_id: string | null
+  created_at: string
+}
+export type GuidanceFeed = { schema_version: number; guidance: Guidance; events: GuidanceEvent[]; cursor: number }
+export type PositionAccepted = { schema_version: number; position: LivePosition; applied: boolean; guidance: Guidance | Record<string, unknown> | null }

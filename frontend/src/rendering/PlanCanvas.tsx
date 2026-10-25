@@ -21,6 +21,10 @@ type PlanCanvasProps = {
   markerArmed?: boolean
   onPlaceMarker?: (point: Point) => void
   stepFree?: boolean
+  walkerHere?: boolean
+  onWalkerMove?: (floorId: string, point: Point, source: 'walk' | 'jump') => void
+  onChangeFloor?: (floorId: string) => void
+  guidanceTarget?: Point | null
 }
 
 function polygonArea(polygon: Point[]): number {
@@ -119,6 +123,10 @@ function InteractivePlan({
   markerArmed = false,
   onPlaceMarker,
   stepFree = false,
+  walkerHere = true,
+  onWalkerMove,
+  onChangeFloor,
+  guidanceTarget = null,
 }: PlanCanvasProps & { plan: FloorPlan }) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [zoom, setZoom] = useState(1)
@@ -446,10 +454,11 @@ function InteractivePlan({
             <circle className="destination" cx={lastLeg.points.at(-1)![0]} cy={lastLeg.points.at(-1)![1]} r={0.9} />
           )}
           {stepPoint && <circle className="step-marker" cx={stepPoint[0]} cy={stepPoint[1]} r={1.05} />}
+          {guidanceTarget && <circle className="guidance-ring" cx={guidanceTarget[0]} cy={guidanceTarget[1]} r={3} />}
           {mockPoint && <circle className="mock-marker" cx={mockPoint[0]} cy={mockPoint[1]} r={1.3} />}
         </g>
       </svg>
-      <WalkPad svgRef={svgRef} plan={plan} route={route} closedIds={closedIds} stepFree={stepFree} />
+      <WalkPad svgRef={svgRef} plan={plan} route={route} closedIds={closedIds} stepFree={stepFree} walkerHere={walkerHere} onMove={onWalkerMove} onChangeFloor={onChangeFloor} />
       {hovered && <div className="map-tooltip" role="status" style={{ left: hoverPosition.x, top: hoverPosition.y }}><strong>{hovered.name}</strong><dl><dt>Type</dt><dd>{hovered.kind === 'space' ? 'Room / area' : hovered.kind === 'asset' ? 'Equipment / item' : 'Opening / connector'}</dd><dt>Floor</dt><dd>{hovered.floorName}</dd><dt>Details</dt><dd>{hovered.note || 'No additional details'}</dd></dl></div>}
     </div>
       <div

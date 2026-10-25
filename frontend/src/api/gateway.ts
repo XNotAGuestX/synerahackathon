@@ -1,5 +1,5 @@
 import { ApiError } from './errors'
-import type { FloorPlan, FloorSummary, Reply, ReplyId, Route } from '../domain/types'
+import type { FloorPlan, FloorSummary, Guidance, GuidanceFeed, PositionAccepted, PositionFix, Reply, ReplyId, Route } from '../domain/types'
 
 export type InputMode = 'text' | 'transcript'
 
@@ -41,13 +41,23 @@ export interface BuildingGateway {
   confirmAction(sessionId: string, actionId: string): Promise<ActionResult>
   cancelAction(sessionId: string, actionId: string): Promise<ActionResult>
   getAction(sessionId: string, actionId: string): Promise<ActionResult & { id: string; status: string }>
+  putPosition(sessionId: string, fix: PositionFix): Promise<PositionAccepted>
+  getGuidance(sessionId: string, after: number, waitS: number, signal?: AbortSignal): Promise<GuidanceFeed>
+  startGuidance(sessionId: string, routeId: string): Promise<Guidance | null>
+  stopGuidance(sessionId: string): Promise<void>
 }
 
-async function request<T>(config: GatewayConfig, path: string, init?: RequestInit, idempotencyKey?: string): Promise<T> {
+export type RequestOptions = { idempotencyKey?: string; signal?: AbortSignal; responseType?: 'json' | 'blob' }
+
+export async function request<T>(config: GatewayConfig, path: string, init?: RequestInit, options: RequestOptions | string = {}): Promise<T> {
+  const { idempotencyKey, signal, responseType = 'json' } = typeof options === 'string' ? { idempotencyKey: options } : options
+  const rawBody = init?.body
+  const binary = rawBody instanceof Blob || rawBody instanceof ArrayBuffer
   let response: Response
   try {
-    response = await fetch(`${config.baseUrl.replace(/\/$/, '')}${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}), ...(init?.headers ?? {}) } })
+    response = await fetch(`${config.baseUrl.replace(/\/$/, '')}${path}`, { ...init, ...(signal ? { signal } : {}), headers: { ...(binary ? {} : { 'Content-Type': 'application/json' }), ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}), ...(init?.headers ?? {}) } })
   } catch (error) {
+    if (signal?.aborted) throw error
     throw new ApiError(error instanceof Error ? error.message : 'API is unavailable.', '00001_internal', 'network', null, 0)
   }
   if (!response.ok) {
@@ -55,6 +65,8 @@ async function request<T>(config: GatewayConfig, path: string, init?: RequestIni
     const payload = await response.json().catch(() => null) as { code?: string; message?: string; trace_id?: string } | null
     throw new ApiError(payload?.message ?? `API request failed (${response.status})`, payload?.code ?? '00001_internal', payload?.trace_id ?? 'unknown', requestId, response.status)
   }
+  if (responseType === 'blob') return response.blob() as Promise<T>
+  if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
 }
 
@@ -130,6 +142,13 @@ export function createHttpGateway(config: GatewayConfig): BuildingGateway {
     async confirmAction(sessionId, actionId) { return normalizeAction(await request<ActionResult>(config, `/sessions/${sessionId}/actions/${actionId}/confirmations`, json({}), requestId())) },
     async cancelAction(sessionId, actionId) { return normalizeAction(await request<ActionResult>(config, `/sessions/${sessionId}/actions/${actionId}/cancellations`, json({}), requestId())) },
     async getAction(sessionId, actionId) { return request<ActionResult & { id: string; status: string }>(config, `/sessions/${sessionId}/actions/${actionId}`) },
+    async putPosition(sessionId, fix) { return request<PositionAccepted>(config, `/sessions/${sessionId}/position`, { method: 'PUT', body: JSON.stringify(fix) }) },
+    async getGuidance(sessionId, after, waitS, signal) { return request<GuidanceFeed>(config, `/sessions/${sessionId}/guidance?after=${after}&wait_s=${waitS}`, undefined, { signal }) },
+    async startGuidance(sessionId, routeId) {
+      const result = await request<{ guidance?: Guidance } | Guidance | undefined>(config, `/sessions/${sessionId}/guidance`, { method: 'PUT', body: JSON.stringify({ route_id: routeId }) })
+      return result && 'guidance' in result ? result.guidance ?? null : (result as Guidance | undefined) ?? null
+    },
+    async stopGuidance(sessionId) { await request<unknown>(config, `/sessions/${sessionId}/guidance`, { method: 'DELETE' }) },
   }
 }
 

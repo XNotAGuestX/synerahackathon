@@ -129,5 +129,9 @@ export const copy = {
   walkEmpty: 'This floor has no walkable room.',
   walkMetres: 'm',
   walkSpeed: 'Speed',
+  takeStairs: 'Take stairs',
+  takeLift: 'Take lift',
+  guideMe: 'Guide me',
+  stopGuidance: 'Stop guidance',
   walkMetresPerSecond: 'metres per second',
 }

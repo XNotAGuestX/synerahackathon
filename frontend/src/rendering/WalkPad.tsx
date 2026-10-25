@@ -29,6 +29,10 @@ type WalkPadProps = {
   route: Route | null
   closedIds: string[]
   stepFree: boolean
+  // False when the walker is on another floor than the one shown: it is hidden and emits nothing.
+  walkerHere?: boolean
+  onMove?: (floorId: string, point: Point, source: 'walk' | 'jump') => void
+  onChangeFloor?: (floorId: string) => void
 }
 
 const DIR: Record<Dir, Point> = {
@@ -67,6 +71,7 @@ const SPEED_STORAGE_KEY = 'wayfinder-walk-speed'
 const SPEED_MIN_M_S = 0.4
 const SPEED_MAX_M_S = 4
 const VIEWPORT_MARGIN = 8
+const CONNECTOR_NEAR_M = 3
 
 type PadPlace = { x: number; y: number; hidden: boolean }
 
@@ -139,12 +144,24 @@ function pixelsPerMetre(svg: SVGSVGElement): number {
   return Math.hypot(end.x - start.x, end.y - start.y)
 }
 
-export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadProps) {
+export function WalkPad({ svgRef, plan, route, closedIds, stepFree, walkerHere = true, onMove, onChangeFloor }: WalkPadProps) {
   const tokenRef = useRef<HTMLDivElement>(null)
   const originRef = useRef<HTMLSpanElement>(null)
   const destRef = useRef<HTMLSpanElement>(null)
   const readoutRef = useRef<HTMLSpanElement>(null)
   const pointRef = useRef<Point | null>(null)
+  const pointsByFloor = useRef(new Map<string, Point>())
+  const lastFloorRef = useRef<string | null>(null)
+  const onMoveRef = useRef(onMove)
+  onMoveRef.current = onMove
+  const walkerHereRef = useRef(walkerHere)
+  walkerHereRef.current = walkerHere
+  const planRef = useRef(plan)
+  planRef.current = plan
+  const routeRef = useRef(route)
+  routeRef.current = route
+  const [connectorNear, setConnectorNear] = useState<{ floorId: string; kind: string } | null>(null)
+  const nearRef = useRef<string | null>(null)
   const headingRef = useRef(0)
   const held = useRef(new Set<Dir>())
   const followRef = useRef(false)
@@ -176,6 +193,34 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
   fieldRef.current = field
   marksRef.current = marks
 
+  // The one place the walker point is written. 'jump' covers spawn, snap and respawn.
+  const setPoint = (next: Point | null, source: 'walk' | 'jump') => {
+    pointRef.current = next
+    if (!next) return
+    const current = planRef.current
+    pointsByFloor.current.set(current.floor.id, next)
+    if (!walkerHereRef.current) return
+    onMoveRef.current?.(current.floor.id, next, source)
+    // A connector counts when it ends this floor's leg and another floor follows.
+    const route = routeRef.current
+    const legs = route?.reachable ? route.legs : []
+    let found: { floorId: string; kind: string } | null = null
+    legs.forEach((leg, index) => {
+      const after = legs[index + 1]
+      const end = leg.points.at(-1)
+      if (found || leg.floor_id !== current.floor.id || !after || after.floor_id === leg.floor_id || !end) return
+      if (Math.hypot(end[0] - next[0], end[1] - next[1]) > CONNECTOR_NEAR_M) return
+      const connector = current.connectors.find((item) => item.floor_ids.includes(after.floor_id))
+      found = { floorId: after.floor_id, kind: connector?.kind ?? 'stairs' }
+    })
+    const target = found as { floorId: string; kind: string } | null
+    const key = target ? target.floorId : null
+    if (key !== nearRef.current) {
+      nearRef.current = key
+      setConnectorNear(target)
+    }
+  }
+
   const publish = (blocked: BlockCause | null, moving: boolean) => {
     const point = pointRef.current
     const destination = marksRef.current.destination
@@ -194,6 +239,7 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
     const wrap = token?.parentElement
     const point = pointRef.current
     if (!token || !svg || !wrap || !point) return
+    token.hidden = !walkerHereRef.current
     const pixel = project(svg, wrap, point)
     if (!pixel) return
     const scale = pixelsPerMetre(svg)
@@ -278,8 +324,13 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
   }, [place.hidden])
 
   useEffect(() => {
-    const next = spawnPoint(plan, fieldRef.current, route)
-    pointRef.current = next
+    // Keep the walker where it is on the same floor; respawn on a floor change or when there is no point.
+    const floorChanged = lastFloorRef.current !== plan.floor.id
+    lastFloorRef.current = plan.floor.id
+    const kept = floorChanged ? pointsByFloor.current.get(plan.floor.id) ?? null : pointRef.current
+    const stay = kept && !standCause(fieldRef.current, kept) ? kept : null
+    const next = stay ?? spawnPoint(plan, fieldRef.current, route)
+    setPoint(next, 'jump')
     headingRef.current = 0
     followRef.current = false
     cursorRef.current = 0
@@ -296,7 +347,7 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
   useEffect(() => {
     const point = pointRef.current
     if (!point || !standCause(field, point)) return
-    pointRef.current = nearestStand(field, point) ?? spawnPoint(plan, fieldRef.current, route)
+    setPoint(nearestStand(field, point) ?? spawnPoint(plan, fieldRef.current, route), 'jump')
     paint()
   }, [field, plan, route])
 
@@ -366,6 +417,7 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
       if (held.current.size === 0 && !followRef.current) return
+      if (!walkerHereRef.current) return
       const point = pointRef.current
       if (!point) return
       if (held.current.size > 0) {
@@ -377,7 +429,7 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
         const pace = speedRef.current
         const next = moveWalker(fieldRef.current, point, [dir[0] * pace * dt, dir[1] * pace * dt])
         const stuck = Math.hypot(next.point[0] - point[0], next.point[1] - point[1]) < 0.002
-        pointRef.current = next.point
+        setPoint(next.point, 'walk')
         publish(stuck ? next.cause : null, true)
         paint()
         return
@@ -400,7 +452,7 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
       const delta: Point = distance < 1e-6 ? [0, 0] : [(dx / distance) * step, (dy / distance) * step]
       const next = moveWalker(fieldRef.current, point, delta)
       const moved = Math.hypot(next.point[0] - point[0], next.point[1] - point[1])
-      pointRef.current = next.point
+      setPoint(next.point, 'walk')
       stuckRef.current = moved < 0.002 ? stuckRef.current + dt : 0
       if (stuckRef.current > 0.35) {
         followRef.current = false
@@ -443,7 +495,7 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
     const step = Math.max(0.15, speedRef.current * 0.35)
     const next = moveWalker(fieldRef.current, point, [vector[0] * step, vector[1] * step])
     const stuck = Math.hypot(next.point[0] - point[0], next.point[1] - point[1]) < 0.002
-    pointRef.current = next.point
+    setPoint(next.point, 'walk')
     publish(stuck ? next.cause : null, false)
     paint()
   }
@@ -457,7 +509,7 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
     }
   }
   const reset = () => {
-    pointRef.current = marksRef.current.origin ?? spawnPoint(plan, fieldRef.current, route)
+    setPoint(marksRef.current.origin ?? spawnPoint(plan, fieldRef.current, route), 'jump')
     headingRef.current = 0
     followRef.current = false
     cursorRef.current = 0
@@ -517,6 +569,15 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
     followRef.current = true
     setFollowing(true)
     publish(null, true)
+  }
+
+  const takeConnector = () => {
+    if (!connectorNear) return
+    // Forget the old point on the target floor so the spawn lands at that floor's leg start.
+    pointsByFloor.current.delete(connectorNear.floorId)
+    nearRef.current = null
+    setConnectorNear(null)
+    onChangeFloor?.(connectorNear.floorId)
   }
 
   const hasDestination = Boolean(marks.destination)
@@ -623,6 +684,7 @@ export function WalkPad({ svgRef, plan, route, closedIds, stepFree }: WalkPadPro
                   <button type="button" onClick={toggleFollow} disabled={marks.leg.length < 2} aria-pressed={following}>{following ? copy.stopFollowing : copy.followRoute}</button>
                   <button type="button" onClick={reset} disabled={mode === 'empty'}>{marks.origin ? copy.returnToA : copy.resetPosition}</button>
                 </div>
+                {connectorNear && walkerHere && <div className="walk-actions"><button type="button" onClick={takeConnector}>{connectorNear.kind === 'lift' ? copy.takeLift : copy.takeStairs}</button></div>}
                 <p className="walk-status" role="status" data-walk-status={mode}>{status}</p>
               </>
             )}

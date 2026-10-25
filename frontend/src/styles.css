@@ -967,6 +967,7 @@ button:disabled { cursor: default; }
 .handoff circle { fill: var(--color-destination); stroke: var(--color-surface); stroke-width: 0.2; }
 .plan .start { fill: var(--color-start); stroke: var(--color-surface); stroke-width: 2px; pointer-events: none; }
 .plan .destination { fill: var(--color-destination); stroke: var(--color-surface); stroke-width: 2px; pointer-events: none; }
+.guidance-ring { fill: none; stroke: var(--color-primary); stroke-width: 0.16; stroke-dasharray: 0.5 0.4; pointer-events: none; }
 .step-marker { fill: none; stroke: var(--color-start); stroke-width: 0.16; pointer-events: none; }
 .focus-ring { display: none; }
 

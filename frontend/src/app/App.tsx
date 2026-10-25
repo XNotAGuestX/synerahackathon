@@ -15,6 +15,9 @@ import type { AskOption, FloorPlan, FloorSummary, Point, Reply, ReplyId, Selecti
 import { DebugPanel } from '../features/debug/DebugPanel'
 import { PlaceDiscovery } from '../features/discovery/PlaceDiscovery'
 import { GuidePanel } from '../features/guide/GuidePanel'
+import { useGuidanceFeed } from '../features/live/useGuidanceFeed'
+import { usePositionSync } from '../features/live/usePositionSync'
+import type { Walker } from '../features/live/usePositionSync'
 import { copy } from '../i18n/en'
 import { PlanImport } from '../features/building-ingestion/PlanImport'
 import { PlanCanvas } from '../rendering/PlanCanvas'
@@ -34,6 +37,9 @@ export function App() {
   const inputRef = useRef<HTMLInputElement>(null)
   const announcedPoint = useRef<Point | null>(null)
   const sessionRef = useRef('')
+  const walkerRef = useRef<Walker | null>(null)
+  const jumpSeqRef = useRef(0)
+  const viewedFloorRef = useRef('')
   const [query, setQuery] = useState('')
   const [replyId, setReplyId] = useState<ReplyId | 'miss'>('accepted')
   const [liveReply, setLiveReply] = useState<Reply | null>(null)
@@ -42,6 +48,8 @@ export function App() {
   const [plans, setPlans] = useState<Map<string, FloorPlan>>(new Map(catalog.floors.map((floor) => [floor.id, catalog.plans.get(floor.id)!])))
   const [floorId, setFloorId] = useState(catalog.floors.find((floor) => floor.level === 0)?.id ?? catalog.floors[0].id)
   const [floorPinned, setFloorPinned] = useState(false)
+  // Null until the walker first appears; afterwards the floor it stands on.
+  const [walkerFloorId, setWalkerFloorId] = useState<string | null>(null)
   const [selection, setSelection] = useState<Selection | null>(null)
   const [activePanel, setActivePanel] = useState<'guide' | 'debug'>('guide')
   const [mapFocusActive, setMapFocusActive] = useState(false)
@@ -92,6 +100,8 @@ export function App() {
     setBooting(true)
     window.localStorage.setItem('wayfinder-building', buildingId)
     setSessionId('')
+    setWalkerFloorId(null)
+    walkerRef.current = null
     setHereId(null)
     setPendingDestination(null)
     setLiveReply(null)
@@ -221,6 +231,37 @@ export function App() {
 
   const floor = floors.find((item) => item.id === floorId) ?? floors[0] ?? catalog.floors[0]
   const plan = plans.get(floor.id) ?? null
+  viewedFloorRef.current = floor.id
+  const walkerHere = walkerFloorId === null || walkerFloorId === floor.id
+  usePositionSync(sessionId, () => {
+    const walker = walkerRef.current
+    return walker && walker.floorId === viewedFloorRef.current ? walker : null
+  })
+  const feed = useGuidanceFeed(sessionId)
+  const guidanceActive = feed.guidance?.status === 'active'
+  const targetWaypoint = guidanceActive ? feed.guidance?.waypoints.find((waypoint) => waypoint.index === feed.guidance?.target_index) ?? null : null
+  const guidanceTarget = targetWaypoint && targetWaypoint.floor_id === floor.id ? targetWaypoint.at : null
+  const onWalkerMove = (moveFloorId: string, point: Point, source: 'walk' | 'jump') => {
+    if (source === 'jump') jumpSeqRef.current += 1
+    walkerRef.current = { floorId: moveFloorId, point, jumpSeq: jumpSeqRef.current }
+    setWalkerFloorId((current) => current === moveFloorId ? current : moveFloorId)
+  }
+  const changeWalkerFloor = (nextFloorId: string) => {
+    setWalkerFloorId(nextFloorId)
+    setFloorId(nextFloorId)
+    setFloorPinned(true)
+  }
+  const guideMe = async () => {
+    const route = presentation.route
+    if (!sessionId || !route?.reachable) return
+    try { await gateway.startGuidance(sessionId, route.id) } catch (error: unknown) { setLoadError(toUiError(error)) }
+    feed.refresh()
+  }
+  const stopGuidance = async () => {
+    if (!sessionId) return
+    try { await gateway.stopGuidance(sessionId) } catch (error: unknown) { setLoadError(toUiError(error)) }
+    feed.refresh()
+  }
   const step = presentation.route?.directions[directionIndex]
   const nextText = !presentation.route ? copy.askRoute : presentation.route.reachable ? (step?.text ?? copy.askRoute) : copy.noRoute
   const visibleEffects = decision === 'confirmed' ? confirmedEffects : decision === 'cancelled' || !reply ? [] : reply.effects
@@ -456,7 +497,7 @@ export function App() {
     {booting && <p className="app-status" role="status">{copy.loadingPlan}</p>}
     {loadError && <div className="app-alert" role="alert"><strong>{loadError.code ?? copy.apiUnavailable}</strong><span>{loadError.message}</span>{loadError.traceId && <span>trace {loadError.traceId}</span>}{loadError.requestId && <span>request {loadError.requestId}</span>}</div>}
     <PlaceDiscovery plans={[...plans.values()]} floors={floors} stepFree={stepFree} busyId={routingId} onToggleStepFree={toggleStepFree} onFocus={focusDiscoveryPlace} onRoute={routeToPlace} />
-    <section className="workspace"><div className="map-column"><div className="map-toolbar"><div><span className="eyebrow">{copy.planEyebrow}</span><h1>{floor.name}</h1></div><div className="floor-rail" role="toolbar" aria-label="Floors">{floors.map((item) => <button type="button" key={item.id} className={item.id === floor.id ? 'active' : undefined} aria-pressed={item.id === floor.id} aria-label={`${copy.showFloor} ${item.name}`} onClick={() => { setFloorId(item.id); setFloorPinned(true) }}>{item.level}</button>)}<button type="button" className="floor-rail-toggle" aria-pressed={stackOpen} onClick={() => setStackOpen((open) => !open)}>{stackOpen ? copy.flatPlan : copy.stackFloors}</button>{debugEnabled && <button type="button" aria-pressed={activePanel === 'debug' && mapFocusActive} onClick={() => { setMapFocusActive(true); setActivePanel('debug') }}>{copy.debug}</button>}</div></div><div className="plan-stage"><PlanCanvas plan={plan} floorName={floor.name} route={presentation.route} spaceReasons={presentation.spaceReasons} assetIds={presentation.assetIds} closedIds={presentation.closedIds} focusPoint={presentation.focusFloorId === floor.id ? presentation.focusPoint : null} stepPoint={step?.floor_id === floor.id ? step.at : null} storyIndex={directionIndex} selectionId={selection?.id ?? null} onSelect={setSelection} onFocusSelection={(focused) => { setMapFocusActive(Boolean(focused)); setActivePanel(debugEnabled && focused ? 'debug' : 'guide') }} mockPoint={mockPoint} markerArmed={markerArmed} stepFree={stepFree} onPlaceMarker={(point) => { setMockPoint(point); setMarkerArmed(false); const near = plan?.spaces.find((space) => space.polygon.length > 0 && Math.hypot(point[0] - space.polygon[0][0], point[1] - space.polygon[0][1]) < 8); if (near) void sendText(`I am at ${near.name}`) }} /><div className="map-caption" role="status">{selection ? <><strong>{selection.name}</strong><span>{selection.floorName}</span></> : <><span className="legend-dot focus-dot" /> {copy.destinationFocus}</>}</div></div>{stackOpen && <FloorStack3D plans={[...plans.values()]} route={presentation.route} activeFloorId={floor.id} />}<PlanImport onApply={(imported) => { const id = `imported:${imported.floor.id}`; setImportedPlans((current) => new Map(current).set(id, imported)); setBuildings((current) => current.some((item) => item.id === id) ? current : [...current, { id, name: `${copy.importedSession}: ${imported.floor.name}`, floors: 1, has_lift: imported.connectors.some((item) => item.kind === 'lift'), has_step_free_entrance: imported.openings.some((item) => item.kind === 'entrance' && item.step_free) }]); setBuildingId(id) }} /><p className="revision-note"><span className="eyebrow">{copy.revision}</span><span className="mono">{revision}</span></p></div>
+    <section className="workspace"><div className="map-column"><div className="map-toolbar"><div><span className="eyebrow">{copy.planEyebrow}</span><h1>{floor.name}</h1></div><div className="floor-rail" role="toolbar" aria-label="Floors">{floors.map((item) => <button type="button" key={item.id} className={item.id === floor.id ? 'active' : undefined} aria-pressed={item.id === floor.id} aria-label={`${copy.showFloor} ${item.name}`} onClick={() => { setFloorId(item.id); setFloorPinned(true) }}>{item.level}</button>)}<button type="button" className="floor-rail-toggle" aria-pressed={stackOpen} onClick={() => setStackOpen((open) => !open)}>{stackOpen ? copy.flatPlan : copy.stackFloors}</button>{debugEnabled && <button type="button" aria-pressed={activePanel === 'debug' && mapFocusActive} onClick={() => { setMapFocusActive(true); setActivePanel('debug') }}>{copy.debug}</button>}</div></div><div className="plan-stage"><PlanCanvas plan={plan} floorName={floor.name} route={presentation.route} spaceReasons={presentation.spaceReasons} assetIds={presentation.assetIds} closedIds={presentation.closedIds} focusPoint={presentation.focusFloorId === floor.id ? presentation.focusPoint : null} stepPoint={step?.floor_id === floor.id ? step.at : null} storyIndex={directionIndex} selectionId={selection?.id ?? null} onSelect={setSelection} onFocusSelection={(focused) => { setMapFocusActive(Boolean(focused)); setActivePanel(debugEnabled && focused ? 'debug' : 'guide') }} mockPoint={mockPoint} markerArmed={markerArmed} stepFree={stepFree} walkerHere={walkerHere} onWalkerMove={onWalkerMove} onChangeFloor={changeWalkerFloor} guidanceTarget={guidanceTarget} onPlaceMarker={(point) => { setMockPoint(point); setMarkerArmed(false); const near = plan?.spaces.find((space) => space.polygon.length > 0 && Math.hypot(point[0] - space.polygon[0][0], point[1] - space.polygon[0][1]) < 8); if (near) void sendText(`I am at ${near.name}`) }} /><div className="map-caption" role="status">{selection ? <><strong>{selection.name}</strong><span>{selection.floorName}</span></> : <><span className="legend-dot focus-dot" /> {copy.destinationFocus}</>}</div></div>{stackOpen && <FloorStack3D plans={[...plans.values()]} route={presentation.route} activeFloorId={floor.id} />}<PlanImport onApply={(imported) => { const id = `imported:${imported.floor.id}`; setImportedPlans((current) => new Map(current).set(id, imported)); setBuildings((current) => current.some((item) => item.id === id) ? current : [...current, { id, name: `${copy.importedSession}: ${imported.floor.name}`, floors: 1, has_lift: imported.connectors.some((item) => item.kind === 'lift'), has_step_free_entrance: imported.openings.some((item) => item.kind === 'entrance' && item.step_free) }]); setBuildingId(id) }} /><p className="revision-note"><span className="eyebrow">{copy.revision}</span><span className="mono">{revision}</span></p></div>
       <div className="guide-region">
         {mapFocusActive && <div className="panel-tabs" role="tablist" aria-label="Guide views">
           <button type="button" role="tab" aria-selected={activePanel === 'guide'} className={activePanel === 'guide' ? 'active' : undefined} onClick={() => { setActivePanel('guide') }}>Your Guide</button>
@@ -465,6 +506,6 @@ export function App() {
         {!mapFocusActive || activePanel === 'guide' ? <GuidePanel query={query} presentation={presentation} directionIndex={directionIndex} onQuery={setQuery} onSubmit={submit} onChoose={(option) => { void chooseOption(option) }} onConfirm={confirm} onCancel={cancel} onReplay={() => { setDirectionIndex(0); setPlaying(true) }} onAskText={(text) => { void sendText(text) }} onReopen={() => { const ids = appliedClosed ?? presentation.closedIds; const named = ids[0] ? placeName(ids[0]) : ''; void sendText(named && named !== ids[0] ? `Reopen ${named}` : ids[0] ? `Reopen ${ids[0]}` : copy.reopen) }} onShowFloor={(nextFloor) => { setFloorId(nextFloor); setFloorPinned(true) }} hereName={hereId ? placeName(hereId) : null} inputMode={inputMode} onInputMode={setInputMode} inputRef={inputRef} label={placeName} floors={floors} /> : <DebugPanel selection={selection} presentation={presentation} effects={visibleEffects} facts={plan && selection ? selectionFacts(plan, selection) : null} markerArmed={markerArmed} onArmMarker={() => setMarkerArmed((armed) => !armed)} onLoad={loadReply} onLeavePreview={() => setSampleId(null)} />}
       </div>
     </section>
-    <footer className="next-bar"><div><span className="eyebrow">{copy.nextStep}</span><strong>{loading ? copy.working : checkpointNote ?? nextText}</strong></div><button type="button" className="next-distance" onClick={() => setPlaying((value) => !value)} disabled={!presentation.route?.reachable} aria-pressed={playing}>{playing ? copy.pause : copy.play}</button><button type="button" className="next-distance" onClick={advance} disabled={!presentation.route?.reachable}>{presentation.route?.reachable ? `${formatMetres(presentation.route.length_m)} ->` : `${copy.noRoute} ->`}</button></footer>
+    <footer className="next-bar"><div><span className="eyebrow">{copy.nextStep}</span><strong>{loading ? copy.working : guidanceActive && feed.latestInstruction ? feed.latestInstruction.text : checkpointNote ?? nextText}</strong></div>{guidanceActive ? <button type="button" className="next-distance" onClick={() => { void stopGuidance() }}>{copy.stopGuidance}</button> : presentation.route?.reachable && !sessionId.startsWith('local-') && <button type="button" className="next-distance" onClick={() => { void guideMe() }}>{copy.guideMe}</button>}<button type="button" className="next-distance" onClick={() => setPlaying((value) => !value)} disabled={!presentation.route?.reachable} aria-pressed={playing}>{playing ? copy.pause : copy.play}</button><button type="button" className="next-distance" onClick={advance} disabled={!presentation.route?.reachable}>{presentation.route?.reachable ? `${formatMetres(presentation.route.length_m)} ->` : `${copy.noRoute} ->`}</button></footer>
   </main>
 }
