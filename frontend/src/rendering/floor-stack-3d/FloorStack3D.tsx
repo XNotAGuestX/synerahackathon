@@ -16,6 +16,8 @@ type FloorStack3DProps = {
   onSelectFloor?: (floorId: string) => void
   /** Clicked items, and clicked rooms of the single-floor view. */
   onSelect?: (selection: Selection) => void
+  /** The selected element; an item gets an outline. */
+  selectedId?: string | null
 }
 
 /** `single` shows only the viewed floor; `all` is the exploded overview of every floor. */
@@ -73,6 +75,7 @@ type View = { position: THREE.Vector3; target: THREE.Vector3; zoom: number }
 type SceneApi = {
   focus: (floorId: string, mode: StackMode) => void
   resetView: () => void
+  select: (id: string | null) => void
 }
 
 // About 23° above the horizon: lower than true isometric so the gaps between floors read clearly.
@@ -233,7 +236,7 @@ function LayersIcon() {
   )
 }
 
-export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activeFloorId, onSelectFloor, onSelect }: FloorStack3DProps) {
+export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activeFloorId, onSelectFloor, onSelect, selectedId = null }: FloorStack3DProps) {
   const plans = useStableItems(incomingPlans)
   const route = useStableRoute(incomingRoute)
   const host = useRef<HTMLDivElement>(null)
@@ -243,7 +246,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [tip, setTip] = useState<{ item: Selection; x: number; y: number } | null>(null)
   const [expanded, setExpanded] = useState(false)
-  const [mode, setMode] = useState<StackMode>('single')
+  const [mode, setMode] = useState<StackMode>('all')
   // The floor shown in the stack. It follows the plan's floor, and picking a floor here updates the plan too.
   const [viewedId, setViewedId] = useState(activeFloorId)
   useEffect(() => setViewedId(activeFloorId), [activeFloorId])
@@ -261,6 +264,8 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
   selectRef.current = selectFloor
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
+  const selectedRef = useRef(selectedId)
+  selectedRef.current = selectedId
 
   const ordered = useMemo(() => [...plans].sort((left, right) => left.floor.elevation_m - right.floor.elevation_m), [plans])
   const routeFloors = useMemo(() => new Set((route?.legs ?? []).filter((leg) => leg.points.length > 0).map((leg) => leg.floor_id)), [route])
@@ -333,6 +338,25 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
     for (const plan of ordered) {
       for (const space of plan.spaces) spaces.set(space.id, { plan, space })
       for (const asset of plan.assets) assets.set(asset.id, { plan, asset })
+    }
+    // Highlight: a box outline around the hovered and the selected item model.
+    const instances = new Map<string, { mesh: THREE.InstancedMesh; index: number }>()
+    const boxEdges = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0))
+    const outline = (opacity: number) => {
+      const line = new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ transparent: true, opacity, depthTest: false }))
+      line.matrixAutoUpdate = false
+      line.renderOrder = 12
+      return line
+    }
+    const hoverOutline = outline(0.55)
+    const selectOutline = outline(1)
+    // The instance matrix maps the unit box onto the model's footprint and height; the object group carries the floor's animation.
+    const outlineItem = (line: ReturnType<typeof outline>, id: string | null) => {
+      const found = id ? instances.get(id) : undefined
+      if (!found) { line.removeFromParent(); return }
+      found.mesh.getMatrixAt(found.index, line.matrix)
+      line.matrixWorldNeedsUpdate = true
+      found.mesh.parent?.add(line)
     }
     const fader = <M extends THREE.Material>(material: M) => ({ material, base: 1 })
 
@@ -462,8 +486,10 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
         objectGroup.traverse((object) => {
           if (!(object instanceof THREE.InstancedMesh)) return
           targets.push(object)
+          for (const [index, id] of ((object.userData.assetIds ?? []) as string[]).entries()) if (!instances.has(id)) instances.set(id, { mesh: object, index })
           for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material)
         })
+        outlineItem(selectOutline, selectedRef.current)
         for (const material of materials) {
           models.push({ material, opacity: material.opacity, depthWrite: material.depthWrite })
           material.transparent = true
@@ -607,6 +633,8 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       shaftMaterials.stair.color.copy(palette.danger)
       linkMaterial.color.copy(palette.primary)
       pulseMaterial.color.copy(palette.start)
+      hoverOutline.material.color.copy(palette.primary)
+      selectOutline.material.color.copy(palette.primary)
     }
     paint()
 
@@ -744,11 +772,18 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       setHoveredId(floorId)
       paint()
     }
+    let hoverId: string | null = null
+    const hoverItem = (id: string | null) => {
+      if (id === hoverId) return
+      hoverId = id
+      outlineItem(hoverOutline, id)
+    }
     const onPointerMove = (event: PointerEvent) => {
       // A held button orbits or pans the camera, so the tooltip waits until the pointer moves freely.
-      if (event.buttons !== 0) { showTip(null); return }
+      if (event.buttons !== 0) { showTip(null); hoverItem(null); return }
       const rect = aim(event)
       const thing = thingAt()
+      hoverItem(thing?.kind === 'asset' ? thing.id : null)
       setHovered(pick())
       showTip(thing, Math.round(event.clientX - rect.left) + 14, Math.round(event.clientY - rect.top) + 14)
       renderer.domElement.style.cursor = thing?.kind === 'asset' || (hoveredFloor && stackMode === 'all') ? 'pointer' : ''
@@ -773,6 +808,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
     const onPointerLeave = () => {
       setHovered(null)
       showTip(null)
+      hoverItem(null)
       renderer.domElement.style.cursor = ''
     }
     // Zooming or orbiting moves the scene under a resting pointer, which would leave the tooltip stale.
@@ -886,7 +922,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
     }
     frame = requestAnimationFrame(animate)
 
-    api.current = { focus, resetView }
+    api.current = { focus, resetView, select: (id) => outlineItem(selectOutline, id) }
     return () => {
       savedView.current = { key: sceneKey, view: current(), atHome }
       api.current = null
@@ -907,6 +943,10 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
         if (Array.isArray(material)) material.forEach((item) => item.dispose())
         else material?.dispose()
       })
+      // Detached outlines are not in the scene graph.
+      boxEdges.dispose()
+      hoverOutline.material.dispose()
+      selectOutline.material.dispose()
       renderer.dispose()
       element.replaceChildren()
       setHoveredId(null)
@@ -915,6 +955,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
   }, [ordered, route])
 
   useEffect(() => { api.current?.focus(viewedId, mode) }, [viewedId, mode])
+  useEffect(() => { api.current?.select(selectedId) }, [selectedId])
 
   useEffect(() => {
     if (!expanded) return

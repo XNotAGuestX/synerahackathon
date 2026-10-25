@@ -222,7 +222,7 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
     setConfirming(null)
     setError(null)
     announce(text.closed)
-    window.requestAnimationFrame(() => buttonRef.current?.focus())
+    window.requestAnimationFrame(() => buttonRef.current?.focus({ preventScroll: true }))
   }
 
   const askDiscard = (intent: DiscardIntent) => {

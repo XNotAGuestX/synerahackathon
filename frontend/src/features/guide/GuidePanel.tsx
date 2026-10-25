@@ -64,6 +64,8 @@ function createSpeechRecognition(): BrowserSpeech | null {
 type GuidePanelProps = {
   query: string
   presentation: Presentation
+  /** A message is on its way to the guide. */
+  loading: boolean
   directionIndex: number
   onQuery: (value: string) => void
   onSubmit: (event: FormEvent) => void
@@ -88,6 +90,7 @@ type GuidePanelProps = {
 export function GuidePanel({
   query,
   presentation,
+  loading,
   directionIndex,
   onQuery,
   onSubmit,
@@ -197,7 +200,7 @@ export function GuidePanel({
         </div>
       )}
       {inputMode === 'voice' && voice.error && <p className="guide-text" role="alert">{voice.error}</p>}
-      <form onSubmit={onSubmit} className="composer">
+      <form onSubmit={onSubmit} className="composer" aria-busy={loading}>
         {transcript && (
           <button type="button" className="listen-button" aria-pressed={listening} onClick={listen}>
             {listening ? copy.listening : copy.listen}
@@ -212,10 +215,18 @@ export function GuidePanel({
           placeholder={copy.placeholder}
           aria-label={copy.prompt}
         />
-        <button type="submit" aria-label={copy.findRoute}>→</button>
+        <button type="submit" aria-label={loading ? copy.working : copy.findRoute} disabled={loading}>
+          {loading ? <span className="spinner" aria-hidden="true" /> : '→'}
+        </button>
       </form>
       {speechNote && <p className="guide-text" role="status">{speechNote}</p>}
       <div className="guide-content" aria-live="polite">
+        {loading && (
+          <p className="guide-thinking" role="status">
+            <span className="thinking-dots" aria-hidden="true"><span /><span /><span /></span>
+            {copy.working}
+          </p>
+        )}
         {presentation.alert && (
           <div role="alert" className={`notice ${presentation.alert.tone}`}>
             <span aria-hidden="true">{presentation.alert.tone === 'red' ? '!' : presentation.alert.tone === 'green' ? '✓' : '?'}</span>

@@ -63,8 +63,8 @@ def main() -> int:
             """() => axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] } })
               .then(result => result.violations.map(item => item.id + ' ' + item.nodes.length))"""
         )
-        page.get_by_role("button", name="Stack floors").click()
-        page.wait_for_timeout(400)
+        # The exploded 3D stack is open by default next to the flat plan.
+        page.locator(".floor-stack-3d canvas").first.wait_for(timeout=10000)
         check("three canvas", page.locator(".floor-stack-3d canvas").count() == 1)
         check("axe wcag", violations == [])
         if violations:
