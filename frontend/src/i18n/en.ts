@@ -286,7 +286,6 @@ export const copy = {
       crosses_wall: 'It crosses a wall.',
       floating: 'It would float. Keep it on top of what it stands on, or put it on the floor.',
       support_other_space: 'What it stands on must be in the same room.',
-      exceeds_ceiling: 'It would reach above the ceiling.',
     } as Record<string, string>,
     errors: {
       codes: {
@@ -311,7 +310,6 @@ export const copy = {
         support_cycle: 'An object cannot stand on itself or on something that stands on it.',
         support_other_space: 'What it stands on must be in the same room on the same floor.',
         would_strand: 'Something on top would float after this change. Move or remove it first.',
-        exceeds_ceiling: 'Too tall: the top would be above the ceiling.',
         not_stacked: 'The rooms on neighbouring floors must lie on top of each other.',
         same_floor: 'Pick each room on a different floor.',
       } as Record<string, string>,

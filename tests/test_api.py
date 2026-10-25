@@ -27,6 +27,7 @@ from final_agent.speech import SpeechError
 from final_agent.storage import RoomNoteStore
 from test_hull import ScriptedClient, ScriptedRunner, call, reply, say
 from test_storage import example_building
+from test_route_rules import factory_map
 
 
 def api_building() -> dict:
@@ -245,6 +246,28 @@ class ApiTests(unittest.TestCase):
         explicit = self.post(path + "/routes", {"start": "left", "destination": "upstairs", "step_free": True}).json()
         self.assertTrue(explicit["step_free"])
         self.assertEqual(self.client.get(path + "/routes/" + route["id"]).json(), route)
+
+    def test_forklift_route_contract_chat_followup_and_missing_access(self):
+        source = self.data / "dev/test/building.json"
+        source.write_text(json.dumps(factory_map().data))
+        session = self.session()
+        path = self.path(session)
+        route = self.post(path + "/routes", {"start": "left", "destination": "right", "travel_mode": "forklift"}, schema="Route").json()
+        self.assertEqual(route["space_path"], ["left", "aisle", "right"])
+        self.assertEqual((route["travel_mode"], route["min_width_m"], route["step_free"]), ("forklift", 3, True))
+        self.model.turns = [[reply(call("find_route", start="left", destination="right")),
+                             reply(answer("Follow the forklift aisle.", "route"))]]
+        # The frontend sends a step-free preference on every turn; that must not reset forklift mode.
+        message = self.post(path + "/messages", {"text": "Show the route again.", "input_mode": "text",
+            "client_context": {"preferences": {"step_free": False}}}, schema="MessageAccepted").json()
+        self.assertEqual(message["routes"][0]["travel_mode"], "forklift")
+        self.assertEqual(message["routes"][0]["space_path"], ["left", "aisle", "right"])
+        self.assertEqual(message["guide_message"]["understood"]["constraints"]["travel_mode"], "forklift")
+        state = self.app.state.service.get(session["id"])
+        del state.map.spaces["aisle"]["forklift_access"]
+        error = self.post(path + "/routes", {"start": "left", "destination": "right", "travel_mode": "forklift"},
+                          status=400, schema="Error").json()
+        self.assertEqual(error["details"][0]["code"], "access_unverified")
 
     def test_session_isolation_closures_and_source_preservation(self):
         first, other = self.session(), self.session()

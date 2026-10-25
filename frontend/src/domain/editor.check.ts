@@ -143,7 +143,7 @@ same(wallAt([office, corridor], [5.1, 2])?.snapped, [5, 2], 'wall click snaps on
 same(wallAt([office, corridor], [2.5, 2]), null, 'room middle is no wall')
 
 /* Placement hints */
-const context = { spaces: [office, corridor], assets, floorHeight: 3, elevation: 0, height: 0.75 }
+const context = { spaces: [office, corridor], assets, height: 0.75 }
 const fresh = newObjectDraft(entries[0], 'f0', [2, 2])
 same(placementHint(fresh, context), null, 'desk inside the office is fine')
 same(placementHint({ ...fresh, position: [4.8, 2] }, context), 'crosses_wall', 'desk over the wall')
@@ -151,9 +151,9 @@ same(placementHint({ ...fresh, position: [9, 9] }, context), 'outside_space', 'd
 same(placementHint({ ...fresh, position: null }, context), 'no_position', 'unplaced')
 same(placementHint({ ...fresh, width: 0 }, context), 'invalid_size', 'zero width')
 const onDesk = { ...newObjectDraft(entries[3], 'f0', [2.2, 2]), onTopOf: ['desk'] }
-same(placementHint(onDesk, { ...context, elevation: 0.9, height: 0.5 }), null, 'printer on the desk')
-same(placementHint({ ...onDesk, position: [4, 3] }, { ...context, elevation: 0.9, height: 0.5 }), 'floating', 'printer beside the desk floats')
-same(placementHint(onDesk, { ...context, elevation: 0.9, height: 2.5 }), 'exceeds_ceiling', 'too tall for the floor')
+same(placementHint(onDesk, { ...context, height: 0.5 }), null, 'printer on the desk')
+same(placementHint({ ...onDesk, position: [4, 3] }, { ...context, height: 0.5 }), 'floating', 'printer beside the desk floats')
+same(placementHint(onDesk, { ...context, height: 2.5 }), null, 'stack may extend above the room height')
 
 /* Proposals */
 same(buildProposal(fresh, null), { kind: 'add_object', type: 'desk', category: 'furniture', rotation_deg: 0, width_m: 1.4, depth_m: 0.7, on_top_of: [], floor_id: 'f0', position: [2, 2] }, 'add_object leaves out name and height by default')

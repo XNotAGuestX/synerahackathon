@@ -13,10 +13,18 @@ The redesigned viewer from `feat/3d-floor-stack` is integrated with these models
 objects follow floor selection, exploded-floor animation and fading. Each model
 stretches independently to the asset's `footprint.width_m`, `footprint.depth_m`
 and positive `height_m` override (otherwise its shared height estimate), retaining
-its rotation. Camera fitting includes tall custom objects. Integration checks pass
+its rotation. Stacked objects use the saved support elevations and effective
+heights, placing each object directly on its supports regardless of room height.
+Camera fitting includes the full stack. The stacking fix passes 51 focused
+backend tests, 77 editor checks, the production build and 14 browser mesh checks
+(including a 4.8 m stack in a 1 m room). Integration checks pass
 for all 96 model types, custom heights and the grey fallback; the 505-object factory
 view, expand/reset, floor switching, mobile width and remount were browser-checked.
 The production build and perimeter/effects/walk checks pass.
+Editor width, depth, height, rotation and position drafts now update the 3D models
+immediately, including objects stacked above them. Transform edits reuse loaded
+models and the current camera; cancelling restores saved geometry. This live-edit
+change has not been tested or evaluated, at the user's request.
 [Conventions, provenance, generated types, preview and limitations](docs/OBJECT_MODELS.md).
 [Agent integration handoff](docs/3D_MODELS_HANDOFF.md) explains how to reuse the
 loader, scale individual objects and connect new-object creation.
@@ -198,7 +206,13 @@ Hi all, a quick note on how route answers are scored in the automatic check, so 
 
 Questions? Ask any of the Synera folks on site or in the channel.
 
-**Implementation impact (project assessment):** kit 1.1.0 now aligns local expected answers with the clarification's door-to-door geometry and height costs. It also explicitly removes the old outside shortcut; see [the route model](#the-route-model-behind-the-expected-answers). The updated router implements these rules and returns every traversed space and selected opening/connector. Forklift-only profiles, destination-only production bays and the Sunday structured-output adapter still require work. The automatic route check requires valid ordered space sequences; a distance alone is insufficient.
+**Implementation impact (project assessment):** kit 1.1.0 aligns local expected answers with the clarification's door-to-door geometry and height costs and removes the old outside shortcut; see [the route model](#the-route-model-behind-the-expected-answers). The router returns every traversed space and selected opening/connector. The explicit forklift mode now enforces designated access, 3 m minimum openings and terminal production bays (see below). Existing data still needs verified access designations; the Sunday structured-output adapter remains organizer-dependent. The automatic route check requires valid ordered space sequences; a distance alone is insufficient.
+
+**Forklift routing — 25 October 2026:** use `find_route(..., travel_mode="forklift")`, or send `travel_mode: "forklift"` to the HTTP route endpoint. Errands, ordered/optimised tours and reachability accept the same mode. It requires step-free passages at least `max(3, min_width_m)` metres wide; stairs and passenger lifts are excluded. Furniture and machines remain non-obstacles, and asset endpoints resolve to containing rooms. Closures apply throughout. The mode survives active rerouting and HTTP chat follow-ups and appears in route records and the UI's understood constraints. Walking remains the default kit-compatible model.
+
+Designate approved forklift aisles/delivery spaces and their passages with optional boolean `forklift_access` fields in building JSON: `true` means approved for forklift use (including the aisle's usable clearance), `false` excludes pedestrian-only or prohibited areas, and absence means unverified. A wide opening or a room name alone never grants access. Existing supplied data has no such designations, so it must be annotated from verified information before forklift routes can be certified; the implementation does not modify kit inputs or guess access. If missing designation could connect a failed route, tools report access unverified; the HTTP endpoint returns a validation error with detail code `access_unverified`, rather than asserting no route exists.
+
+In forklift mode, spaces with `room_type` `production_zone`, `assembly_zone` or `additive_zone`, plus any space marked `destination_only: true`, may be starts, destinations or explicit pickup/delivery stops. They cannot be transit shortcuts: their door-to-door edges are removed and their room anchors are terminal except when departing from that leg's start. Each explicit stop begins a new leg. Forklift paths also exclude the inherited disconnected-geometry distance fallback. For an optimised tour whose supplied order is impossible but another order works, `given_order_length_m` and `saving_m` are null.
 
 ### Submission and judging process (earlier brief)
 
@@ -334,7 +348,7 @@ These rules changed in 1.1.0; see `CHANGELOG.md`.
 
 `final_agent/building_map.py` implements this kit 1.1.0 model, preserving the project's width filters, query-only closures, route state and transactional edits. `edge_path` records the space or connector of every graph edge; `element_path` lists openings and connectors once per use. The renderer follows the selected visibility walks around corners.
 
-**Inherited kit limitation:** if no visibility walk connects two nodes, the upstream code uses 1.5 times the straight-line distance as a fallback. This is retained for answer compatibility and is not proof of a valid walk through malformed or disconnected geometry; the renderer leaves such segments as gaps. Forklift-only restrictions and destination-only production bays remain separate requirements from the Synera announcement.
+**Inherited kit limitation:** if no visibility walk connects two nodes, the upstream code uses 1.5 times the straight-line distance as a fallback. This is retained in walking mode for answer compatibility and is not proof of a valid walk through malformed or disconnected geometry; the renderer leaves such segments as gaps. Forklift mode excludes these edges and applies the additional Synera access and terminal-bay rules separately from the kit distance model.
 
 ---
 
@@ -722,8 +736,10 @@ Routes follow kit 1.1.0 and the corrected expected answers: walking goes door to
 
 Asset destinations resolve to their containing rooms. Equipment is not treated
 as an obstacle. The inherited disconnected-geometry fallback uses 1.5 times
-straight-line distance and does not prove a drawable walk. Step-free and width
-filters do not establish forklift access or destination-only production-bay rules.
+straight-line distance and does not prove a drawable walk. Use explicit
+`travel_mode="forklift"` for designated access and terminal production bays;
+step-free and width filters alone do not establish forklift access. Forklift mode
+excludes the fallback and requires verified access metadata as documented above.
 
 **Contract/paging verification — 24 October 2026:** the full offline suite runs
 202 tests: 199 pass and 3 credential-dependent cases skip. The generated schemas

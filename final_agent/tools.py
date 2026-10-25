@@ -87,6 +87,9 @@ def make_tools(
         tools.append(tool)
         return tool
 
+    def route_mode(requested: Literal["walking", "forklift"] | None) -> str:
+        return requested if requested is not None else (building_map.active_request or {}).get("travel_mode", "walking")
+
     def room_number(space_id: str) -> str:
         return str(building_map.spaces[space_id].get("ref") or space_id)
 
@@ -463,7 +466,7 @@ def make_tools(
     @register
     def find_route(
         start: str, destination: str, step_free: bool = False, via: list[str] | None = None,
-        min_width_m: float = 0.0, entrance: str | None = None,
+        min_width_m: float = 0.0, entrance: str | None = None, travel_mode: Literal["walking", "forklift"] | None = None,
     ) -> str:
         """Find a shortest route under the kit-1.1.0 model, with directions and equivalent walking metres.
 
@@ -472,8 +475,11 @@ def make_tools(
         uses room outlines with wall clearance; stairs cost 2 m per metre climbed, lifts 15 m plus 1 m per
         metre of height. Equipment is not an obstacle; there is no outside shortcut. The inherited kit
         fallback for disconnected in-room geometry estimates length as 1.5 times straight-line distance;
-        it does not prove a drawable walk. Step-free/width constraints do not establish forklift access
-        or enforce destination-only production bays.
+        it does not prove a drawable walk. Forklift mode excludes that fallback, requires explicit
+        forklift_access=true on spaces and passages, step-free openings at least 3 m wide, and no vertical
+        connectors. Production/assembly/additive bays and destination_only spaces are terminal stops:
+        enter to deliver or leave a starting bay, never use one as a shortcut. Missing access metadata
+        gives an access-unverified error when it could connect the route; never guess authorization.
 
         Respects current closures and replaces the active route for show_route. A failed request clears
         the previous active route; unreachable is an error, never a reason to relax constraints. This
@@ -487,9 +493,11 @@ def make_tools(
             min_width_m: Only use doors at least this wide in metres (e.g. a 1.1 m wide trolley). 0 = any.
             entrance: Optional entrance opening id the person came in through; it must open into the start
                 room and itself satisfy step_free and min_width_m. Validates entry without adding distance.
+            travel_mode: walking or forklift; omission retains the active mode, initially walking. A forklift request needs forklift mode;
+                setting only min_width_m=3 is insufficient. Furniture/machines remain non-obstacles.
         """
         try:
-            result = building_map.route(start, destination, step_free, via, min_width_m, entrance)
+            result = building_map.route(start, destination, step_free, via, min_width_m, entrance, route_mode(travel_mode))
         except MapError as error:
             raise ToolError(str(error)) from error
         return as_json(route_with_notes(result))
@@ -500,7 +508,7 @@ def make_tools(
     def reachable_rooms(
         start: str, floor_level: int | None = None, step_free: bool = False, min_width_m: float = 0.0,
         entrance: str | None = None, closed_elements: list[str] | None = None, room_type: str | None = None,
-        page: int = 1, page_size: int = 50,
+        page: int = 1, page_size: int = 50, travel_mode: Literal["walking", "forklift"] | None = None,
     ) -> str:
         """Count and list the rooms a person or delivery can reach from a start room under constraints.
 
@@ -526,10 +534,11 @@ def make_tools(
             room_type: Optional exact room type (office, meeting_room, ...) to count only those rooms.
             page: Room-detail page number, starting at 1.
             page_size: Room details per page, 1 to 100 (default 50); never limits the count.
+            travel_mode: walking or forklift; omission retains the active mode. Forklift applies find_route's access, width and terminal-bay rules.
         """
         try:
             return as_json(building_map.reachable_rooms(
-                start, floor_level, step_free, min_width_m, entrance, closed_elements, room_type, page, page_size
+                start, floor_level, step_free, min_width_m, entrance, closed_elements, room_type, page, page_size, route_mode(travel_mode)
             ))
         except MapError as error:
             raise ToolError(str(error)) from error
@@ -655,6 +664,7 @@ def make_tools(
     def plan_errand(
         start: str, asset_type: str, destination_room_type: str, destination_floor_level: int,
         step_free: bool = False, min_width_m: float = 0.0, activate: bool = False,
+        travel_mode: Literal["walking", "forklift"] | None = None,
     ) -> str:
         """Plan "grab X from the room that has one closest to me, then carry it to the largest Y on floor N".
 
@@ -675,10 +685,11 @@ def make_tools(
             step_free: True only if the person cannot use stairs or steps.
             min_width_m: Only use doors at least this wide in metres. 0 = any.
             activate: True to make the errand the active route for the map; default False only computes.
+            travel_mode: walking or forklift; omission retains the active mode. Forklift applies find_route's rules to both legs.
         """
         try:
             result = building_map.plan_errand(
-                start, asset_type, destination_room_type, destination_floor_level, step_free, min_width_m, activate
+                start, asset_type, destination_room_type, destination_floor_level, step_free, min_width_m, activate, route_mode(travel_mode)
             )
         except MapError as error:
             raise ToolError(str(error)) from error
@@ -697,7 +708,7 @@ def make_tools(
     @register
     def find_best_tour(
         start: str, stops: list[str], destination: str, step_free: bool = False,
-        min_width_m: float = 0.0, activate: bool = True,
+        min_width_m: float = 0.0, activate: bool = True, travel_mode: Literal["walking", "forklift"] | None = None,
     ) -> str:
         """Shortest tour through all stops in the best order (exact, at most 10 stops), start and end fixed.
 
@@ -718,9 +729,10 @@ def make_tools(
             step_free: True to avoid stairs and steps.
             min_width_m: Only use doors at least this wide in metres. 0 = any.
             activate: True (default) to make this the active route; False to only compare.
+            travel_mode: walking or forklift; omission retains the active mode. Forklift applies its rules to every leg.
         """
         try:
-            result = building_map.find_best_tour(start, stops, destination, step_free, min_width_m, activate)
+            result = building_map.find_best_tour(start, stops, destination, step_free, min_width_m, activate, route_mode(travel_mode))
         except MapError as error:
             raise ToolError(str(error)) from error
         route = result.pop("route")
@@ -732,8 +744,9 @@ def make_tools(
             for leg in route.legs
         ]
         result["length_m"] = round(result["length_m"], 2)
-        result["given_order_length_m"] = round(result["given_order_length_m"], 2)
-        result["saving_m"] = round(result["saving_m"], 2)
+        for key in ("given_order_length_m", "saving_m"):
+            if result[key] is not None:
+                result[key] = round(result[key], 2)
         result["route"] = route_with_notes(route)
         return as_json(result)
 
@@ -942,10 +955,10 @@ def make_tools(
         the centre of those objects, in their room; `position` (local metres) needs `space` or `floor_level`.
         Never invent coordinates: use a room, on_top_of, or a position from a tool result or the user. The
         footprint must stay inside the room (no crossing walls); stacked objects must rest on what they stand
-        on and stay below the ceiling. Size and height default to the catalog (list_object_types).
+        on. Stack height is independent of room height. Size and height default to the catalog (list_object_types).
         Returns summary, changed_ids, floor_ids, the new asset (its id and name) and saved_to; an active route
         is recomputed (active_route or active_route_error). undo_last_edit reverts it. Errors explain the
-        rule that failed (outside_space, crosses_wall, floating, exceeds_ceiling, unknown_type, ...).
+        rule that failed (outside_space, crosses_wall, floating, unknown_type, ...).
 
         Args:
             type: Object type id, e.g. "desk", "coffee_machine", "printer" (see list_object_types).
@@ -982,7 +995,7 @@ def make_tools(
         "Put X on Y" is on_top_of=[Y]; "take X off" / "put it on the floor" is on_top_of=[]. Moving an object
         to another room without on_top_of puts it on the floor there. Everything standing on a moved object
         moves with it; turning or shrinking an object that carries others is refused if they would float.
-        height_m sets a custom height (everything on top rises with it; the ceiling is the limit).
+        height_m sets a custom height (everything on top rises with it, regardless of room height).
         Returns summary, changed_ids, floor_ids, the changed records and saved_to; an active route is
         recomputed. undo_last_edit reverts it. Errors name the failed rule.
 

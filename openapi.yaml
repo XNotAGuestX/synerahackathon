@@ -1468,6 +1468,10 @@ components:
       properties:
         step_free:
           type: boolean
+        travel_mode:
+          type: string
+          enum: [walking, forklift]
+          default: walking
 
     BuildingSummary:
       type: object
@@ -1980,6 +1984,14 @@ components:
         step_free:
           type: boolean
           description: Fehlt der Wert, gilt die Sitzungspräferenz.
+        travel_mode:
+          type: string
+          enum: [walking, forklift]
+          description: Forklift requires designated access, step-free openings at least 3 m wide and terminal production bays.
+        min_width_m:
+          type: number
+          minimum: 0
+          default: 0
         via:
           type: array
           maxItems: 8
@@ -2049,6 +2061,12 @@ components:
           type: [number, "null"]
         step_free:
           type: boolean
+        travel_mode:
+          type: string
+          enum: [walking, forklift]
+        min_width_m:
+          type: number
+          minimum: 0
         via:
           type: array
           items:
@@ -2116,6 +2134,9 @@ components:
       properties:
         step_free:
           type: boolean
+        travel_mode:
+          type: string
+          enum: [walking, forklift]
         via:
           type: array
           items:

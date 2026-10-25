@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "building_id": "proc-factory-dev-003",
+  "layers": [
+    {
+      "layer": 0,
+      "objects": [
+        {
+          "object_id": "proc-factory-dev-003-A00009",
+          "on_top_of": [],
+          "height_m": 1.25,
+          "height_source": "catalog",
+          "elevation_m": 0.0
+        },
+        {
+          "object_id": "proc-factory-dev-003-A00026",
+          "on_top_of": [],
+          "height_m": 2.0,
+          "height_source": "catalog",
+          "elevation_m": 0.0
+        }
+      ]
+    },
+    {
+      "layer": 1,
+      "objects": [
+        {
+          "object_id": "proc-factory-dev-003-A00008",
+          "on_top_of": [
+            "proc-factory-dev-003-A00009"
+          ],
+          "height_m": 1.25,
+          "height_source": "catalog",
+          "elevation_m": 1.25
+        },
+        {
+          "object_id": "proc-factory-dev-003-A00027",
+          "on_top_of": [
+            "proc-factory-dev-003-A00026"
+          ],
+          "height_m": 2.0,
+          "height_source": "catalog",
+          "elevation_m": 2.0
+        }
+      ]
+    }
+  ]
+}

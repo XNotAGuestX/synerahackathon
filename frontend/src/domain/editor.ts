@@ -678,14 +678,10 @@ export type PlacementHint =
   | 'crosses_wall'
   | 'floating'
   | 'support_other_space'
-  | 'exceeds_ceiling'
 
 export type HintContext = {
   spaces: Space[]
   assets: Map<string, Asset>
-  floorHeight: number | null
-  /** Bottom of the object above the floor. */
-  elevation: number
   /** Effective height of the object. */
   height: number
 }
@@ -707,7 +703,6 @@ export function placementHint(draft: ObjectDraft, context: HintContext): Placeme
     if (!prints.some((print) => pointInFootprint(print, draft.position!))) return 'floating'
     if (!prints.every((print) => footprintsOverlap(print, footprint))) return 'floating'
   }
-  if (context.floorHeight != null && context.floorHeight > 0 && context.elevation + context.height > context.floorHeight + EPSILON) return 'exceeds_ceiling'
   return null
 }
 

@@ -200,7 +200,7 @@ Normative Details stehen in OpenAPI. Hier steht die Semantik.
 | 409 | `30010_action_conflict` | Bestätigen oder Abbrechen widerspricht dem Zustand |
 | 409 | `30012_revision_conflict` | `If-Match` passt nicht zur `revision` |
 | 404 | `30013_element_not_found` | Aufzug, Tür oder Raum zum Schließen fehlt. Editor: Objekt oder Träger fehlt (`details[].field` `object_ref` oder `on_top_of`). Unbekannte `client_context.selected_object_id` (`field: selected_object_id`). |
-| 409 | `30014_invalid_placement` | Editor-Regel verletzt. `details[].code` ist die Regel: `outside_space`, `crosses_wall`, `floating`, `support_cycle`, `support_other_space`, `would_strand`, `exceeds_ceiling`, `not_stacked`, `same_floor`. `details[].message` erklärt sie auf Englisch. |
+| 409 | `30014_invalid_placement` | Editor-Regel verletzt. `details[].code` ist die Regel: `outside_space`, `crosses_wall`, `floating`, `support_cycle`, `support_other_space`, `would_strand`, `not_stacked`, `same_floor`. `details[].message` erklärt sie auf Englisch. |
 | 409 | `30015_nothing_to_undo` | Undo ohne bestätigte Gebäudeänderung in dieser Sitzung |
 | 409 | `30016_not_removable` | Tür, Treppe oder Aufzug aus dem Datensatz. Nur Schließen ist möglich. |
 | 503 | `40001_model_unavailable` | Nur messages |

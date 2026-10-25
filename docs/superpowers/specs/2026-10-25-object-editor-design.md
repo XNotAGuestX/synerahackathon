@@ -171,7 +171,7 @@ Stapeln („nicht schweben“):
 Höhe:
 
 9a. `height_m` muss endlich und > 0 sein (`invalid_field`). Gesetzt beim Anlegen oder Ändern → Override in `height_overrides`; ohne Angabe gilt `default_height`. Ein Typwechsel ändert eine Override-Höhe nicht.
-9b. Oberkante jedes betroffenen Objekts und aller Nachfahren (`elevation_m + height_m`) ≤ `height_m` der Etage (`exceeds_ceiling`). Gilt auch, wenn die Höhe eines Trägers wächst oder ein Stapel auf eine niedrigere Etage wandert.
+9b. Auf Nutzerwunsch vom 25. Oktober 2026: Stapel sind unabhängig von der Raumhöhe. Jedes Objekt steht direkt auf seinen Trägern (`elevation_m = max(Träger.elevation_m + Träger.height_m)`), auch oberhalb der Etagenhöhe.
 9c. Entfernen eines Objekts entfernt auch seine Overrides; Undo stellt sie wieder her.
 
 Verbindungen:
@@ -212,7 +212,7 @@ Zusammenfassungen (Englisch, ein Satz, für die Bestätigungskarte), z. B. `Add 
 | `not_found` (Objekt, Träger) | 404 | `30013_element_not_found` | `field` |
 | `not_found` (Raum) | 404 | `30004_place_not_found` | `field` |
 | `ambiguous` | 409 | `30005_place_ambiguous` | Kandidaten-Ids |
-| `outside_space`, `crosses_wall`, `floating`, `support_cycle`, `support_other_space`, `would_strand`, `exceeds_ceiling`, `not_stacked`, `same_floor` | 409 | `30014_invalid_placement` | `code` = reason |
+| `outside_space`, `crosses_wall`, `floating`, `support_cycle`, `support_other_space`, `would_strand`, `not_stacked`, `same_floor` | 409 | `30014_invalid_placement` | `code` = reason |
 | `not_adjacent` | 409 | `30007_not_adjacent` | |
 | `nothing_to_undo` | 409 | `30015_nothing_to_undo` | |
 | `not_removable` | 409 | `30016_not_removable` | |

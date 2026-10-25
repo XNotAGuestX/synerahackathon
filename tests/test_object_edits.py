@@ -94,7 +94,7 @@ class ObjectEditTests(unittest.TestCase):
         self.assert_rejected("would_strand", kind="update_object", object_ref=DESK, width_m=0.6)
         self.assertEqual(self.map.assets[DESK]["footprint"]["width_m"], 1.4)
 
-    def test_height_override_lifts_the_stack_and_respects_the_ceiling(self):
+    def test_height_override_lifts_the_stack_above_the_room_height(self):
         machine = self.put_on_desk()
         result = self.apply(kind="update_object", object_ref=DESK, height_m=0.9)
         self.assertEqual(result["summary"], "Set the height of Desk 0.02-A to 0.9 m.")
@@ -107,9 +107,16 @@ class ObjectEditTests(unittest.TestCase):
         # Without an override the shared 3D catalog height applies.
         self.assertEqual(object_edits.effective_height(self.map, machine),
                          object_edits.default_height(self.map.assets[machine]))
-        self.assert_rejected("exceeds_ceiling", kind="update_object", object_ref=DESK, height_m=3.5)
+        self.apply(kind="update_object", object_ref=DESK, height_m=3.5)
+        layers = self.map.stacking_document()["layers"]
+        self.assertEqual(layers[1]["objects"][0]["elevation_m"], 3.5)
+        top = self.apply(kind="add_object", type="printer", on_top_of=[machine], height_m=4.0)["changed_ids"][0]
+        layers = self.map.stacking_document()["layers"]
+        self.assertEqual(layers[2]["objects"][0]["object_id"], top)
+        self.assertAlmostEqual(layers[2]["objects"][0]["elevation_m"],
+                               3.5 + object_edits.effective_height(self.map, machine))
         self.assert_rejected("invalid_field", kind="update_object", object_ref=DESK, height_m=0)
-        self.assertEqual(self.map.height_overrides, {DESK: 0.9})
+        self.assertEqual(self.map.height_overrides, {DESK: 3.5, top: 4.0})
 
     def test_remove_takes_the_stack_and_undo_brings_it_back(self):
         machine = self.put_on_desk()

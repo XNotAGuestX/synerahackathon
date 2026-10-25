@@ -18,6 +18,18 @@ expand/reset, 390 px layout, remount and showroom stretching. The production bui
 and existing perimeter/effects/walk checks pass. This verifies rendering, not new
 navigation, model interpretation or benchmark accuracy.
 
+**Object stacking fix — 25 October 2026:** 3D models use the stacking adapter's
+support elevations and effective heights; camera fitting includes the full stack.
+Room height no longer limits object placement or stacking in the editor or tools.
+Verified: 15 object-edit tests, 36 API tests, 77 editor checks, the production build
+and 14 browser mesh checks, including a 4.8 m stack in a 1 m room.
+
+**Live 3D object editing — 25 October 2026:** draft width/depth/height, rotation
+and position update model instances immediately. Height changes reposition objects
+above the edited support; cancelling restores saved geometry. New draft objects
+also appear in 3D. Implementation is awaiting user testing; no tests, builds or
+evaluation were run for this change, as requested.
+
 Audited 24 October 2026 against commit `9f3f612` and the current source. This is the working backlog; the [README](README.md) retains the challenge specification and source references. The initial audit changed no implementation features. Follow-up rewiring made `final_agent` independent; the current status and completed CORE tasks below reflect that change.
 
 **Main/Wayfinder integration — 25 October 2026:** main `4680cef` and frontend `e26f79c` are reconciled. All 11 conflicts are resolved; the user chose main's agent for all live chat and benchmark answers. The entire `final_agent/` package is retained exactly from main, including routing, tools, reports, retrieval, model controls, campus/plan workspace and emergency mock. The frontend retains room highlighting and walker speed control and uses main's HTTP session contract. Alternative Python/browser interpreters and template answering are removed; static debug previews remain. Both fixture sets regenerate and all 37 examples validate. Final backend verification: 263 tests (260 passed, 3 credential-dependent skips); TypeScript and production build passed. The earlier oracle passed 369/369 with the unchanged main router. No new UI tests, live Claude requests or live scored results are claimed. [Final decisions and verification](MERGE_PREPARATION.md). No backlog feature gate is marked complete by the merge alone.

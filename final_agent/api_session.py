@@ -35,7 +35,7 @@ EDITED_FILE = "building_edited.json"
 # MapError.reason values of the editor rules that reject a placement (30014 details carry the reason).
 PLACEMENT_REASONS = {
     "outside_space", "crosses_wall", "floating", "support_cycle", "support_other_space", "would_strand",
-    "exceeds_ceiling", "not_stacked", "same_floor",
+    "not_stacked", "same_floor",
 }
 SPACE_FIELDS = {"space", "first_space", "second_space", "spaces"}
 
@@ -121,7 +121,7 @@ class SessionState:
     map: BuildingMap
     created_at: str
     updated_at: str
-    preferences: dict = field(default_factory=lambda: {"step_free": False})
+    preferences: dict = field(default_factory=lambda: {"step_free": False, "travel_mode": "walking"})
     revision: int = 1
     last_route_id: str | None = None
     pending_action_id: str | None = None
@@ -434,7 +434,10 @@ class SessionService:
                 ]) from error
             raise ApiError("30004_place_not_found", [{"field": field_name, "code": "not_found"}]) from error
 
-    def route_record(self, session: SessionState, route: RouteResult | None, stops: list[str], step_free: bool, reason: str = "") -> dict:
+    def route_record(
+        self, session: SessionState, route: RouteResult | None, stops: list[str], step_free: bool,
+        reason: str = "", travel_mode: str = "walking", min_width_m: float = 0,
+    ) -> dict:
         directions = []
         legs = []
         if route is not None:
@@ -460,7 +463,10 @@ class SessionService:
         return {
             "schema_version": 1, "id": self.new_id(), "session_id": session.id,
             "reachable": route is not None, "length_m": round(route.length_m, 2) if route else None,
-            "step_free": step_free, "via": stops[1:-1], "closed_ids": sorted(session.map.closed),
+            "step_free": route.step_free if route else step_free,
+            "travel_mode": route.travel_mode if route else travel_mode,
+            "min_width_m": route.min_width_m if route else min_width_m,
+            "via": stops[1:-1], "closed_ids": sorted(session.map.closed),
             "start_space_id": stops[0], "destination_space_id": stops[-1],
             "space_path": list(route.space_path) if route else [], "directions": directions,
             "legs": legs, "created_at": timestamp(self.clock()),
@@ -474,13 +480,17 @@ class SessionService:
             stops = [self.resolve(session.map, ref, "start" if i == 0 else "destination" if i == len(references) - 1 else "via")
                      for i, ref in enumerate(references)]
             step_free = body.get("step_free", session.preferences["step_free"])
+            default_mode = (session.map.active_request or {}).get("travel_mode", session.preferences.get("travel_mode", "walking"))
+            travel_mode = body.get("travel_mode", default_mode)
+            step_free, min_width_m = session.map.route_constraints(step_free, body.get("min_width_m", 0), travel_mode)
             try:
-                route = session.map.route(stops[0], stops[-1], step_free, stops[1:-1])
+                route = session.map.route(stops[0], stops[-1], step_free, stops[1:-1], min_width_m, travel_mode=travel_mode)
                 result = self.route_record(session, route, stops, step_free)
             except MapError as error:
                 if error.reason != "unreachable":
-                    raise
-                result = self.route_record(session, None, stops, step_free, str(error))
+                    raise ApiError("20001_validation_failed", [{"field": error.field or "route", "code": error.reason or "invalid",
+                                                               "message": str(error)}]) from error
+                result = self.route_record(session, None, stops, step_free, str(error), travel_mode, min_width_m)
             session.routes[result["id"]] = result
             if result["reachable"]:
                 session.route_results[result["id"]] = route
@@ -752,18 +762,21 @@ class SessionService:
         if selected_object is not None and not any(selected_object in index for index in (work.map.assets, work.map.openings, work.map.connectors)):
             raise ApiError("30013_element_not_found", [{"field": "selected_object_id", "code": "not_found"}])
         step_free = (context.get("preferences") or work.preferences)["step_free"]
+        active_mode = (work.map.active_request or {}).get("travel_mode", work.preferences.get("travel_mode", "walking"))
+        travel_mode = (context.get("preferences") or {}).get("travel_mode", active_mode)
         voice = body.get("input_mode") == "voice"
         store = RoomNoteStore(self.notes_database)
         client = None
         try:
-            bridge = TurnTools(self, work, store, step_free)
+            bridge = TurnTools(self, work, store, step_free, travel_mode)
             live_context = {"live_position": self.live_context(work, session.live), "guidance": self.guidance_context(session.live)}
             turn_context = API_PROMPT + ("" if not voice else VOICE_PROMPT)
             client = self.client_factory()
             agent = BuildingAgent(
                 work.map, self.output_directory / session.id, client=client,
                 registered_tools=bridge.tools, response_format=ApiReply,
-                turn_context=turn_context + "\nCurrent turn context: " + json.dumps({**context, "step_free_default": step_free, **live_context}),
+                turn_context=turn_context + "\nCurrent turn context: " + json.dumps({**context, "step_free_default": step_free,
+                                                                                  "travel_mode_default": travel_mode, **live_context}),
                 request_timeout=self.model_timeout, effort=VOICE_EFFORT if voice else EFFORT, model=VOICE_MODEL if voice else MODEL,
             )
             agent.messages = work.history
@@ -797,6 +810,7 @@ class SessionService:
             understood = {
                 "intent": reply.intent, "summary": reply.summary,
                 "constraints": {"step_free": latest["step_free"] if bridge.route_ids and latest else step_free,
+                                "travel_mode": latest["travel_mode"] if bridge.route_ids and latest else travel_mode,
                                 "via": latest["via"] if bridge.route_ids and latest else [], "closed_ids": sorted(work.map.closed)},
                 "resolved": {"start_space_id": latest["start_space_id"] if bridge.route_ids and latest else None,
                              "destination_space_id": latest["destination_space_id"] if bridge.route_ids and latest else None,
@@ -857,16 +871,17 @@ class SessionService:
 
 class ObservedTool(BetaBuiltinFunctionTool):
     """Preserve SDK tool definitions while recording results for application-owned effects."""
-    def __init__(self, tool, observer, step_free: bool, on_error):
+    def __init__(self, tool, observer, step_free: bool, on_error, travel_mode: str = "walking"):
         self.tool, self.observer, self.step_free = tool, observer, step_free
         self.on_error = on_error
+        self.travel_mode = travel_mode
 
     def to_dict(self):
         return self.tool.to_dict()
 
     def call(self, arguments: object) -> str:
         if isinstance(arguments, dict) and self.name in {"find_route", "find_best_tour", "plan_errand", "reachable_rooms"}:
-            arguments = {"step_free": self.step_free, **arguments}
+            arguments = {"step_free": self.step_free, "travel_mode": self.travel_mode, **arguments}
         try:
             result = self.tool.call(arguments)
         except ToolError:
@@ -877,7 +892,7 @@ class ObservedTool(BetaBuiltinFunctionTool):
 
 
 class TurnTools:
-    def __init__(self, service: SessionService, work: SessionState, store: RoomNoteStore, step_free: bool):
+    def __init__(self, service: SessionService, work: SessionState, store: RoomNoteStore, step_free: bool, travel_mode: str = "walking"):
         self.service, self.work = service, work
         self.effects: list[dict] = []
         self.route_ids: list[str] = []
@@ -1098,7 +1113,7 @@ class TurnTools:
             undo_last_edit, show_location, show_route,
         )}
         originals = make_tools(work.map, service.output_directory / work.id, notes_store=store, session_id=work.id)
-        self.tools = [ObservedTool(overrides.get(tool.name, tool), self.observe, step_free, self.failed) for tool in originals]
+        self.tools = [ObservedTool(overrides.get(tool.name, tool), self.observe, step_free, self.failed, travel_mode) for tool in originals]
         self.tools += [ArgumentCheckedTool(function) for function in (start_guidance, stop_guidance)]
 
     def guidance_problem(self) -> str | None:

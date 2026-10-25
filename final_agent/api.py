@@ -49,6 +49,7 @@ class Input(BaseModel):
 
 class Preferences(Input):
     step_free: bool
+    travel_mode: Literal["walking", "forklift"] = "walking"
 
 
 class SessionCreate(Input):
@@ -60,6 +61,8 @@ class RouteCreate(Input):
     start: Reference
     destination: Reference
     step_free: bool | None = None
+    travel_mode: Literal["walking", "forklift"] | None = None
+    min_width_m: Annotated[float, Field(ge=0, allow_inf_nan=False)] = 0
     via: list[Reference] = Field(default_factory=list, max_length=8)
 
 
@@ -526,8 +529,9 @@ def create_app(
 
     @app.post(API_ROOT + "/sessions/{session_id}/routes", operation_id="create_route")
     def create_route(session_id: UUID, body: RouteCreate, request: Request):
-        if "step_free" in body.model_fields_set and body.step_free is None:
-            raise ApiError("20001_validation_failed", [{"field": "step_free", "code": "invalid"}])
+        for name in ("step_free", "travel_mode"):
+            if name in body.model_fields_set and getattr(body, name) is None:
+                raise ApiError("20001_validation_failed", [{"field": name, "code": "invalid"}])
         state = service.get(str(session_id))
         with state.lock:
             result = service.create_route(state, body.model_dump(exclude_none=True), revision(request))
@@ -546,7 +550,7 @@ def create_app(
         if not body.text.strip():
             raise ApiError("20001_validation_failed", [{"field": "text", "code": "required"}])
         LOG.debug("trace_id=%s user_text=%s", request.state.trace_id, body.text)
-        result = service.message(service.get(str(session_id)), body.model_dump(), revision(request))
+        result = service.message(service.get(str(session_id)), body.model_dump(exclude_unset=True), revision(request))
         return respond(result, status=201, location=f"{API_ROOT}/sessions/{session_id}/messages/{result['user_message']['id']}", etag=result["session"]["revision"])
 
     @app.post(API_ROOT + "/sessions/{session_id}/transcriptions", operation_id="create_transcription")

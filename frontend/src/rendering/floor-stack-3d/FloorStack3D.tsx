@@ -3,14 +3,15 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 import type { Asset, FloorPlan, Point, Route, Selection, Space } from '../../domain/types'
-import { objectVisual } from '../../domain/object-catalog'
 import { copy } from '../../i18n/en'
 import { MapTooltip, assetTip, spaceTip } from '../MapTooltip'
 import { perimeterSegments } from './perimeter'
-import { addObjectModels } from './object-models'
+import { addObjectModels, objectPlacements, updateObjectModels } from './object-models'
 
 type FloorStack3DProps = {
   plans: FloorPlan[]
+  /** Unsaved editor state; transforms update immediately and revert when the draft is cancelled. */
+  previewPlans?: FloorPlan[] | null
   route: Route | null
   activeFloorId: string
   onSelectFloor?: (floorId: string) => void
@@ -56,6 +57,8 @@ type FloorRecord = {
   fade: number
   box: { x0: number; x1: number; z0: number; z1: number }
   contentHeight: number
+  structureHeight: number
+  objects: THREE.Group
   rooms: Map<Tone, Fader>
   wall: Fader
   wallTop: Fader
@@ -76,6 +79,7 @@ type SceneApi = {
   focus: (floorId: string, mode: StackMode) => void
   resetView: () => void
   select: (id: string | null) => void
+  updateModels: (plans: FloorPlan[]) => void
 }
 
 // About 23° above the horizon: lower than true isometric so the gaps between floors read clearly.
@@ -201,6 +205,15 @@ function useStableItems<T>(items: T[]): T[] {
   return previous.current
 }
 
+/** Dimension/position edits reuse the scene; adding an object or changing its model rebuilds it. */
+function useScenePlans(plans: FloorPlan[], preview: FloorPlan[] | null): FloorPlan[] {
+  const shown = preview ?? plans
+  const key = useMemo(() => JSON.stringify(shown.map((plan) => [plan.floor.id, plan.assets.map((asset) => [asset.id, asset.type, asset.category])])), [shown])
+  const previous = useRef({ plans, key, shown })
+  if (previous.current.plans !== plans || previous.current.key !== key) previous.current = { plans, key, shown }
+  return previous.current.shown
+}
+
 function useStableRoute(route: Route | null): Route | null {
   const previous = useRef<{ key: string; route: Route | null }>({ key: '', route: null })
   const key = route ? JSON.stringify([route.id, route.length_m, route.legs]) : ''
@@ -236,8 +249,12 @@ function LayersIcon() {
   )
 }
 
-export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activeFloorId, onSelectFloor, onSelect, selectedId = null }: FloorStack3DProps) {
+export function FloorStack3D({ plans: incomingPlans, previewPlans = null, route: incomingRoute, activeFloorId, onSelectFloor, onSelect, selectedId = null }: FloorStack3DProps) {
   const plans = useStableItems(incomingPlans)
+  const scenePlans = useScenePlans(plans, previewPlans)
+  const shownPlans = previewPlans ?? plans
+  const shownPlansRef = useRef(shownPlans)
+  shownPlansRef.current = shownPlans
   const route = useStableRoute(incomingRoute)
   const host = useRef<HTMLDivElement>(null)
   const api = useRef<SceneApi | null>(null)
@@ -267,7 +284,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
   const selectedRef = useRef(selectedId)
   selectedRef.current = selectedId
 
-  const ordered = useMemo(() => [...plans].sort((left, right) => left.floor.elevation_m - right.floor.elevation_m), [plans])
+  const ordered = useMemo(() => [...scenePlans].sort((left, right) => left.floor.elevation_m - right.floor.elevation_m), [scenePlans])
   const routeFloors = useMemo(() => new Set((route?.legs ?? []).filter((leg) => leg.points.length > 0).map((leg) => leg.floor_id)), [route])
 
   useEffect(() => {
@@ -489,7 +506,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
           for (const [index, id] of ((object.userData.assetIds ?? []) as string[]).entries()) if (!instances.has(id)) instances.set(id, { mesh: object, index })
           for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material)
         })
-        outlineItem(selectOutline, selectedRef.current)
+        api.current?.updateModels(shownPlansRef.current)
         for (const material of materials) {
           models.push({ material, opacity: material.opacity, depthWrite: material.depthWrite })
           material.transparent = true
@@ -504,7 +521,8 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
       floors.push({
         id: plan.floor.id, index, group, compactY, explodedY, y, fade: 1,
         box: { x0, x1, z0, z1 },
-        contentHeight: Math.max(exteriorHeight, ...plan.assets.map((asset) => objectVisual(asset).height_m)),
+        contentHeight: Math.max(exteriorHeight, ...objectPlacements(plan).map(({ elevation, height }) => elevation - plan.floor.elevation_m + height)),
+        structureHeight: exteriorHeight, objects: objectGroup,
         rooms, wall, wallTop, slab, slabEdge, halo, facades, models, targets,
         route: [fader(overlay()), fader(overlay()), fader(overlay())],
         label,
@@ -922,7 +940,21 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
     }
     frame = requestAnimationFrame(animate)
 
-    api.current = { focus, resetView, select: (id) => outlineItem(selectOutline, id) }
+    const updateModels = (nextPlans: FloorPlan[]) => {
+      for (const plan of nextPlans) {
+        const floor = floors.find((item) => item.id === plan.floor.id)
+        if (!floor) continue
+        updateObjectModels(floor.objects, [plan])
+        for (const asset of plan.assets) assets.set(asset.id, { plan, asset })
+        floor.contentHeight = Math.max(floor.structureHeight, ...objectPlacements(plan).map(({ elevation, height }) => elevation - plan.floor.elevation_m + height))
+      }
+      outlineItem(selectOutline, selectedRef.current)
+      outlineItem(hoverOutline, hoverId)
+      fitHome(size.width, size.height)
+      if (atHome && !tween) applyView(home)
+    }
+    api.current = { focus, resetView, select: (id) => outlineItem(selectOutline, id), updateModels }
+    updateModels(shownPlansRef.current)
     return () => {
       savedView.current = { key: sceneKey, view: current(), atHome }
       api.current = null
@@ -956,6 +988,7 @@ export function FloorStack3D({ plans: incomingPlans, route: incomingRoute, activ
 
   useEffect(() => { api.current?.focus(viewedId, mode) }, [viewedId, mode])
   useEffect(() => { api.current?.select(selectedId) }, [selectedId])
+  useEffect(() => { api.current?.updateModels(shownPlans) }, [shownPlans])
 
   useEffect(() => {
     if (!expanded) return

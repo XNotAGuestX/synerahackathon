@@ -4,7 +4,48 @@ import { objectVisual } from '../../domain/object-catalog'
 import type { Asset, FloorPlan } from '../../domain/types'
 
 type Part = { geometry: THREE.BufferGeometry; material: THREE.Material | THREE.Material[] }
-type PlacedAsset = { asset: Asset; elevation: number }
+type PlacedAsset = { asset: Asset; elevation: number; height: number }
+
+/** The API derives support elevations; keep those and height overrides in the 3D model. */
+export function objectPlacements(plan: FloorPlan): PlacedAsset[] {
+  const stacking = new Map((plan.stacking ?? []).map((entry) => [entry.object_id, entry]))
+  return plan.assets
+    .filter((asset) => asset.floor_id === plan.floor.id && asset.position.every(Number.isFinite))
+    .map((asset) => {
+      const entry = stacking.get(asset.id)
+      return {
+        asset,
+        elevation: plan.floor.elevation_m + (entry?.elevation_m ?? 0),
+        height: entry?.height_m ?? objectVisual(asset).height_m,
+      }
+    })
+}
+
+function placementMatrix(matrix: THREE.Matrix4, { asset, elevation, height }: PlacedAsset): THREE.Matrix4 {
+  const { width_m, depth_m, rotation_deg } = asset.footprint
+  const dimension = (value: number) => Number.isFinite(value) && value > 0 ? value : 0.5
+  return matrix.compose(
+    new THREE.Vector3(asset.position[0], elevation, -asset.position[1]),
+    new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(Number.isFinite(rotation_deg) ? rotation_deg : 0)),
+    new THREE.Vector3(dimension(width_m), height, dimension(depth_m)),
+  )
+}
+
+/** Update every primitive of the loaded models without reloading GLBs or the scene. */
+export function updateObjectModels(parent: THREE.Object3D, plans: FloorPlan[]): void {
+  const placements = new Map(plans.flatMap(objectPlacements).map((placement) => [placement.asset.id, placement]))
+  const matrix = new THREE.Matrix4()
+  parent.traverse((object) => {
+    if (!(object instanceof THREE.InstancedMesh)) return
+    for (const [index, id] of ((object.userData.assetIds ?? []) as string[]).entries()) {
+      const placement = placements.get(id)
+      if (placement) object.setMatrixAt(index, placementMatrix(matrix, placement))
+    }
+    object.instanceMatrix.needsUpdate = true
+    object.computeBoundingBox()
+    object.computeBoundingSphere()
+  })
+}
 
 function disposeParts(parts: Part[]) {
   const materials = new Set<THREE.Material>()
@@ -42,11 +83,11 @@ export function addObjectModels(parent: THREE.Object3D, plans: FloorPlan[], onRe
   const templates: Part[][] = []
   const groups = new Map<string, PlacedAsset[]>()
   for (const plan of plans) {
-    for (const asset of plan.assets) {
-      if (asset.floor_id !== plan.floor.id || !asset.position.every(Number.isFinite)) continue
+    for (const placement of objectPlacements(plan)) {
+      const { asset } = placement
       const path = objectVisual(asset).model_path
       const group = groups.get(path) ?? []
-      group.push({ asset, elevation: plan.floor.elevation_m })
+      group.push(placement)
       groups.set(path, group)
     }
   }
@@ -67,15 +108,8 @@ export function addObjectModels(parent: THREE.Object3D, plans: FloorPlan[], onRe
       const mesh = new THREE.InstancedMesh(part.geometry, part.material, assets.length)
       mesh.userData.assetIds = assetIds
       const matrix = new THREE.Matrix4()
-      for (const [index, { asset, elevation }] of assets.entries()) {
-        const { width_m, depth_m, rotation_deg } = asset.footprint
-        const dimension = (value: number) => Number.isFinite(value) && value > 0 ? value : 0.5
-        matrix.compose(
-          new THREE.Vector3(asset.position[0], elevation, -asset.position[1]),
-          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(Number.isFinite(rotation_deg) ? rotation_deg : 0)),
-          new THREE.Vector3(dimension(width_m), objectVisual(asset).height_m, dimension(depth_m)),
-        )
-        mesh.setMatrixAt(index, matrix)
+      for (const [index, placement] of assets.entries()) {
+        mesh.setMatrixAt(index, placementMatrix(matrix, placement))
       }
       mesh.instanceMatrix.needsUpdate = true
       mesh.computeBoundingSphere()

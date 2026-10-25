@@ -18,6 +18,7 @@ import {
   draftFromAsset,
   draftFromOpening,
   editedFloors,
+  effectiveHeight,
   findObjectEntry,
   flattenCatalog,
   interiorPoint,
@@ -42,7 +43,7 @@ import {
   wallAt,
 } from '../../domain/editor'
 import type { CatalogEntry, ConnectorDraft, Draft, ObjectDraft, OpeningDraft, PlacementHint, StackingIndex } from '../../domain/editor'
-import type { Asset, ConnectorKind, EditProposal, FloorPlan, FloorSummary, ObjectCatalog, ObjectGroup, Opening, OpeningKind, Point, Selection, Space } from '../../domain/types'
+import type { Asset, ConnectorKind, EditProposal, FloorPlan, FloorSummary, ObjectCatalog, ObjectGroup, Opening, OpeningKind, Point, Selection, Space, StackingEntry } from '../../domain/types'
 import { copy, fill } from '../../i18n/en'
 import type { EditorOverlay, GhostAsset } from '../../rendering/PlanCanvas'
 
@@ -536,12 +537,64 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
   /* Derived view state */
 
   const objectDraft = draft?.target === 'object' ? draft : null
-  const defaultHeight = objectDraft ? catalogHeight(entries, objectDraft.type, objectDraft.category) : 0
+  const sourceAsset = objectDraft?.objectId ? allAssets.get(objectDraft.objectId) : undefined
+  const sourceHeight = sourceAsset?.type === objectDraft?.type ? sourceAsset?.height_m : undefined
+  const defaultHeight = typeof sourceHeight === 'number' && Number.isFinite(sourceHeight) && sourceHeight > 0
+    ? sourceHeight : objectDraft ? catalogHeight(entries, objectDraft.type, objectDraft.category) : 0
   const level = objectDraft ? supportLevel(objectDraft.onTopOf, allAssets, stacking, entries) : { elevation: 0, layer: 0 }
   const height = objectDraft ? objectDraft.height ?? defaultHeight : 0
+  const previewPlans = useMemo(() => {
+    if (!open || step !== 'form' || !objectDraft?.position) return null
+    const objectId = objectDraft.objectId ?? 'draft'
+    const previous = allAssets.get(objectId)
+    const changed = new Map<string, Asset>()
+    const rows = new Map(stacking)
+    const asset: Asset = {
+      id: objectId, name: objectDraft.name || objectDraft.type, type: objectDraft.type,
+      category: objectDraft.category, floor_id: objectDraft.floorId,
+      space_id: spaceAt(plans.get(objectDraft.floorId)?.spaces ?? [], objectDraft.position)?.id ?? '', position: objectDraft.position,
+      footprint: { width_m: objectDraft.width, depth_m: objectDraft.depth, rotation_deg: objectDraft.rotation },
+      source: previous?.source ?? 'user_edit', height_m: height,
+    }
+    changed.set(objectId, asset)
+    rows.set(objectId, {
+      object_id: objectId, on_top_of: objectDraft.onTopOf, height_m: height,
+      height_source: objectDraft.height == null ? 'catalog' : 'override',
+      elevation_m: level.elevation, layer: level.layer,
+    })
+    if (previous) {
+      const dx = objectDraft.position[0] - previous.position[0]
+      const dy = objectDraft.position[1] - previous.position[1]
+      // Recompute in support order so changing a height lifts every object above it.
+      const carried = descendantsOf(stacking, objectId).sort((a, b) => (stacking.get(a)?.layer ?? 0) - (stacking.get(b)?.layer ?? 0))
+      const previewAssets = new Map(allAssets).set(objectId, asset)
+      for (const id of carried) {
+        const child = allAssets.get(id)
+        if (!child) continue
+        const info = effectiveHeight(child, rows, entries)
+        const support = supportLevel(info.onTopOf, previewAssets, rows, entries)
+        changed.set(id, { ...child, floor_id: objectDraft.floorId, position: [child.position[0] + dx, child.position[1] + dy] })
+        rows.set(id, {
+          object_id: id, on_top_of: info.onTopOf, height_m: info.height,
+          height_source: info.source, elevation_m: support.elevation, layer: support.layer,
+        })
+      }
+    }
+    return [...plans.values()].map((plan) => {
+      const additions = [...changed.values()].filter((item) => item.floor_id === plan.floor.id)
+      if (!additions.length && !plan.assets.some((item) => changed.has(item.id))) return plan
+      const assets = plan.assets.map((item) => changed.get(item.id) ?? item).filter((item) => item.floor_id === plan.floor.id)
+      const existing = new Set(assets.map((item) => item.id))
+      assets.push(...additions.filter((item) => !existing.has(item.id)))
+      return {
+        ...plan, assets,
+        stacking: assets.map((item) => rows.get(item.id)).filter((row): row is StackingEntry => Boolean(row)),
+      }
+    })
+  }, [open, step, objectDraft, allAssets, stacking, entries, plans, height, level.elevation, level.layer])
   const draftPlan = objectDraft ? plans.get(objectDraft.floorId) ?? null : draft?.target === 'opening' ? plans.get(draft.floorId) ?? null : null
   const hintCode: PlacementHint | null = objectDraft && step === 'form' && draftPlan
-    ? placementHint(objectDraft, { spaces: draftPlan.spaces, assets: allAssets, floorHeight: floors.find((floor) => floor.id === objectDraft.floorId)?.height_m ?? null, elevation: level.elevation, height })
+    ? placementHint(objectDraft, { spaces: draftPlan.spaces, assets: allAssets, height })
     : null
   const wall = draft?.target === 'opening' && !original && draft.position && draftPlan ? wallAt(draftPlan.spaces, draft.position) : null
   const wallText = draft?.target === 'opening' && !original
@@ -675,6 +728,7 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
     recent,
     catalogOffline,
     overlay,
+    previewPlans,
     caption,
     hint,
     hintCode,

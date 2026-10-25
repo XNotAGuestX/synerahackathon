@@ -355,23 +355,6 @@ def check_support(building_map: BuildingMap, object_id: str, target: bool) -> No
                        reason=reason, field="on_top_of")
 
 
-def check_ceilings(building_map: BuildingMap, object_ids: list[str]) -> None:
-    """Rule 9b: the top of every listed object stays below its floor's height."""
-    involved = set(stacking.layers(building_map.stacking)) | set(object_ids)
-    heights = {object_id: effective_height(building_map, object_id) for object_id in involved}
-    lifts = stacking.elevations(building_map.stacking, heights)
-    for object_id in sorted(set(object_ids)):
-        asset = building_map.assets[object_id]
-        floor = building_map.floors[asset["floor_id"]]
-        ceiling = floor.get("height_m")
-        top = lifts.get(object_id, 0.0) + heights[object_id]
-        if isinstance(ceiling, (int, float)) and top > ceiling + 1e-9:
-            raise MapError(
-                f"{asset['name']} would reach {top:.2f} m, above the {ceiling:g} m ceiling of {floor['name']}.",
-                reason="exceeds_ceiling", field="height_m",
-            )
-
-
 # ---------- map changes ----------
 
 def new_id(building_map: BuildingMap, prefix: str, count: int) -> str:
@@ -483,7 +466,6 @@ def add_object(building_map: BuildingMap, proposal: dict) -> dict:
     if height is not None:
         building_map.height_overrides[asset["id"]] = height
     check_support(building_map, asset["id"], target=True)
-    check_ceilings(building_map, [asset["id"]])
 
     normalized = {
         "kind": "add_object", "type": type_id, "category": category, "name": asset["name"],
@@ -598,7 +580,6 @@ def update_asset(building_map: BuildingMap, asset_id: str, proposal: dict) -> di
     check_support(building_map, asset_id, target=True)
     for other_id in carried:
         check_support(building_map, other_id, target=False)
-    check_ceilings(building_map, [asset_id, *carried])
 
     summary = asset_update_summary(
         building_map, old, asset, old_supports, building_map.stacking.get(asset_id, []), supports_given, height,

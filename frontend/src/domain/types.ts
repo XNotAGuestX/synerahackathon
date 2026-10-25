@@ -83,6 +83,8 @@ export type Route = {
   reachable: boolean
   length_m: number | null
   step_free: boolean
+  travel_mode?: 'walking' | 'forklift'
+  min_width_m?: number
   via: string[]
   closed_ids: string[]
   start_space_id: string | null
@@ -95,7 +97,7 @@ export type Route = {
 export type Understood = {
   intent: string
   summary: string
-  constraints: { step_free: boolean; via: string[]; closed_ids: string[] }
+  constraints: { step_free: boolean; travel_mode?: 'walking' | 'forklift'; via: string[]; closed_ids: string[] }
   resolved: {
     start_space_id: string | null
     destination_space_id: string | null

@@ -11,6 +11,7 @@ import math
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 import networkx as nx
 import numpy as np
@@ -40,6 +41,9 @@ SHARED_WALL_TOLERANCE_M = 0.35
 NEW_DOOR_WIDTH_M = 0.9
 MAX_INSPECTED_ASSET_IDS = 50
 KIT_DISTANCE_MODEL = "kit-1.1.0"
+TravelMode = Literal["walking", "forklift"]
+FORKLIFT_MIN_WIDTH_M = 3.0
+PRODUCTION_BAY_TYPES = {"production_zone", "assembly_zone", "additive_zone"}
 GEOMETRY_EPSILON = 1e-9
 UNDO_LIMIT = 20
 
@@ -103,7 +107,9 @@ def walking_visibility(polygon: Polygon, points: list[Point2]) -> tuple[list[Poi
     return nodes, visibility_matrix(allowed, nodes)
 
 
-def walking_lengths(polygon: Polygon, points: list[Point2]) -> dict[tuple[int, int], float]:
+def walking_lengths(
+    polygon: Polygon, points: list[Point2], *, allow_fallback: bool = True,
+) -> dict[tuple[int, int], float]:
     """Kit 1.1.0 shortest walks, including its fallback for disconnected visibility nodes."""
     _, matrix = walking_visibility(polygon, points)
     walks = shortest_lengths(matrix)
@@ -112,7 +118,7 @@ def walking_lengths(polygon: Polygon, points: list[Point2]) -> dict[tuple[int, i
         for target in range(len(points)):
             walk = float(walks[source, target])
             fallback = math.dist(points[source], points[target]) * BLOCKED_DETOUR_FACTOR
-            lengths[(source, target)] = walk if math.isfinite(walk) else fallback
+            lengths[(source, target)] = walk if math.isfinite(walk) or not allow_fallback else fallback
     return lengths
 
 
@@ -188,6 +194,8 @@ class RouteResult:
     min_width_m: float = 0.0
     entrance: str | None = None
     distance_model: str = KIT_DISTANCE_MODEL
+    travel_mode: TravelMode = "walking"
+    strict_geometry: bool = False
 
 
 class BuildingMap:
@@ -198,8 +206,13 @@ class BuildingMap:
         self.assets = {asset["id"]: asset for asset in building["assets"]}
         self.connectors = {connector["id"]: connector for connector in building["vertical_connectors"]}
         self.openings = {opening["id"]: opening for opening in building["openings"]}
+        for record in [*self.spaces.values(), *self.openings.values()]:
+            for key in ("forklift_access", "destination_only"):
+                if key in record and not isinstance(record[key], bool):
+                    raise MapError(f"{record['id']}: {key} must be true or false.", reason="invalid_field", field=key)
         self.closed: set[str] = set(building.get("navigation_state", {}).get("closed", []))
         self.walks: dict[str, list[tuple[str, str, float]]] = {}
+        self.strict_walks: dict[str, list[tuple[str, str, float]]] = {}
         self._spatial_index: BuildingSpatialIndex | None = None
         self.last_route: RouteResult | None = None
         self.active_request: dict | None = None
@@ -522,9 +535,10 @@ class BuildingMap:
         point = outline(self.spaces[space_id]["polygon"]).representative_point()
         return (point.x, point.y)
 
-    def space_walks(self, space_id: str) -> list[tuple[str, str, float]]:
+    def space_walks(self, space_id: str, *, strict_geometry: bool = False) -> list[tuple[str, str, float]]:
         """Walking lengths between the room's centre point and each of its doors, and between its doors."""
-        if space_id not in self.walks:
+        cache = self.strict_walks if strict_geometry else self.walks
+        if space_id not in cache:
             polygon = outline(self.spaces[space_id]["polygon"])
             members = [(space_id, self.anchor(space_id), 0.0)]
             for opening in self.openings.values():
@@ -532,41 +546,81 @@ class BuildingMap:
                     position = (opening["position"][0], opening["position"][1])
                     landing = door_landing(polygon, position)
                     members.append((DOOR_PREFIX + opening["id"], landing, math.dist(landing, position)))
-            lengths = walking_lengths(polygon, [landing for _, landing, _ in members])
-            self.walks[space_id] = [
+            lengths = walking_lengths(polygon, [landing for _, landing, _ in members], allow_fallback=not strict_geometry)
+            cache[space_id] = [
                 (
                     members[first][0],
                     members[second][0],
                     lengths[(first, second)] + members[first][2] + members[second][2],
                 )
                 for first, second in itertools.combinations(range(len(members)), 2)
+                if math.isfinite(lengths[(first, second)])
             ]
-        return self.walks[space_id]
+        return cache[space_id]
+
+    @staticmethod
+    def route_constraints(step_free: bool, min_width_m: float, travel_mode: TravelMode) -> tuple[bool, float]:
+        """Forklifts require step-free passages at least 3 m wide, regardless of weaker caller defaults."""
+        if travel_mode not in ("walking", "forklift"):
+            raise MapError("travel_mode must be walking or forklift.", reason="invalid_field", field="travel_mode")
+        if not isinstance(step_free, bool):
+            raise MapError("step_free must be true or false.", reason="invalid_field", field="step_free")
+        width = check_number("min_width_m", min_width_m, 0)
+        return (True, max(FORKLIFT_MIN_WIDTH_M, width)) if travel_mode == "forklift" else (step_free, width)
+
+    def destination_only(self, space_id: str) -> bool:
+        space = self.spaces[space_id]
+        return space.get("destination_only", False) or normalize_type(space.get("room_type", "")) in PRODUCTION_BAY_TYPES
+
+    @staticmethod
+    def require_forklift_access(record: dict) -> None:
+        access = record.get("forklift_access")
+        if access is not True:
+            raise MapError(
+                f"{record['id']}: forklift access {'is denied' if access is False else 'cannot be verified; set forklift_access in the building data'}.",
+                reason="unreachable" if access is False else "access_unverified", field="forklift_access",
+            )
 
     def graph(
-        self, step_free: bool = False, min_width_m: float = 0.0, extra_closed: Iterable[str] = ()
+        self, step_free: bool = False, min_width_m: float = 0.0, extra_closed: Iterable[str] = (), *,
+        travel_mode: TravelMode = "walking", start_space_id: str | None = None, allow_unknown_access: bool = False,
     ) -> nx.MultiGraph:
         """Kit 1.1.0 routing graph without closed elements, steps (if step_free) or openings narrower than min_width_m.
 
         Connectors have no width: only the doors that give access to them are filtered by width.
         extra_closed adds query-only closures on top of self.closed, which stays untouched.
         """
-        min_width_m = check_number("min_width_m", min_width_m, 0)
+        step_free, min_width_m = self.route_constraints(step_free, min_width_m, travel_mode)
         closed = self.closed | set(extra_closed)
         # MultiGraph: a stair and a lift may join the same two spaces; both edges must be kept.
-        graph = nx.MultiGraph()
+        forklift = travel_mode == "forklift"
+        graph = nx.MultiDiGraph() if forklift else nx.MultiGraph()
+        def permitted(record: dict) -> bool:
+            return not forklift or record.get("forklift_access", allow_unknown_access) is True
         open_doors = {
             DOOR_PREFIX + opening["id"] for opening in self.openings.values()
             if opening["id"] not in closed
             and (opening["step_free"] or not step_free)
             and opening["width_m"] >= min_width_m
+            and permitted(opening)
         }
-        open_spaces = [space_id for space_id in self.spaces if space_id not in closed]
+        open_spaces = [space_id for space_id, space in self.spaces.items() if space_id not in closed and permitted(space)]
+        # Keep endpoints as isolated nodes so an explicitly denied/unknown start is a normal no-path case.
+        graph.add_nodes_from(space_id for space_id in self.spaces if space_id not in closed)
         graph.add_nodes_from(open_spaces)
         for space_id in open_spaces:
-            for first, second, length in self.space_walks(space_id):
+            terminal = forklift and self.destination_only(space_id)
+            for first, second, length in self.space_walks(space_id, strict_geometry=forklift):
                 if (first == space_id or first in open_doors) and second in open_doors:
-                    graph.add_edge(first, second, weight=round(length, LENGTH_DECIMALS), space=space_id)
+                    if terminal and first != space_id:
+                        continue  # Door-to-door edges would let a vehicle cut through a bay.
+                    attributes = {"weight": round(length, LENGTH_DECIMALS), "space": space_id}
+                    if not terminal or space_id == start_space_id:
+                        graph.add_edge(first, second, **attributes)
+                    if forklift and (not terminal or space_id != start_space_id):
+                        graph.add_edge(second, first, **attributes)
+        if forklift:
+            return graph  # The forklift rule permits designated aisles/openings, not stairs or passenger lifts.
         levels = {floor_id: floor["level"] for floor_id, floor in self.floors.items()}
         for connector in self.connectors.values():
             if connector["id"] in closed or (step_free and not connector["step_free"]):
@@ -588,10 +642,30 @@ class BuildingMap:
                 graph.add_edge(low_space, high_space, weight=round(cost, LENGTH_DECIMALS), via=connector["id"])
         return graph
 
-    def constraints_text(self, step_free: bool, min_width_m: float, entrance: str | None) -> str:
+    def unverified_access(
+        self, start: str, targets: Iterable[str], step_free: bool, min_width_m: float,
+        extra_closed: Iterable[str] = (),
+    ) -> None:
+        """Separate missing access designations from a proven disconnection; never return the optimistic path."""
+        targets = set(targets)
+        if not targets:
+            return
+        optimistic = self.graph(step_free, min_width_m, extra_closed, travel_mode="forklift",
+                                start_space_id=start, allow_unknown_access=True)
+        possible = nx.descendants(optimistic, start)
+        if any(target in possible for target in targets):
+            raise MapError(
+                "Forklift access cannot be verified: a possible route contains spaces or openings without "
+                "forklift_access=true. Mark their access in the building data and try again.",
+                reason="access_unverified", field="forklift_access",
+            )
+
+    def constraints_text(
+        self, step_free: bool, min_width_m: float, entrance: str | None, travel_mode: TravelMode = "walking",
+    ) -> str:
         """Every requested route constraint, repeated in failure messages."""
         return (
-            f"Constraints: step_free={step_free}, min_width_m={min_width_m:g}, "
+            f"Constraints: travel_mode={travel_mode}, step_free={step_free}, min_width_m={min_width_m:g}, "
             f"entrance={entrance or 'any'}, closed={sorted(self.closed)}."
         )
 
@@ -682,31 +756,39 @@ class BuildingMap:
 
     def compute_route(
         self, start: str, destination: str, step_free: bool = False, via: list[str] | None = None,
-        min_width_m: float = 0.0, entrance: str | None = None,
+        min_width_m: float = 0.0, entrance: str | None = None, travel_mode: TravelMode = "walking",
     ) -> RouteResult:
         """Shortest kit 1.1.0 route through the stops in order. Pure: changes no state, so it is safe for comparisons.
 
         entrance, if given, must be a usable entrance into the start space (see validate_entrance).
         """
-        min_width_m = check_number("min_width_m", min_width_m, 0)
+        step_free, min_width_m = self.route_constraints(step_free, min_width_m, travel_mode)
         stops = [self.resolve_space(reference) for reference in [start, *(via or []), destination]]
-        constraints = self.constraints_text(step_free, min_width_m, entrance)
+        constraints = self.constraints_text(step_free, min_width_m, entrance, travel_mode)
         for stop in stops:
             if stop in self.closed:
                 raise MapError(f"{self.describe_space(stop)} is closed. {constraints}", reason="unreachable")
+            if travel_mode == "forklift":
+                self.require_forklift_access(self.spaces[stop])
         if entrance is not None:
             try:
                 self.validate_entrance(entrance, stops[0], step_free, min_width_m)
             except MapError as error:
                 raise MapError(f"{error} {constraints}") from error
-        graph = self.graph(step_free, min_width_m)
+            if travel_mode == "forklift":
+                self.require_forklift_access(self.openings[entrance])
         legs: list[dict] = []
         nodes: list[str] = []
         edges: list[tuple[str, float]] = []
+        walking_graph = self.graph(step_free, min_width_m) if travel_mode == "walking" else None
         for number, (leg_start, leg_end) in enumerate(itertools.pairwise(stops), start=1):
+            graph = walking_graph if walking_graph is not None else self.graph(
+                step_free, min_width_m, travel_mode=travel_mode, start_space_id=leg_start)
             try:
                 leg_length, leg_nodes = nx.single_source_dijkstra(graph, leg_start, leg_end, weight="weight")
             except nx.NetworkXNoPath as error:
+                if travel_mode == "forklift":
+                    self.unverified_access(leg_start, [leg_end], step_free, min_width_m)
                 raise MapError(
                     f"No route from {self.describe_space(leg_start)} to {self.describe_space(leg_end)} "
                     f"(leg {number} of {len(stops) - 1}). {constraints}", reason="unreachable",
@@ -736,20 +818,23 @@ class BuildingMap:
             floor_segments=self.floor_segments(space_path),
             min_width_m=min_width_m,
             entrance=entrance,
+            travel_mode=travel_mode,
+            strict_geometry=travel_mode == "forklift",
         )
 
     def route(
         self, start: str, destination: str, step_free: bool = False, via: list[str] | None = None,
-        min_width_m: float = 0.0, entrance: str | None = None,
+        min_width_m: float = 0.0, entrance: str | None = None, travel_mode: TravelMode = "walking",
     ) -> RouteResult:
         """compute_route, then make the result the active route. Any earlier route is cleared first."""
         self.last_route = None
         self.active_request = None
-        result = self.compute_route(start, destination, step_free, via, min_width_m, entrance)
+        result = self.compute_route(start, destination, step_free, via, min_width_m, entrance, travel_mode)
         self.last_route = result
         self.active_request = {
             "start": start, "destination": destination, "step_free": step_free,
             "via": list(via) if via else None, "min_width_m": min_width_m, "entrance": entrance,
+            "travel_mode": travel_mode,
         }
         return result
 
@@ -941,7 +1026,7 @@ class BuildingMap:
     def reachable_rooms(
         self, start: str, floor_level: int | None = None, step_free: bool = False, min_width_m: float = 0.0,
         entrance: str | None = None, closed_elements: list[str] | None = None, room_type: str | None = None,
-        page: int = 1, page_size: int = MAX_LISTED_ROOMS,
+        page: int = 1, page_size: int = MAX_LISTED_ROOMS, travel_mode: TravelMode = "walking",
     ) -> dict:
         """Rooms reachable from start under the constraints, found with one traversal of one filtered graph.
 
@@ -951,7 +1036,7 @@ class BuildingMap:
         select the counted rooms and never limit the traversal. Entrances are terminal openings;
         traversal never leaves and re-enters through the outside.
         """
-        min_width_m = check_number("min_width_m", min_width_m, 0)
+        step_free, min_width_m = self.route_constraints(step_free, min_width_m, travel_mode)
         if not isinstance(step_free, bool):
             raise MapError(f"step_free must be true or false, got {step_free!r}.")
         if isinstance(closed_elements, str):
@@ -960,11 +1045,14 @@ class BuildingMap:
         closed = self.closed | set(temporary)
         start_id = self.resolve_space(start)
         constraints = {
+            "travel_mode": travel_mode,
             "step_free": step_free, "min_width_m": min_width_m,
             "closed": sorted(closed), "temporarily_closed": temporary,
         }
         if start_id in closed:
             raise MapError(f"{self.describe_space(start_id)} is closed. Constraints: {constraints}")
+        if travel_mode == "forklift":
+            self.require_forklift_access(self.spaces[start_id])
         target_floor = self.floor_by_level(floor_level)["id"] if floor_level is not None else None
         wanted_type = normalize_type(room_type) if room_type else None
         entrances = (
@@ -975,8 +1063,15 @@ class BuildingMap:
             "width is not enforced because the entrance was given as a room."
             for o in entrances if o["width_m"] < min_width_m
         ]
-        graph = self.graph(step_free, min_width_m, temporary)
-        reached = nx.node_connected_component(graph, start_id)
+        if travel_mode == "forklift" and entrances:
+            if not any(o.get("forklift_access") is True and o["width_m"] >= min_width_m for o in entrances):
+                reason = "access_unverified" if any("forklift_access" not in o and o["width_m"] >= min_width_m for o in entrances) else "unreachable"
+                raise MapError("No verified forklift entrance into the start room: check access and the 3 m minimum width.", reason=reason)
+        graph = self.graph(step_free, min_width_m, temporary, travel_mode=travel_mode, start_space_id=start_id)
+        reached = ({start_id} | nx.descendants(graph, start_id)) if graph.is_directed() else nx.node_connected_component(graph, start_id)
+        if travel_mode == "forklift":
+            # A count must not silently omit rooms whose access metadata is missing.
+            self.unverified_access(start_id, set(self.spaces) - reached, step_free, min_width_m, temporary)
         counted, excluded = [], {}
         for space_id in sorted(node for node in reached if node in self.spaces):
             space = self.spaces[space_id]
@@ -1331,7 +1426,7 @@ class BuildingMap:
 
     def plan_errand(
         self, start: str, asset_type: str, destination_room_type: str, destination_floor_level: int,
-        step_free: bool = False, min_width_m: float = 0.0, activate: bool = False,
+        step_free: bool = False, min_width_m: float = 0.0, activate: bool = False, travel_mode: TravelMode = "walking",
     ) -> dict:
         """Fetch an asset from the nearest room that has one, then carry it to the largest room of a type on a floor.
 
@@ -1345,13 +1440,15 @@ class BuildingMap:
         if activate:
             self.last_route = None
             self.active_request = None
-        min_width_m = check_number("min_width_m", min_width_m, 0)
+        step_free, min_width_m = self.route_constraints(step_free, min_width_m, travel_mode)
         if not isinstance(step_free, bool):
             raise MapError(f"step_free must be true or false, got {step_free!r}.")
         start_id = self.resolve_space(start)
-        constraints = self.constraints_text(step_free, min_width_m, None)
+        constraints = self.constraints_text(step_free, min_width_m, None, travel_mode)
         if start_id in self.closed:
             raise MapError(f"{self.describe_space(start_id)} is closed. {constraints}")
+        if travel_mode == "forklift":
+            self.require_forklift_access(self.spaces[start_id])
 
         wanted = normalize_type(asset_type)
         assets_by_space: dict[str, list[str]] = {}
@@ -1373,7 +1470,10 @@ class BuildingMap:
             )
         destination_id = destination["room"]["id"]
 
-        distances = nx.single_source_dijkstra_path_length(self.graph(step_free, min_width_m), start_id, weight="weight")
+        graph = self.graph(step_free, min_width_m, travel_mode=travel_mode, start_space_id=start_id)
+        distances = nx.single_source_dijkstra_path_length(graph, start_id, weight="weight")
+        if travel_mode == "forklift":
+            self.unverified_access(start_id, set(assets_by_space) - distances.keys(), step_free, min_width_m)
         reachable = sorted((distances[space_id], space_id) for space_id in assets_by_space if space_id in distances)
         unreachable = len(assets_by_space) - len(reachable)
         if not reachable:
@@ -1383,10 +1483,12 @@ class BuildingMap:
             )
         pickup_distance, pickup_id = reachable[0]
 
-        first = self.compute_route(start_id, pickup_id, step_free, None, min_width_m)
+        first = self.compute_route(start_id, pickup_id, step_free, None, min_width_m, travel_mode=travel_mode)
         try:
-            second = self.compute_route(pickup_id, destination_id, step_free, None, min_width_m)
+            second = self.compute_route(pickup_id, destination_id, step_free, None, min_width_m, travel_mode=travel_mode)
         except MapError as error:
+            if error.reason == "access_unverified":
+                raise
             reason = "it is closed" if destination_id in self.closed else "no route exists"
             raise MapError(
                 f"Errand leg 2 of 2 is impossible: the selected pickup {self.describe_space(pickup_id)} cannot "
@@ -1396,7 +1498,7 @@ class BuildingMap:
             ) from error
         route = None
         if activate:
-            route = self.route(start_id, destination_id, step_free, [pickup_id], min_width_m)
+            route = self.route(start_id, destination_id, step_free, [pickup_id], min_width_m, travel_mode=travel_mode)
         return {
             "pickup": {
                 **self.space_summary(pickup_id), "asset_ids": sorted(assets_by_space[pickup_id]),
@@ -1408,7 +1510,7 @@ class BuildingMap:
             "leg_routes": [first, second],
             "route": route,
             "length_m": first.length_m + second.length_m,
-            "constraints": {"step_free": step_free, "min_width_m": min_width_m, "closed": sorted(self.closed)},
+            "constraints": {"travel_mode": travel_mode, "step_free": step_free, "min_width_m": min_width_m, "closed": sorted(self.closed)},
             "selection_rule": self.ERRAND_SELECTION_RULE,
             "distance_model": KIT_DISTANCE_MODEL,
             "activated": activate,
@@ -1420,21 +1522,31 @@ class BuildingMap:
     TOUR_EPSILON = 1e-9
 
     def tour_distances(
-        self, points: list[str], step_free: bool, min_width_m: float
+        self, points: list[str], step_free: bool, min_width_m: float, travel_mode: TravelMode = "walking",
     ) -> dict[str, dict[str, float]]:
         """Shortest kit distance between all distinct points on the same filtered graph compute_route uses.
 
         Raises MapError naming the first required point that cannot be reached from the first one.
         """
-        constraints = self.constraints_text(step_free, min_width_m, None)
+        constraints = self.constraints_text(step_free, min_width_m, None, travel_mode)
         for point in points:
             if point in self.closed:
                 raise MapError(f"{self.describe_space(point)} is closed. {constraints}")
-        graph = self.graph(step_free, min_width_m)
+            if travel_mode == "forklift":
+                self.require_forklift_access(self.spaces[point])
+        walking_graph = self.graph(step_free, min_width_m) if travel_mode == "walking" else None
         distances = {
-            point: nx.single_source_dijkstra_path_length(graph, point, weight="weight")
+            point: nx.single_source_dijkstra_path_length(
+                walking_graph if walking_graph is not None else self.graph(
+                    step_free, min_width_m, travel_mode=travel_mode, start_space_id=point), point, weight="weight")
             for point in dict.fromkeys(points)
         }
+        if travel_mode == "forklift":
+            # A required bay can connect otherwise separate aisles only when it is an explicit visit.
+            # The optimiser must choose those legs; ordinary connected-component logic is insufficient.
+            for point in dict.fromkeys(points):
+                self.unverified_access(point, set(points) - distances[point].keys(), step_free, min_width_m)
+            return distances
         for point in points[1:]:
             if point not in distances[points[0]]:
                 raise MapError(
@@ -1461,20 +1573,22 @@ class BuildingMap:
             lasts = [index for index in range(count) if mask >> index & 1] or [count]
             for last in lasts:
                 if mask == full:
-                    remaining[mask][last] = distances[points[last]][destination]
+                    remaining[mask][last] = distances[points[last]].get(destination, math.inf)
                 else:
                     remaining[mask][last] = min(
-                        distances[points[last]][stop_ids[nxt]] + remaining[mask | 1 << nxt][nxt]
+                        distances[points[last]].get(stop_ids[nxt], math.inf) + remaining[mask | 1 << nxt][nxt]
                         for nxt in range(count) if not mask >> nxt & 1
                     )
         order: list[int] = []
         mask, last = 0, count
+        if not math.isfinite(remaining[0][count]):
+            raise MapError("The tour is impossible under the route constraints: no valid visiting order exists.", reason="unreachable")
         while mask != full:
             best = remaining[mask][last]
             candidates = [
                 nxt for nxt in range(count)
                 if not mask >> nxt & 1
-                and distances[points[last]][stop_ids[nxt]] + remaining[mask | 1 << nxt][nxt]
+                and distances[points[last]].get(stop_ids[nxt], math.inf) + remaining[mask | 1 << nxt][nxt]
                 <= best + self.TOUR_EPSILON
             ]
             chosen = min(candidates, key=lambda index: (stop_ids[index], index))
@@ -1484,7 +1598,7 @@ class BuildingMap:
 
     def find_best_tour(
         self, start: str, stops: list[str], destination: str, step_free: bool = False,
-        min_width_m: float = 0.0, activate: bool = True,
+        min_width_m: float = 0.0, activate: bool = True, travel_mode: TravelMode = "walking",
     ) -> dict:
         """Shortest tour from start through every stop, in any order, ending at destination (kit model).
 
@@ -1498,7 +1612,7 @@ class BuildingMap:
         if activate:
             self.last_route = None
             self.active_request = None
-        min_width_m = check_number("min_width_m", min_width_m, 0)
+        step_free, min_width_m = self.route_constraints(step_free, min_width_m, travel_mode)
         stops = list(stops or [])
         if len(stops) > self.MAX_TOUR_STOPS:
             raise MapError(
@@ -1508,28 +1622,29 @@ class BuildingMap:
         start_id = self.resolve_space(start)
         stop_ids = [self.resolve_space(reference) for reference in stops]
         destination_id = self.resolve_space(destination)
-        distances = self.tour_distances([start_id, *stop_ids, destination_id], step_free, min_width_m)
+        distances = self.tour_distances([start_id, *stop_ids, destination_id], step_free, min_width_m, travel_mode)
         order, best_length = self.best_stop_order(start_id, stop_ids, destination_id, distances)
         best_stops = [stop_ids[index] for index in order]
-        route = self.compute_route(start_id, destination_id, step_free, best_stops, min_width_m)
+        route = self.compute_route(start_id, destination_id, step_free, best_stops, min_width_m, travel_mode=travel_mode)
         if not math.isclose(route.length_m, best_length, abs_tol=1e-6):
             raise RuntimeError(f"Tour length {route.length_m} differs from the optimum {best_length}.")
         given_sequence = [start_id, *stop_ids, destination_id]
-        given_length = sum(distances[a][b] for a, b in itertools.pairwise(given_sequence))
+        given_length = sum(distances[a].get(b, math.inf) for a, b in itertools.pairwise(given_sequence))
         if activate:
             self.last_route = route
             self.active_request = {
                 "start": start_id, "destination": destination_id, "step_free": step_free,
                 "via": best_stops or None, "min_width_m": min_width_m, "entrance": None,
+                "travel_mode": travel_mode,
             }
         return {
             "route": route,
             "stop_sequence": route.stops,
             "stops": [self.space_summary(space_id) for space_id in route.stops],
             "length_m": route.length_m,
-            "given_order_length_m": given_length,
-            "saving_m": max(given_length - route.length_m, 0.0),
-            "constraints": {"step_free": step_free, "min_width_m": min_width_m, "closed": sorted(self.closed)},
+            "given_order_length_m": given_length if math.isfinite(given_length) else None,
+            "saving_m": max(given_length - route.length_m, 0.0) if math.isfinite(given_length) else None,
+            "constraints": {"travel_mode": travel_mode, "step_free": step_free, "min_width_m": min_width_m, "closed": sorted(self.closed)},
             "optimal": True,
             "distance_model": KIT_DISTANCE_MODEL,
             "activated": activate,
@@ -1955,6 +2070,7 @@ class BuildingMap:
             "height_overrides": dict(self.height_overrides),
             "closed": set(self.closed),
             "walks": dict(self.walks),
+            "strict_walks": dict(self.strict_walks),
             "last_route": self.last_route,
             "located_asset_ids": list(self.located_asset_ids),
             "selection": copy.deepcopy(self.selection),
@@ -1979,6 +2095,7 @@ class BuildingMap:
             self.located_asset_ids = list(snapshot["located_asset_ids"])
             self.selection = copy.deepcopy(snapshot["selection"])
         self.walks = dict(snapshot["walks"])
+        self.strict_walks = dict(snapshot["strict_walks"])
         self.last_route = snapshot["last_route"]
         self._spatial_index = None
         self.forget_missing()
@@ -2021,6 +2138,7 @@ class BuildingMap:
         other.height_overrides = dict(self.height_overrides)
         other.undo_stack = list(self.undo_stack)  # entries are never altered, so both maps can share them
         other.walks = dict(self.walks)
+        other.strict_walks = dict(self.strict_walks)
         other.last_route = copy.deepcopy(self.last_route)
         other.active_request = copy.deepcopy(self.active_request)
         other.located_asset_ids = list(self.located_asset_ids)
@@ -2044,6 +2162,7 @@ class BuildingMap:
         """After an edit: drop the spatial index, the active route and the walks of spaces whose openings changed."""
         for space_id in walk_space_ids:
             self.walks.pop(space_id, None)
+            self.strict_walks.pop(space_id, None)
         self._spatial_index = None
         self.last_route = None
 
@@ -2180,6 +2299,7 @@ class BuildingMap:
         self.data["openings"].append(opening)
         for space_id in (first_id, second_id):
             self.walks.pop(space_id, None)
+            self.strict_walks.pop(space_id, None)
         self._spatial_index = None
         self.last_route = None
         return opening

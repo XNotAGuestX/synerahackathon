@@ -192,6 +192,9 @@ export function assumptionLines(
     `Start: ${label(understood.resolved.start_space_id)}`,
     `Destination: ${label(understood.resolved.destination_space_id)}`,
   ]
+  if (understood.constraints.travel_mode === 'forklift') {
+    details.unshift('Forklift: designated access, openings at least 3 m wide; production bays are stops')
+  }
   if (understood.constraints.via.length > 0) {
     details.push(`Via: ${understood.constraints.via.map((id) => label(id)).join(', ')}`)
   }
