@@ -5,7 +5,6 @@ import type { ActionProposal, AskEffect, AskOption, ChatMessage, FloorSummary, R
 import { copy } from '../../i18n/en'
 import type { VoiceState } from '../voice/useVoice'
 import { RichText, hasNumberedSteps } from './RichText'
-import { RouteShare } from './RouteShare'
 
 export type VoicePanelState = {
   state: VoiceState
@@ -13,11 +12,6 @@ export type VoicePanelState = {
   muted: boolean
   setMuted: (muted: boolean) => void
   error: string | null
-  ready: boolean
-  transcript: string
-  queued: number
-  enable: () => void
-  finishSpeaking: () => void
 }
 
 const voiceLabels: Record<VoiceState, string> = {
@@ -100,7 +94,6 @@ type GuidePanelProps = {
   onStopGuidance: () => void
   inputRef: RefObject<HTMLTextAreaElement | null>
   floors: FloorSummary[]
-  shareUrl: string | null
 }
 
 export function readableDirection(text: string): string {
@@ -127,7 +120,7 @@ const COMPOSER_MAX_PX = 160
 
 export function GuidePanel({ comparisonVisible = false, onClearComparison, query, messages, busy, ready, connection, suggestions, stepFree, activeRoute, activeMessageId,
   pendingActionId, onQuery, onSubmit, onChoose, onRetry, onConfirm, onCancel,
-  onShowMap, onShowFloor, onAllowStairs, onChooseStart, inputMode, onInputMode, voice, guidanceActive, onStopGuidance, inputRef, floors, shareUrl }: GuidePanelProps) {
+  onShowMap, onShowFloor, onAllowStairs, onChooseStart, inputMode, onInputMode, voice, guidanceActive, onStopGuidance, inputRef, floors }: GuidePanelProps) {
   const feedRef = useRef<HTMLDivElement>(null)
   const nearBottom = useRef(true)
   const speechRef = useRef<BrowserSpeech | null>(null)
@@ -180,13 +173,9 @@ export function GuidePanel({ comparisonVisible = false, onClearComparison, query
     {inputMode === 'voice' && <div className="voice-bar chat-voice-bar">
       <span className={`voice-pill ${voice.muted ? 'muted' : voice.state}`} role="status">{voice.muted ? copy.voiceMuted : voiceLabels[voice.state]}</span>
       <span className="voice-meter" aria-hidden="true"><span style={{ transform: `scaleX(${voice.muted ? 0 : voice.level})` }} /></span>
-      <button type="button" className="small-action" aria-pressed={voice.muted} onClick={() => voice.muted ? voice.enable() : voice.setMuted(true)}>{voice.muted ? copy.voiceUnmute : copy.voiceMute}</button>
-      {voice.state === 'hearing' && <button type="button" className="small-action" onClick={voice.finishSpeaking}>{copy.voiceFinish}</button>}
-      {(!voice.ready || voice.error) && <button type="button" className="small-action" onClick={voice.enable}>{copy.voiceRetry}</button>}
-      {voice.queued > 0 && <span role="status">{voice.queued} {copy.voiceQueued.toLowerCase()}</span>}
+      <button type="button" className="small-action" aria-pressed={voice.muted} onClick={() => voice.setMuted(!voice.muted)}>{voice.muted ? copy.voiceUnmute : copy.voiceMute}</button>
       {guidanceActive && <button type="button" className="small-action" onClick={onStopGuidance}>{copy.stopGuidance}</button>}
       {voice.error ? <p className="chat-voice-note" role="alert">{voice.error}</p> : <p className="chat-voice-note">{copy.voiceModeHint}</p>}
-      {voice.transcript && <p className="chat-voice-note voice-transcript" role="status">{copy.voiceYouSaid} {voice.transcript}</p>}
     </div>}
     {inputMode !== 'voice' && guidanceActive && <div className="voice-bar chat-voice-bar"><button type="button" className="small-action" onClick={onStopGuidance}>{copy.stopGuidance}</button></div>}
     <div ref={feedRef} className="chat-feed" role="log" aria-label="Conversation"
@@ -236,7 +225,6 @@ export function GuidePanel({ comparisonVisible = false, onClearComparison, query
             </div>}
             {isCurrentRoute && comparisonVisible && previousRoute && onClearComparison && <button type="button" className="route-clear-comparison" onClick={onClearComparison}>Clear previous route</button>}
             {isCurrentRoute && route.reachable && <button type="button" className="route-show" onClick={onShowMap}>{copy.showRoute}</button>}
-            {isCurrentRoute && shareUrl && <RouteShare key={shareUrl} url={shareUrl} />}
             {isCurrentRoute && !route.reachable && <div className="chat-route-recovery">
               {stepFree && <button type="button" className="small-action is-primary" disabled={busy} onClick={onAllowStairs}>{copy.allowStairs}</button>}
               <button type="button" className="small-action" disabled={busy} onClick={onChooseStart}>{copy.chooseStart}</button>
@@ -253,7 +241,7 @@ export function GuidePanel({ comparisonVisible = false, onClearComparison, query
           <footer className="chat-message-meta"><time dateTime={message.created_at}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>{message.role === 'user' && <span>{message.delivery === 'sending' ? 'Sending…' : message.delivery === 'failed' ? 'Not sent' : '✓'}</span>}</footer>
         </article>
       })}
-      {(busy || (inputMode === 'voice' && ['transcribing', 'queued', 'thinking'].includes(voice.state))) && <p className="chat-typing" role="status">{inputMode === 'voice' && voice.state === 'transcribing' ? copy.voiceTranscribing : copy.typing}<span aria-hidden="true">…</span></p>}
+      {busy && <p className="chat-typing">{copy.typing}<span aria-hidden="true">…</span></p>}
     </div>
     <form onSubmit={onSubmit} className="chat-composer">
       {inputMode === 'transcript' && <button type="button" className="chat-microphone small-action" aria-label={listening ? 'Stop listening' : 'Dictate message'} aria-pressed={listening} onClick={listen}>{listening ? copy.stopDictation : copy.dictate}</button>}
