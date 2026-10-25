@@ -1,0 +1,12 @@
+{
+  "code": "30014_invalid_placement",
+  "message": "The edit breaks a placement rule.",
+  "trace_id": "00000000-0000-0000-0000-0000000003e7",
+  "details": [
+    {
+      "field": "position",
+      "code": "crosses_wall",
+      "message": "The new desk would cross a wall of Production zone H-A1 [proc-factory-dev-003-F0-S001] on Ground floor."
+    }
+  ]
+}

@@ -26,6 +26,7 @@ tags:
   - name: Routes
   - name: Messages
   - name: Actions
+  - name: Catalog
 paths:
   /api/v1/health:
     get:
@@ -118,6 +119,36 @@ paths:
           $ref: "#/components/responses/Unauthenticated"
         "404":
           $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/object-types:
+    get:
+      operationId: list_object_types
+      tags: [Catalog]
+      summary: Objekt- und Verbindungstypen des Editors lesen
+      description: |
+        Katalog aus `final_agent/object_catalog.json`, ohne Sitzung. Gruppe `items` enthält Objekttypen
+        (`action: add_object`) mit Default-Maßen und Default-Höhe. Gruppe `connections` enthält Tür und Durchgang
+        (`add_opening`) sowie Treppe, Rolltreppe und Aufzug (`add_connector`); deren `height_m` ist null.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+      responses:
+        "200":
+          description: Objektkatalog
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObjectCatalog"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
         default:
           $ref: "#/components/responses/Error"
 
@@ -305,6 +336,7 @@ paths:
       description: |
         Enthält bestätigte neue Türen dieser revision. `closed_ids` ist die volle Schließmenge der Sitzung derselben revision.
         Nicht angeforderte Arrays bleiben vorhanden, sind aber leer. `included` trennt „nicht angefordert“ von „wirklich leer“.
+        `stacking` ist immer vorhanden und hängt nicht von `include` ab.
       parameters:
         - $ref: "#/components/parameters/X-Request-Id"
         - $ref: "#/components/parameters/SessionId"
@@ -537,6 +569,7 @@ paths:
               client_context:
                 floor_level: 0
                 selected_space_id: proc-factory-dev-003-F0-S012
+                selected_object_id: null
                 preferences:
                   step_free: true
       responses:
@@ -585,6 +618,11 @@ paths:
         Legt nur eine pending-Aktion an und ändert das Gebäude nicht.
         Teilen die Räume keine Wand, ist die Antwort 409 `30007_not_adjacent` und es entsteht keine Aktion.
         Die Aktion läuft nach 15 Minuten ab.
+        Editor-Kinds (`add_object`, `update_object`, `remove_object`, `add_opening`, `add_connector`, `undo_edit`)
+        werden auf einer Kopie geprüft. Die Aktion speichert die normalisierte Proposal (Ids statt Namen,
+        berechnete Position, gefüllte Defaults) und zeigt den Zustand danach in `preview_objects`.
+        Verletzte Regeln: 409 `30014_invalid_placement` mit `details[].code` = Regel, 409 `30015_nothing_to_undo`,
+        409 `30016_not_removable`, 404 `30013_element_not_found` oder `30004_place_not_found` mit `details[].field`.
       parameters:
         - $ref: "#/components/parameters/X-Request-Id"
         - $ref: "#/components/parameters/Idempotency-Key"
@@ -610,6 +648,22 @@ paths:
                   first_space: "1.04"
                   second_space: "1.05"
                   step_free: true
+              addObject:
+                summary: Schreibtisch in einem Raum vorschlagen
+                value:
+                  kind: add_object
+                  type: desk
+                  space: "1.04"
+              stackObject:
+                summary: Drucker auf einen Schreibtisch stellen
+                value:
+                  kind: update_object
+                  object_ref: Printer 1.04
+                  on_top_of: [Desk 1.04]
+              undoEdit:
+                summary: Letzte Editor-Änderung rückgängig machen
+                value:
+                  kind: undo_edit
       responses:
         "201":
           description: Ausstehende Aktion
@@ -676,6 +730,9 @@ paths:
       summary: Aktion bestätigen und anwenden
       description: |
         Dieselbe schon bestätigte Aktion noch einmal bestätigen liefert das erste Ergebnis und keine zweite Tür.
+        Gebäudeänderungen (`add_door` und die Editor-Kinds) schreiben in derselben Transaktion
+        `agent_output/api/<session_id>/building_edited.json` und `stacking_adapter.json`.
+        Scheitert das Speichern: Rollback, 500 `00001_internal`, die Aktion bleibt pending.
         Bestätigen nach Abbruch: 409 `30010_action_conflict`.
         Confirm after cancel: 409 `30010_action_conflict`.
         Abgelaufen: 409 `30009_action_expired`.
@@ -1047,6 +1104,9 @@ components:
         - 30010_action_conflict
         - 30012_revision_conflict
         - 30013_element_not_found
+        - 30014_invalid_placement
+        - 30015_nothing_to_undo
+        - 30016_not_removable
         - 40001_model_unavailable
         - 40002_model_rate_limited
         - 40003_model_timeout
@@ -1438,7 +1498,7 @@ components:
           $ref: "#/components/schemas/DatasetId"
         kind:
           type: string
-          description: Bekannte Werte stairs, lift.
+          description: Bekannte Werte stairs, escalator, lift. Eine Rolltreppe ist beidseitig begehbar, kostet wie eine Treppe und ist nie stufenfrei.
         name:
           type: string
         floor_ids:
@@ -1471,6 +1531,7 @@ components:
         - connectors
         - closed_ids
         - bounds
+        - stacking
       properties:
         schema_version:
           type: integer
@@ -1509,6 +1570,42 @@ components:
             type: string
         bounds:
           $ref: "#/components/schemas/Bounds"
+        stacking:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackingEntry"
+          description: |
+            Objekte dieser Etage aus `stacking_adapter.json`: gestapelt, tragend oder mit Höhen-Override.
+            Alle anderen Objekte stehen am Boden und haben die Katalog-Höhe ihres Typs (`GET /api/v1/object-types`).
+
+    StackingEntry:
+      type: object
+      additionalProperties: false
+      required: [object_id, layer, on_top_of, height_m, height_source, elevation_m]
+      properties:
+        object_id:
+          $ref: "#/components/schemas/DatasetId"
+        layer:
+          type: integer
+          minimum: 0
+          description: 0 steht am Boden. Ebene k ≥ 1, wenn der höchste Träger auf Ebene k−1 liegt.
+        on_top_of:
+          type: array
+          items:
+            type: string
+          description: Ids der Träger, sortiert. Leer auf Ebene 0.
+        height_m:
+          type: number
+          exclusiveMinimum: 0
+          description: Wirksame Höhe in Metern.
+        height_source:
+          type: string
+          enum: [override, catalog]
+          description: override = vom Nutzer gesetzt, catalog = Default des Typs.
+        elevation_m:
+          type: number
+          minimum: 0
+          description: Unterkante über dem Etagenboden = größte Oberkante der Träger.
 
     Place:
       type: object
@@ -1683,7 +1780,7 @@ components:
 
     Intent:
       type: string
-      enum: [locate, route, count, close, add_door, clarify, unknown]
+      enum: [locate, route, count, close, add_door, edit, clarify, unknown]
 
     HighlightReason:
       type: string
@@ -1767,6 +1864,7 @@ components:
         - $ref: "#/components/schemas/SetClosuresEffect"
         - $ref: "#/components/schemas/AskEffect"
         - $ref: "#/components/schemas/BuildingPatchedEffect"
+        - $ref: "#/components/schemas/PreviewObjectsEffect"
       discriminator:
         propertyName: type
         mapping:
@@ -1778,6 +1876,7 @@ components:
           set_closures: "#/components/schemas/SetClosuresEffect"
           ask: "#/components/schemas/AskEffect"
           building_patched: "#/components/schemas/BuildingPatchedEffect"
+          preview_objects: "#/components/schemas/PreviewObjectsEffect"
 
     HighlightSpacesEffect:
       type: object
@@ -1888,6 +1987,40 @@ components:
           items:
             type: string
 
+    PreviewObjectsEffect:
+      type: object
+      additionalProperties: false
+      required: [type, floor_ids, assets, openings, connectors, removed_ids]
+      description: |
+        Vorschau einer Editor-Aktion: neue oder geänderte Elemente im Zustand nach der Änderung,
+        inklusive mitbewegter Stapel. Nur zeichnen, nicht in den Plan übernehmen.
+      properties:
+        type:
+          type: string
+          const: preview_objects
+        floor_ids:
+          type: array
+          items:
+            type: string
+          description: Betroffene Etagen.
+        assets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Asset"
+        openings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Opening"
+        connectors:
+          type: array
+          items:
+            $ref: "#/components/schemas/Connector"
+        removed_ids:
+          type: array
+          items:
+            type: string
+          description: Elemente, die die Änderung entfernt (Objekt samt allem darauf).
+
     TranscriptMessage:
       type: object
       additionalProperties: false
@@ -1944,6 +2077,9 @@ components:
           type: [integer, "null"]
         selected_space_id:
           type: [string, "null"]
+        selected_object_id:
+          type: [string, "null"]
+          description: Ausgewähltes Objekt, Tür oder Verbinder. Unbekannt ergibt 404 `30013_element_not_found`.
         preferences:
           oneOf:
             - $ref: "#/components/schemas/Preferences"
@@ -2048,15 +2184,209 @@ components:
           type: boolean
           default: true
 
+    AddObjectProposal:
+      type: object
+      additionalProperties: false
+      required: [kind, type]
+      description: |
+        Objekt anlegen. Fehlende Felder oder null bedeuten Default. Position = `position`, sonst Mittelpunkt
+        der Träger (`on_top_of`), sonst Anker von `space`. Mindestens eins davon ist Pflicht.
+      properties:
+        kind:
+          type: string
+          const: add_object
+        type:
+          $ref: "#/components/schemas/EditReference"
+        category:
+          $ref: "#/components/schemas/OptionalEditReference"
+        name:
+          $ref: "#/components/schemas/OptionalEditReference"
+        space:
+          $ref: "#/components/schemas/OptionalEditReference"
+        floor_id:
+          $ref: "#/components/schemas/OptionalEditReference"
+        position:
+          oneOf:
+            - $ref: "#/components/schemas/Point"
+            - type: "null"
+        rotation_deg:
+          type: [number, "null"]
+          default: 0
+        width_m:
+          $ref: "#/components/schemas/OptionalSize"
+        depth_m:
+          $ref: "#/components/schemas/OptionalSize"
+        height_m:
+          $ref: "#/components/schemas/OptionalSize"
+          description: Gesetzt = Höhen-Override. null = Katalog-Höhe; die normalisierte Proposal behält dann null.
+        on_top_of:
+          $ref: "#/components/schemas/Supports"
+
+    UpdateObjectProposal:
+      type: object
+      additionalProperties: false
+      required: [kind, object_ref]
+      description: |
+        Objekt, Öffnung oder Verbinder ändern. Fehlende Felder oder null bleiben unverändert.
+        Objekt: name, type, category, space, floor_id, position, rotation_deg, width_m, depth_m, height_m, on_top_of.
+        Öffnung: opening_kind, width_m, step_free. Verbinder: name, step_free. Andere Felder ergeben 400.
+      properties:
+        kind:
+          type: string
+          const: update_object
+        object_ref:
+          $ref: "#/components/schemas/EditReference"
+        name:
+          $ref: "#/components/schemas/OptionalEditReference"
+        type:
+          $ref: "#/components/schemas/OptionalEditReference"
+        category:
+          $ref: "#/components/schemas/OptionalEditReference"
+        space:
+          $ref: "#/components/schemas/OptionalEditReference"
+        floor_id:
+          $ref: "#/components/schemas/OptionalEditReference"
+        position:
+          oneOf:
+            - $ref: "#/components/schemas/Point"
+            - type: "null"
+        rotation_deg:
+          type: [number, "null"]
+        width_m:
+          $ref: "#/components/schemas/OptionalSize"
+        depth_m:
+          $ref: "#/components/schemas/OptionalSize"
+        height_m:
+          $ref: "#/components/schemas/OptionalSize"
+          description: Setzt einen Höhen-Override.
+        on_top_of:
+          $ref: "#/components/schemas/Supports"
+          description: Neue Träger. Leere Liste stellt das Objekt auf den Boden.
+        step_free:
+          type: [boolean, "null"]
+        opening_kind:
+          type: [string, "null"]
+          enum: [door, opening, null]
+
+    RemoveObjectProposal:
+      type: object
+      additionalProperties: false
+      required: [kind, object_ref]
+      description: Entfernt ein Objekt samt allem darauf, oder eine in der Sitzung hinzugefügte Öffnung bzw. einen Verbinder.
+      properties:
+        kind:
+          type: string
+          const: remove_object
+        object_ref:
+          $ref: "#/components/schemas/EditReference"
+
+    AddOpeningProposal:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      description: Tür oder Durchgang. Entweder first_space und second_space, oder floor_id und position auf der Wand.
+      properties:
+        kind:
+          type: string
+          const: add_opening
+        opening_kind:
+          type: [string, "null"]
+          enum: [door, opening, null]
+          default: door
+        first_space:
+          $ref: "#/components/schemas/OptionalEditReference"
+        second_space:
+          $ref: "#/components/schemas/OptionalEditReference"
+        floor_id:
+          $ref: "#/components/schemas/OptionalEditReference"
+        position:
+          oneOf:
+            - $ref: "#/components/schemas/Point"
+            - type: "null"
+        width_m:
+          $ref: "#/components/schemas/OptionalSize"
+        step_free:
+          type: [boolean, "null"]
+          default: true
+
+    AddConnectorProposal:
+      type: object
+      additionalProperties: false
+      required: [kind, connector_kind, spaces]
+      description: Treppe, Rolltreppe oder Aufzug zwischen übereinanderliegenden Räumen verschiedener Etagen.
+      properties:
+        kind:
+          type: string
+          const: add_connector
+        connector_kind:
+          type: string
+          enum: [stairs, escalator, lift]
+        spaces:
+          type: array
+          minItems: 2
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/EditReference"
+        name:
+          $ref: "#/components/schemas/OptionalEditReference"
+        step_free:
+          type: [boolean, "null"]
+          description: Nur Aufzug, Default true. Treppe und Rolltreppe sind nie stufenfrei.
+
+    UndoEditProposal:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      description: Macht die letzte bestätigte Gebäudeänderung der Sitzung rückgängig. Schließungen bleiben.
+      properties:
+        kind:
+          type: string
+          const: undo_edit
+
+    EditReference:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: Id oder genauer Name.
+
+    OptionalEditReference:
+      type: [string, "null"]
+      minLength: 1
+      maxLength: 200
+
+    OptionalSize:
+      type: [number, "null"]
+      exclusiveMinimum: 0
+      description: Meter, größer als 0.
+
+    Supports:
+      type: [array, "null"]
+      maxItems: 20
+      items:
+        $ref: "#/components/schemas/EditReference"
+      description: Objekte, auf denen das Objekt steht, alle im selben Raum.
+
     ActionCreate:
       oneOf:
         - $ref: "#/components/schemas/SetClosedProposal"
         - $ref: "#/components/schemas/AddDoorProposal"
+        - $ref: "#/components/schemas/AddObjectProposal"
+        - $ref: "#/components/schemas/UpdateObjectProposal"
+        - $ref: "#/components/schemas/RemoveObjectProposal"
+        - $ref: "#/components/schemas/AddOpeningProposal"
+        - $ref: "#/components/schemas/AddConnectorProposal"
+        - $ref: "#/components/schemas/UndoEditProposal"
       discriminator:
         propertyName: kind
         mapping:
           set_closed: "#/components/schemas/SetClosedProposal"
           add_door: "#/components/schemas/AddDoorProposal"
+          add_object: "#/components/schemas/AddObjectProposal"
+          update_object: "#/components/schemas/UpdateObjectProposal"
+          remove_object: "#/components/schemas/RemoveObjectProposal"
+          add_opening: "#/components/schemas/AddOpeningProposal"
+          add_connector: "#/components/schemas/AddConnectorProposal"
+          undo_edit: "#/components/schemas/UndoEditProposal"
 
     SetClosedResult:
       type: object
@@ -2086,15 +2416,120 @@ components:
         opening:
           $ref: "#/components/schemas/Opening"
 
+    EditResult:
+      type: object
+      additionalProperties: false
+      required: [kind, summary, changed_ids, removed_ids, floor_ids]
+      properties:
+        kind:
+          type: string
+          enum: [add_object, update_object, remove_object, add_opening, add_connector, undo_edit]
+        summary:
+          type: string
+          description: "Ein englischer Satz, z. B. `Add Desk 0.02 in Office 0.02.` oder `Undo: …`."
+        changed_ids:
+          type: array
+          items:
+            type: string
+          description: Neue oder geänderte Objekte, Öffnungen und Verbinder, inklusive mitbewegter Stapel.
+        removed_ids:
+          type: array
+          items:
+            type: string
+        floor_ids:
+          type: array
+          items:
+            type: string
+          description: Diese Etagen per GET plan neu laden.
+
     ActionResult:
       oneOf:
         - $ref: "#/components/schemas/SetClosedResult"
         - $ref: "#/components/schemas/AddDoorResult"
+        - $ref: "#/components/schemas/EditResult"
       discriminator:
         propertyName: kind
         mapping:
           set_closed: "#/components/schemas/SetClosedResult"
           add_door: "#/components/schemas/AddDoorResult"
+          add_object: "#/components/schemas/EditResult"
+          update_object: "#/components/schemas/EditResult"
+          remove_object: "#/components/schemas/EditResult"
+          add_opening: "#/components/schemas/EditResult"
+          add_connector: "#/components/schemas/EditResult"
+          undo_edit: "#/components/schemas/EditResult"
+
+    ObjectCatalog:
+      type: object
+      additionalProperties: false
+      required: [schema_version, groups]
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/ObjectCatalogGroup"
+          description: Bekannte Gruppen items und connections.
+
+    ObjectCatalogGroup:
+      type: object
+      additionalProperties: false
+      required: [id, label, categories]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/ObjectCatalogCategory"
+
+    ObjectCatalogCategory:
+      type: object
+      additionalProperties: false
+      required: [id, label, height_m, types]
+      properties:
+        id:
+          type: string
+          description: Objekte furniture, equipment, fixture, machine. Verbindungen same_floor, between_floors.
+        label:
+          type: string
+        height_m:
+          type: [number, "null"]
+          description: Fallback-Höhe für Typen dieser Kategorie ohne eigene Höhe. Verbindungen null.
+        types:
+          type: array
+          items:
+            $ref: "#/components/schemas/ObjectCatalogType"
+
+    ObjectCatalogType:
+      type: object
+      additionalProperties: false
+      required: [id, label, action, width_m, depth_m, height_m, count]
+      properties:
+        id:
+          type: string
+          description: Wert für `type` (add_object), `opening_kind` (add_opening) oder `connector_kind` (add_connector).
+        label:
+          type: string
+        action:
+          type: string
+          enum: [add_object, add_opening, add_connector]
+        width_m:
+          type: [number, "null"]
+          description: Typische Breite im Datensatz in Metern.
+        depth_m:
+          type: [number, "null"]
+        height_m:
+          type: [number, "null"]
+          description: Default-Höhe in Metern. Verbindungen null.
+        count:
+          type: integer
+          minimum: 0
+          description: Anzahl im Datensatz (train und dev).
 
     Action:
       type: object

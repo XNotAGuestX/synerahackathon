@@ -34,6 +34,11 @@ EXPOSE_HEADERS = ["ETag", "Location", "X-Request-Id", "X-API-Version", "X-Schema
 DEFAULT_ORIGINS = [f"http://{host}:{port}" for host in ("localhost", "127.0.0.1") for port in (3000, 5173)]
 
 Reference = Annotated[str, StringConstraints(min_length=1, max_length=200)]
+Number = Annotated[float, Field(allow_inf_nan=False)]
+Size = Annotated[float, Field(gt=0, allow_inf_nan=False)]
+Position = Annotated[list[Number], Field(min_length=2, max_length=2)]
+MAX_SUPPORTS = 20
+MAX_CONNECTOR_STOPS = 64
 
 
 class Input(BaseModel):
@@ -59,6 +64,7 @@ class RouteCreate(Input):
 class ClientContext(Input):
     floor_level: int | None = None
     selected_space_id: str | None = None
+    selected_object_id: str | None = None
     preferences: Preferences | None = None
 
 
@@ -81,7 +87,74 @@ class AddDoorProposal(Input):
     step_free: bool = True
 
 
-ActionCreate = Annotated[SetClosedProposal | AddDoorProposal, Field(discriminator="kind")]
+# Object editor proposals (final_agent.object_edits). A missing or null field means the default when
+# adding and "unchanged" when updating; the core checks rules and references.
+class AddObjectProposal(Input):
+    kind: Literal["add_object"]
+    type: Reference
+    category: Reference | None = None
+    name: Reference | None = None
+    space: Reference | None = None
+    floor_id: Reference | None = None
+    position: Position | None = None
+    rotation_deg: Number | None = None
+    width_m: Size | None = None
+    depth_m: Size | None = None
+    height_m: Size | None = None
+    on_top_of: Annotated[list[Reference], Field(max_length=MAX_SUPPORTS)] | None = None
+
+
+class UpdateObjectProposal(Input):
+    kind: Literal["update_object"]
+    object_ref: Reference
+    name: Reference | None = None
+    type: Reference | None = None
+    category: Reference | None = None
+    space: Reference | None = None
+    floor_id: Reference | None = None
+    position: Position | None = None
+    rotation_deg: Number | None = None
+    width_m: Size | None = None
+    depth_m: Size | None = None
+    height_m: Size | None = None
+    on_top_of: Annotated[list[Reference], Field(max_length=MAX_SUPPORTS)] | None = None
+    step_free: bool | None = None
+    opening_kind: Literal["door", "opening"] | None = None
+
+
+class RemoveObjectProposal(Input):
+    kind: Literal["remove_object"]
+    object_ref: Reference
+
+
+class AddOpeningProposal(Input):
+    kind: Literal["add_opening"]
+    opening_kind: Literal["door", "opening"] | None = None
+    first_space: Reference | None = None
+    second_space: Reference | None = None
+    floor_id: Reference | None = None
+    position: Position | None = None
+    width_m: Size | None = None
+    step_free: bool | None = None
+
+
+class AddConnectorProposal(Input):
+    kind: Literal["add_connector"]
+    connector_kind: Literal["stairs", "escalator", "lift"]
+    spaces: Annotated[list[Reference], Field(min_length=2, max_length=MAX_CONNECTOR_STOPS)]
+    name: Reference | None = None
+    step_free: bool | None = None
+
+
+class UndoEditProposal(Input):
+    kind: Literal["undo_edit"]
+
+
+ActionCreate = Annotated[
+    SetClosedProposal | AddDoorProposal | AddObjectProposal | UpdateObjectProposal | RemoveObjectProposal
+    | AddOpeningProposal | AddConnectorProposal | UndoEditProposal,
+    Field(discriminator="kind"),
+]
 
 
 def load_contract() -> dict:
@@ -373,6 +446,10 @@ def create_app(
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", building_id):
             raise ApiError("20001_validation_failed", [{"field": "building_id", "code": "invalid"}])
         return service.building(building_id)
+
+    @app.get(API_ROOT + "/object-types", operation_id="list_object_types")
+    def list_object_types():
+        return service.object_types()
 
     @app.post(API_ROOT + "/sessions", operation_id="create_session")
     def create_session(body: SessionCreate):

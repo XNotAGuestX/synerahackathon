@@ -34,7 +34,8 @@ Anführungszeichen. Bei 409 `30012_revision_conflict` Sitzung neu laden und den
 gleichen Request mit aktualisiertem `If-Match` wiederholen. Auch ein während
 des Modellaufrufs konkurrierend geänderter Zustand kann diesen Konflikt auslösen.
 
-Änderungen an Türen und Sperrungen zunächst als Aktion anzeigen. Erst
+Änderungen an Türen, Sperrungen und Objekten (Editor-Kinds, `GET /api/v1/object-types`
+liefert den Typkatalog) zunächst als Aktion anzeigen. Erst
 `POST .../confirmations` wendet sie an. Danach Session und betroffene Pläne neu
 laden. Vorhandene Routen bleiben historische Snapshots; `last_route_id` wird
 bei bestätigten Änderungen geleert. Eine neue Route ausdrücklich berechnen.
@@ -69,6 +70,9 @@ deterministische echte Gebäudedaten, aber keine gemessene Modellantwort.
 | `action_pending`, `session_pending` | Offene Bestätigungskarte |
 | `action_confirmed`, `session_confirmed`, `plan_confirmed` | Zustand nach bestätigter Sperrung |
 | `error_validation`, `error_not_found`, `error_model` | Stabile Fehlerpakete |
+| `object_types` | Objektkatalog des Editors |
+| `action_add_object_pending`, `action_add_object_confirmed` | Editor-Aktion mit `preview_objects` und `EditResult` |
+| `error_invalid_placement` | `30014_invalid_placement` mit Regel in `details[].code` |
 
 Die geometrischen Routen verwenden Kit 1.1.0: Tür-zu-Tür, Wandabstand und
 Höhenkosten. Falls das geerbte Kit-Modell nur eine heuristische Distanz hat,
@@ -89,7 +93,7 @@ Der gemeinsame Generator erhält beide Beispielsätze. Die Frontend-Dateien
 `message-pending-action.json`, `action-pending.json`, `action-confirmed.json`)
 behalten ihre festen Demo-UUIDs. `session.json` und `route.json` gehören zu diesem
 Satz; `backend-session.json` und `backend-route.json` ergänzen die Backend-Beispiele.
-`index.json` erfasst sämtliche 37 erzeugten Beispiele für die gemeinsame Prüfung.
+`index.json` erfasst sämtliche 41 erzeugten Beispiele für die gemeinsame Prüfung.
 
 `ANTHROPIC_API_KEY` bzw. eine SDK-Anmeldung authentifiziert Claude-Anfragen.
 Claude-Aufrufe verwenden den Standard-SDK-Client von main.
