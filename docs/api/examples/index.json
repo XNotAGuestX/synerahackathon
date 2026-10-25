@@ -76,10 +76,6 @@
     "schema": "AdminToken"
   },
   {
-    "file": "emergency-challenge.json",
-    "schema": "EmergencyChallenge"
-  },
-  {
     "file": "emergency-status.json",
     "schema": "EmergencyStatus"
   },

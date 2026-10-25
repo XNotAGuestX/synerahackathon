@@ -2858,13 +2858,6 @@ button.next-distance:focus-visible { outline-color: var(--color-bar-accent); }
 .emergency-form input { min-height: var(--control-height); }
 .emergency-error { margin: 0; padding: var(--space-3); border-radius: var(--radius-sm); background: var(--color-danger-soft); color: var(--color-text-primary); }
 .field-hint { margin: 0; color: var(--color-text-tertiary); font-size: var(--font-size-label); }
-.emergency-code {
-  margin: 0;
-  font: var(--font-weight-bold) var(--font-size-display) / 1 var(--font-family-mono);
-  letter-spacing: 0.3em;
-  color: var(--color-danger);
-}
-.emergency-code-input { font-family: var(--font-family-mono); font-size: var(--font-size-headline); letter-spacing: 0.3em; }
 
 .emergency-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
 .emergency-count {
@@ -2895,8 +2888,34 @@ button.next-distance:focus-visible { outline-color: var(--color-bar-accent); }
 .emergency-dot.outside_manual { background: var(--color-start); }
 .emergency-end { justify-self: start; }
 
-.plan .emergency-person { stroke: var(--color-text-primary); stroke-width: 0.14; }
-.plan .emergency-person.inside { fill: var(--color-danger); }
-.plan .emergency-person.outside { fill: var(--color-success); }
-.plan .emergency-person.outside_manual { fill: var(--color-start); }
-.plan .emergency-person.stale { stroke-dasharray: 0.3 0.2; }
+.plan .emergency-person > circle:not(.emergency-person-focus) { stroke: var(--color-surface); stroke-width: 0.18; }
+.plan .emergency-person.inside > circle:not(.emergency-person-focus) { fill: var(--color-danger); }
+.plan .emergency-person.stale > circle:not(.emergency-person-focus) { stroke: var(--color-text-primary); stroke-dasharray: 0.3 0.2; }
+.emergency-person-label { pointer-events: none; font-weight: var(--font-weight-bold); }
+.emergency-person-label text { fill: var(--color-danger); paint-order: stroke; stroke: var(--color-surface); stroke-width: 0.3; stroke-linejoin: round; }
+.plan .emergency-person-focus { fill: none; stroke: var(--color-danger); stroke-width: 0.25; animation: emergency-pulse 1.2s ease-in-out infinite; }
+@keyframes emergency-pulse { 50% { stroke-opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .plan .emergency-person-focus { animation: none; } }
+.floor-inside-count {
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-danger);
+  color: var(--color-surface);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+}
+.emergency-person-name {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-weight: var(--font-weight-bold);
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--color-danger);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}

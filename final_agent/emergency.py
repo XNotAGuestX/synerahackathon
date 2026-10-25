@@ -1,8 +1,9 @@
 """Emergency mode: while an admin keeps the alarm active, every tracked phone is listed as inside or outside the building.
 
 Two kinds of phones are tracked:
-- Simulated people (seeded from the building id, so a demo replays the same way). Most walk to the nearest entrance
-  after a short delay and step outside; a quarter (at least one) never leave, standing for a phone left inside.
+- Simulated people (seeded from the building id, so a demo replays the same way). Three are already outside and
+  marked by the assembly point warden when the alarm starts. Most others walk to the nearest entrance after a short
+  delay and step outside; a quarter (at least one) never leave, standing for a phone left inside.
 - Real app sessions that share their position (PUT /sessions/{id}/position). The HTTP layer hands their latest fix in
   through observe(); session ids never leave this module, every phone gets an opaque D-id.
 
@@ -35,9 +36,14 @@ SIMULATED, SESSION = "simulated", "session"
 
 SIMULATED_PEOPLE = 12
 STAY_SHARE = 0.25  # at least one simulated phone stays inside, so every demo has someone to mark by hand
-FIRST_LEAVE_S, LAST_LEAVE_S = 5.0, 60.0
-WALK_SPEED_M_S = 1.2
-CONNECTOR_S = 12.0  # time spent on a staircase or in a lift between two floors
+# Showcase: these people are already outside and confirmed at the assembly point when the alarm starts.
+PRE_MARKED = 3
+PRE_MARKED_BY = "Assembly point warden"
+PRE_MARKED_NOTE = "Checked in at the assembly point"
+# Demo pace, not real walking speed: the list should visibly empty within a short demo.
+FIRST_LEAVE_S, LAST_LEAVE_S = 2.0, 12.0
+WALK_SPEED_M_S = 3.0
+CONNECTOR_S = 5.0  # time spent on a staircase or in a lift between two floors
 OUTSIDE_STEP_M = 2.5  # how far beyond the entrance door a person stops
 STALE_S = 15.0  # same threshold as a live position fix
 PRESENCE_S = 600.0  # a session counts as present if it sent a fix this long before the alarm, or any since
@@ -80,6 +86,7 @@ class Person:
     start: Point2
     leave_after_s: float | None
     track: list[TrackPoint] = field(default_factory=list)
+    out_from_start: bool = False  # pre-marked showcase person: already at the end of the track
 
 
 @dataclass
@@ -184,6 +191,8 @@ def exit_track(building_map: BuildingMap, space_id: str, start: Point2) -> list[
 
 def position_at(person: Person, elapsed: float) -> tuple[str, Point2]:
     """(floor id, position) of a simulated person this many seconds into the alarm."""
+    if person.out_from_start and len(person.track) >= 2:
+        return person.track[-1][1], person.track[-1][2]
     if person.leave_after_s is None or not person.track or elapsed <= person.leave_after_s:
         return person.track[0][1] if person.track else "", person.start
     t = elapsed - person.leave_after_s
@@ -218,6 +227,11 @@ def simulate_people(building_map: BuildingMap, count: int = SIMULATED_PEOPLE) ->
         if len(track) < 2:
             leave, track = None, [(0.0, building_map.spaces[space_id]["floor_id"], start)]
         people.append(Person(f"P{index + 1:02d}", name, space_id, start, leave, track))
+    # Showcase people come from those who would leave anyway; without any exit route (no entrance) any will do.
+    leavers = [person for person in people if person.leave_after_s is not None]
+    pool = leavers if len(leavers) >= PRE_MARKED else [person for index, person in enumerate(people) if index not in staying]
+    for person in rng.sample(pool, min(PRE_MARKED, len(pool))):
+        person.out_from_start = True
     return people
 
 
@@ -243,13 +257,15 @@ class EmergencyMode:
         if not self.active:
             raise EmergencyNotActive("No emergency is active. Start one first.")
 
-    def start(self, reason: str) -> dict:
+    def start(self, reason: str = "Emergency") -> dict:
         if self.active:
             raise EmergencyAlreadyActive(f"An emergency is already active ('{self.reason}'). End it first.")
         self.people = {person.id: person for person in simulate_people(self.map)}
         self.reason = reason.strip() or "Emergency"
         self.started_at = self.clock()
         self.skipped_s = 0.0
+        self.marks = {person_id: ManualExit(self.started_at, PRE_MARKED_BY, PRE_MARKED_NOTE)
+                      for person_id, person in self.people.items() if person.out_from_start}
         return self.report()
 
     def end(self) -> dict:

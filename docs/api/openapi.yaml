@@ -1211,8 +1211,9 @@ paths:
       tags: [Emergency]
       summary: Notfallmodus aktivieren
       description: |
-        Braucht `X-Admin-Token` und den Code einer frischen Challenge desselben Admins. Jede Challenge erlaubt genau
-        einen Versuch. Falsch, abgelaufen oder unbekannt: 409 `30021_challenge_invalid`. Schon aktiv: 409 `30020_emergency_already_active`.
+        Braucht `X-Admin-Token` aus `create_admin_token`. Die Oberfläche fragt Name und PIN in einem Formular ab und ruft
+        beide Operationen nacheinander auf. Drei simulierte Personen starten schon draußen, markiert vom
+        „Assembly point warden“ (Demo). Schon aktiv: 409 `30020_emergency_already_active`.
       parameters:
         - $ref: "#/components/parameters/X-Request-Id"
         - $ref: "#/components/parameters/BuildingId"
@@ -1279,64 +1280,18 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
-  /api/v1/buildings/{building_id}/emergency-challenges:
-    post:
-      operationId: create_emergency_challenge
-      tags: [Emergency]
-      summary: Bestätigungscode für die Aktivierung anfordern
-      description: |
-        Liefert einen sechsstelligen Code, 60 s gültig, gebunden an Gebäude und Admin-Token. Die Oberfläche zeigt ihn an,
-        der Admin tippt ihn ab. Schutz gegen versehentliches Auslösen.
-      parameters:
-        - $ref: "#/components/parameters/X-Request-Id"
-        - $ref: "#/components/parameters/Idempotency-Key"
-        - $ref: "#/components/parameters/BuildingId"
-        - $ref: "#/components/parameters/X-Admin-Token"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/EmergencyChallengeCreate"
-      responses:
-        "201":
-          description: Challenge
-          headers:
-            X-Request-Id:
-              $ref: "#/components/headers/X-Request-Id"
-            X-API-Version:
-              $ref: "#/components/headers/X-API-Version"
-            X-Schema-Version:
-              $ref: "#/components/headers/X-Schema-Version"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/EmergencyChallenge"
-        "400":
-          $ref: "#/components/responses/ValidationFailed"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        default:
-          $ref: "#/components/responses/Error"
-
   /api/v1/buildings/{building_id}/emergency/people:
     get:
       operationId: list_emergency_people
       tags: [Emergency]
       summary: Live-Liste, wer drinnen und wer draußen ist
       description: |
-        Ohne aktiven Notfall: `active: false` und leere Liste. Sortierung: drinnen (veraltete Positionen zuerst),
-        draußen, manuell draußen, dann Name. Höchstens 200 Personen; `counts` zählt alle.
+        Öffentlich (ADR-0004): Während des Alarms zeigt jedes Telefon, wer noch drinnen ist. Ohne aktiven Notfall:
+        `active: false` und leere Liste. Sortierung: drinnen (veraltete Positionen zuerst), draußen, manuell draußen,
+        dann Name. Höchstens 200 Personen; `counts` zählt alle.
       parameters:
         - $ref: "#/components/parameters/X-Request-Id"
         - $ref: "#/components/parameters/BuildingId"
-        - $ref: "#/components/parameters/X-Admin-Token"
       responses:
         "200":
           description: Liste
@@ -1355,8 +1310,6 @@ paths:
           $ref: "#/components/responses/ValidationFailed"
         "401":
           $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         default:
@@ -1786,7 +1739,6 @@ components:
         - 30018_object_state_unavailable
         - 30019_emergency_not_active
         - 30020_emergency_already_active
-        - 30021_challenge_invalid
         - 30022_person_not_found
         - 40001_model_unavailable
         - 40002_model_rate_limited
@@ -3579,44 +3531,15 @@ components:
           type: [string, "null"]
           format: date-time
 
-    EmergencyChallengeCreate:
-      type: object
-      additionalProperties: false
-      properties: {}
-
-    EmergencyChallenge:
-      type: object
-      additionalProperties: false
-      required: [schema_version, id, code, expires_at]
-      properties:
-        schema_version:
-          type: integer
-          const: 1
-        id:
-          $ref: "#/components/schemas/ResourceId"
-        code:
-          type: string
-          pattern: "^[0-9]{6}$"
-        expires_at:
-          type: string
-          format: date-time
-
     EmergencyStart:
       type: object
       additionalProperties: false
-      required: [challenge_id, code, reason]
       properties:
-        challenge_id:
-          type: string
-          minLength: 1
-          maxLength: 64
-        code:
-          type: string
-          pattern: "^[0-9]{6}$"
         reason:
           type: string
           minLength: 1
           maxLength: 200
+          default: Emergency
 
     ExitConfirmation:
       type: object

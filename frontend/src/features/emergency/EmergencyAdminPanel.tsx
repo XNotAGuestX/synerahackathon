@@ -2,185 +2,164 @@ import { useEffect, useId, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { ApiError } from '../../api/errors'
 import { gateway } from '../../api/gateway'
-import type { EmergencyChallenge, EmergencyPerson, EmergencyRoster, EmergencyStatus } from '../../api/gateway'
-import { clockLabel, personName, placeLabel, secondsSince, statusLabel } from '../../domain/emergency'
+import type { EmergencyPerson, EmergencyRoster } from '../../api/gateway'
+import { clockLabel, personName, placeLabel, reasonText, secondsSince, statusLabel } from '../../domain/emergency'
 import { copy, fill } from '../../i18n/en'
-import type { AdminSession } from './useEmergency'
+import type { AdminSession, EmergencyState } from './useEmergency'
 
 const text = copy.emergency
+const NAME_KEY = 'wayfinder-display-name'
 
 type Props = {
   buildingId: string
-  status: EmergencyStatus | null
-  onStatus: (status: EmergencyStatus) => void
+  emergency: EmergencyState
   admin: AdminSession | null
   onAdmin: (admin: AdminSession | null) => void
-  roster: EmergencyRoster | null
-  onRoster: (roster: EmergencyRoster | null) => void
-  rosterFailed: boolean
+  onShowPerson: (person: EmergencyPerson) => void
 }
 
-/** The user-facing sentence for an admin request that failed; the UI branches on the stable error code. */
+/** A change that needs admin rights; it waits for name + PIN when this device is not unlocked yet. */
+type AdminAction = { kind: 'mark'; person: EmergencyPerson; note: string } | { kind: 'undo'; person: EmergencyPerson } | { kind: 'end' }
+
+/** The user-facing sentence for a failed admin request; the UI branches on the stable error code. */
 function errorText(error: unknown): string {
   if (!(error instanceof ApiError)) return error instanceof Error ? error.message : copy.apiUnavailable
   switch (error.code) {
     case '10003_admin_disabled': return text.disabled
-    case '10002_forbidden': return error.details.some((detail) => detail.field === 'pin') ? text.wrongPin : error.message
+    case '10002_forbidden': return error.details.some((detail) => detail.field === 'pin') ? text.wrongPin : text.unlockAgain
     case '00002_rate_limited': return text.tooManyAttempts
-    case '30021_challenge_invalid': return text.codeInvalid
     default: return error.message
   }
 }
 
-export function EmergencyAdminPanel({ buildingId, status, onStatus, admin, onAdmin, roster, onRoster, rosterFailed }: Props) {
+export function EmergencyAdminPanel({ buildingId, emergency, admin, onAdmin, onShowPerson }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [waiting, setWaiting] = useState<AdminAction | null>(null)
   const panelRef = useRef<HTMLElement>(null)
-  useEffect(() => setError(null), [buildingId, admin?.token, status?.active])
+  const active = Boolean(emergency.roster)
+  useEffect(() => { setError(null); setWaiting(null) }, [buildingId, active])
   // On phones the panel stacks below the map; bring it into view when it opens.
   useEffect(() => { if (window.matchMedia('(max-width: 800px)').matches) panelRef.current?.scrollIntoView({ block: 'start' }) }, [])
 
-  /** Runs an admin request; a rejected token locks the view, every other failure is shown in place. */
+  /** Runs a request; a rejected token locks this device again, every failure is shown in place. */
   const run = async (task: () => Promise<void>) => {
     setBusy(true)
     setError(null)
     try { await task() } catch (caught: unknown) {
-      if (caught instanceof ApiError && caught.code === '10002_forbidden' && admin && !caught.details.some((detail) => detail.field === 'pin')) onAdmin(null)
+      if (caught instanceof ApiError && caught.code === '10002_forbidden' && !caught.details.some((detail) => detail.field === 'pin')) onAdmin(null)
       setError(errorText(caught))
     } finally { setBusy(false) }
   }
 
-  let body
-  if (!admin) body = <UnlockForm busy={busy} onUnlock={(pin, name) => run(async () => {
+  const unlock = async (name: string, pin: string): Promise<AdminSession> => {
     const token = await gateway.createAdminToken(pin, name)
-    onAdmin({ token: token.token, name: token.name })
-  })} />
-  else if (!status?.active) body = <ActivateForm buildingId={buildingId} token={admin.token} busy={busy} run={run} onStarted={(started) => {
-    onRoster(started)
-    onStatus({ building_id: started.building_id, active: true, reason: started.reason, started_at: started.started_at })
-  }} onAlreadyActive={async () => onStatus(await gateway.getEmergency(buildingId))} />
-  else body = <ActiveList roster={roster} failed={rosterFailed} busy={busy}
-    onMark={(person, note) => run(async () => { onRoster(await gateway.markOutside(buildingId, admin.token, person.id, note)) })}
-    onUndo={(person) => run(async () => {
-      await gateway.clearOutsideMark(buildingId, admin.token, person.id)
-      onRoster(await gateway.listEmergencyPeople(buildingId, admin.token))
-    })}
-    onEnd={() => run(async () => {
-      await gateway.endEmergency(buildingId, admin.token)
-      onRoster(null)
-      onStatus({ building_id: buildingId, active: false, reason: null, started_at: null })
-    })} />
+    const session = { token: token.token, name: token.name }
+    onAdmin(session)
+    window.localStorage.setItem(NAME_KEY, token.name)  // the banner then knows this phone's owner
+    return session
+  }
+
+  const perform = async (action: AdminAction, session: AdminSession) => {
+    if (action.kind === 'mark') emergency.setRoster(await gateway.markOutside(buildingId, session.token, action.person.id, action.note))
+    else if (action.kind === 'undo') {
+      await gateway.clearOutsideMark(buildingId, session.token, action.person.id)
+      emergency.setRoster(await gateway.listEmergencyPeople(buildingId))
+    } else {
+      await gateway.endEmergency(buildingId, session.token)
+      emergency.setRoster(null)
+    }
+  }
+
+  const request = (action: AdminAction) => {
+    if (admin) void run(() => perform(action, admin))
+    else { setError(null); setWaiting(action) }
+  }
+
+  const activate = (name: string, pin: string) => run(async () => {
+    const session = admin ?? await unlock(name, pin)
+    try { emergency.setRoster(await gateway.startEmergency(buildingId, session.token)) } catch (caught: unknown) {
+      if (caught instanceof ApiError && caught.code === '30020_emergency_already_active') { emergency.setRoster(await gateway.listEmergencyPeople(buildingId)); return }
+      throw caught
+    }
+  })
 
   return (
     <section className="emergency-panel" ref={panelRef} aria-labelledby="emergency-title">
       <div className="emergency-panel-head">
-        <h2 id="emergency-title">{status?.active ? fill(text.active, { reason: status.reason ?? '' }) : text.title}</h2>
+        <h2 id="emergency-title">{active ? text.active + (reasonText(emergency.status?.reason) ? `: ${reasonText(emergency.status?.reason)}` : '') : text.title}</h2>
         {admin && <button type="button" className="text-action" onClick={() => onAdmin(null)}>{text.lock}</button>}
       </div>
       {admin && <p className="eyebrow">{fill(text.adminAs, { name: admin.name })}</p>}
       {error && <p className="emergency-error" role="alert">{error}</p>}
-      {body}
+      {!active && <ActivateForm unlocked={Boolean(admin)} busy={busy} onActivate={activate} />}
+      {active && waiting && (
+        <UnlockForm busy={busy} intro={text.unlockFor[waiting.kind]} submitLabel={text.unlockAndContinue} onCancel={() => setWaiting(null)}
+          onUnlock={(name, pin) => run(async () => { const session = await unlock(name, pin); const action = waiting; setWaiting(null); await perform(action, session) })} />
+      )}
+      {active && <ActiveList roster={emergency.roster!} failed={emergency.failed} busy={busy} onShowPerson={onShowPerson}
+        onMark={(person, note) => request({ kind: 'mark', person, note })}
+        onUndo={(person) => request({ kind: 'undo', person })}
+        onEnd={() => request({ kind: 'end' })} />}
     </section>
   )
 }
 
-function UnlockForm({ busy, onUnlock }: { busy: boolean; onUnlock: (pin: string, name: string) => void }) {
+type UnlockProps = { busy: boolean; intro: string; submitLabel: string; danger?: boolean; onUnlock: (name: string, pin: string) => void; onCancel?: () => void }
+
+/** Name + admin PIN. The PIN is sent once for a token and never stored. */
+function UnlockForm({ busy, intro, submitLabel, danger = false, onUnlock, onCancel }: UnlockProps) {
   const pinId = useId()
   const nameId = useId()
   const [pin, setPin] = useState('')
-  const [name, setName] = useState(() => window.localStorage.getItem('wayfinder-display-name') ?? '')
+  const [name, setName] = useState(() => window.localStorage.getItem(NAME_KEY) ?? '')
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (pin && name.trim()) onUnlock(pin, name.trim())
+    if (pin && name.trim()) onUnlock(name.trim(), pin)
   }
   return (
     <form className="emergency-form" onSubmit={submit}>
-      <p className="guide-text">{text.lockedIntro}</p>
+      <p className="guide-text">{intro}</p>
       <label className="field-label" htmlFor={nameId}>{text.adminName}</label>
       <input id={nameId} value={name} maxLength={80} autoComplete="name" onChange={(event) => setName(event.target.value)} />
       <label className="field-label" htmlFor={pinId}>{text.pin}</label>
       <input id={pinId} type="password" inputMode="numeric" autoComplete="off" value={pin} maxLength={64} onChange={(event) => setPin(event.target.value)} />
-      <button type="submit" className="primary-action" disabled={busy || !pin || !name.trim()}>{text.unlock}</button>
+      <div className="confirm-row">
+        <button type="submit" className={danger ? 'danger-action' : 'primary-action'} disabled={busy || !pin || !name.trim()}>{submitLabel}</button>
+        {onCancel && <button type="button" className="secondary-action" disabled={busy} onClick={onCancel}>{text.cancel}</button>}
+      </div>
     </form>
   )
 }
 
-type ActivateProps = {
-  buildingId: string
-  token: string
-  busy: boolean
-  run: (task: () => Promise<void>) => Promise<void>
-  onStarted: (roster: EmergencyRoster) => void
-  onAlreadyActive: () => Promise<void>
-}
-
-/** Two steps against accidental alarms: the server shows a one-time code and the admin types it back. */
-function ActivateForm({ buildingId, token, busy, run, onStarted, onAlreadyActive }: ActivateProps) {
-  const reasonId = useId()
-  const codeId = useId()
-  const [reason, setReason] = useState<string>(text.reasonDefault)
-  const [challenge, setChallenge] = useState<EmergencyChallenge | null>(null)
-  const [code, setCode] = useState('')
-  const codeRef = useRef<HTMLInputElement>(null)
-  useEffect(() => { if (challenge) codeRef.current?.focus() }, [challenge])
-
-  const prepare = () => run(async () => {
-    setCode('')
-    try { setChallenge(await gateway.createEmergencyChallenge(buildingId, token)) } catch (error: unknown) {
-      if (error instanceof ApiError && error.code === '30020_emergency_already_active') { await onAlreadyActive(); return }
-      throw error
-    }
-  })
-  const activate = (event: FormEvent) => {
-    event.preventDefault()
-    if (!challenge) return
-    void run(async () => {
-      try { onStarted(await gateway.startEmergency(buildingId, token, challenge.id, code, reason.trim() || text.reasonDefault)) } catch (error: unknown) {
-        if (error instanceof ApiError && error.code === '30021_challenge_invalid') setChallenge(null)  // one attempt per code
-        if (error instanceof ApiError && error.code === '30020_emergency_already_active') { await onAlreadyActive(); return }
-        throw error
-      }
-    })
+function ActivateForm({ unlocked, busy, onActivate }: { unlocked: boolean; busy: boolean; onActivate: (name: string, pin: string) => void }) {
+  if (unlocked) {
+    return (
+      <div className="emergency-form">
+        <p className="guide-text">{text.activateIntro}</p>
+        <button type="button" className="danger-action emergency-activate" disabled={busy} onClick={() => onActivate('', '')}>{text.activate}</button>
+      </div>
+    )
   }
-
-  return (
-    <form className="emergency-form" onSubmit={activate}>
-      <label className="field-label" htmlFor={reasonId}>{text.reason}</label>
-      <input id={reasonId} value={reason} maxLength={200} onChange={(event) => setReason(event.target.value)} />
-      {!challenge
-        ? <button type="button" className="danger-action" disabled={busy || !reason.trim()} onClick={() => { void prepare() }}>{text.prepare}</button>
-        : <>
-            <p className="guide-text">{text.codeIntro}</p>
-            <p className="emergency-code" aria-label={challenge.code.split('').join(' ')}>{challenge.code}</p>
-            <label className="field-label" htmlFor={codeId}>{text.codeLabel}</label>
-            <input id={codeId} ref={codeRef} className="emergency-code-input" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))} />
-            <p className="field-hint">{text.codeValid}</p>
-            <div className="confirm-row">
-              <button type="submit" className="danger-action" disabled={busy || code.length !== 6}>{text.activate}</button>
-              <button type="button" className="secondary-action" disabled={busy} onClick={() => setChallenge(null)}>{text.cancel}</button>
-            </div>
-          </>}
-      {!challenge && <p className="field-hint">{text.codeValid}</p>}
-    </form>
-  )
+  return <UnlockForm busy={busy} intro={text.activateIntro} submitLabel={text.activate} danger onUnlock={onActivate} />
 }
 
 type ActiveProps = {
-  roster: EmergencyRoster | null
+  roster: EmergencyRoster
   failed: boolean
   busy: boolean
+  onShowPerson: (person: EmergencyPerson) => void
   onMark: (person: EmergencyPerson, note: string) => void
   onUndo: (person: EmergencyPerson) => void
   onEnd: () => void
 }
 
-function ActiveList({ roster, failed, busy, onMark, onUndo, onEnd }: ActiveProps) {
+function ActiveList({ roster, failed, busy, onShowPerson, onMark, onUndo, onEnd }: ActiveProps) {
   const [marking, setMarking] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [ending, setEnding] = useState(false)
   const endSafeRef = useRef<HTMLButtonElement>(null)
   useEffect(() => { if (ending) endSafeRef.current?.focus() }, [ending])
-  if (!roster) return <p role="status">{copy.working}</p>
   const counts = roster.counts
   const now = Date.now()
   return (
@@ -199,7 +178,9 @@ function ActiveList({ roster, failed, busy, onMark, onUndo, onEnd }: ActiveProps
             <div className="emergency-row-main">
               <span className={`emergency-dot ${person.status}`} aria-hidden="true" />
               <div>
-                <strong>{personName(person)}</strong>
+                {person.status === 'inside' && person.floor_id
+                  ? <button type="button" className="emergency-person-name" title={text.showOnMap} onClick={() => onShowPerson(person)}>{personName(person)}<span className="sr-only"> — {text.showOnMap}</span></button>
+                  : <strong>{personName(person)}</strong>}
                 <span className="emergency-meta">
                   {statusLabel(person.status)} · {placeLabel(person)} · {person.kind === 'session' ? text.app : text.simulated}
                   {person.stale && <> · {fill(text.staleNote, { seconds: secondsSince(person.last_seen_at, now) })}</>}

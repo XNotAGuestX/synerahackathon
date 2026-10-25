@@ -13,11 +13,12 @@ print the money spent so far after every question (an estimate at list prices).
 - `--output DIR`: where route images and edits go (default `agent_output`)
 - `--model NAME`: `opus`, `sonnet` or `haiku` (default)
 
-**Emergency mode (app):** start the API with `EMERGENCY_ADMIN_PIN=<pin>`. In the app, open the
-Emergency tab, unlock with the PIN, type the code shown on screen and activate. The live list shows
-every phone inside or outside: twelve simulated people walk out over time, and every open app
-session with a position appears too (each phone is asked for a name). Mark people outside by hand,
-undo, and end the alarm, which deletes all positions. See ADR-0004.
+**Emergency mode (app):** start the API with `EMERGENCY_ADMIN_PIN=<pin>`. In the app, tap
+Emergency, enter your name and the admin password, and activate. Every phone then shows the people
+still inside as red dots with names on the plan, and anyone can open the live list. Three simulated
+people start already marked outside; the others walk out within about 45 s, a few stay inside.
+Every open app session with a position appears too (each phone is asked for a name). Marking,
+undoing and ending need name + password once per device; ending deletes all positions. See ADR-0004.
 
 **Emergency mode (terminal chat, simulated people only, chat is paid):** ask “Start emergency
 mode”, “Skip ahead 90 seconds”, “Mark P03 outside; seen at the assembly point”, then “End emergency

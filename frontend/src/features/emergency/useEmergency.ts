@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ApiError } from '../../api/errors'
 import { gateway } from '../../api/gateway'
 import type { EmergencyRoster, EmergencyStatus } from '../../api/gateway'
 
@@ -28,18 +27,46 @@ function usePolling(task: (valid: () => boolean) => Promise<void>, intervalMs: n
   }, [enabled, intervalMs, key])
 }
 
-/** Public alarm state of the building, for the banner on every phone. Errors keep the last known state. */
-export function useEmergencyStatus(buildingId: string): [EmergencyStatus | null, (status: EmergencyStatus) => void] {
-  const [status, setStatus] = useState<EmergencyStatus | null>(null)
-  useEffect(() => setStatus(null), [buildingId])
+export type EmergencyState = {
+  status: EmergencyStatus | null
+  roster: EmergencyRoster | null
+  setRoster: (roster: EmergencyRoster | null) => void
+  failed: boolean
+}
+
+/** Alarm state for every phone. Without an alarm only the light status is polled; during one, the public list
+ *  (ADR-0004), which also tells when the alarm ends. Errors keep the last known state and retry on the next tick. */
+export function useEmergency(buildingId: string): EmergencyState {
+  const [roster, setRosterState] = useState<EmergencyRoster | null>(null)
+  const [inactive, setInactive] = useState<EmergencyStatus | null>(null)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => { setRosterState(null); setInactive(null); setFailed(false) }, [buildingId])
+  const setRoster = useCallback((next: EmergencyRoster | null) => {
+    setRosterState(next?.active ? next : null)
+    if (!next?.active) setInactive({ building_id: buildingId, active: false, reason: null, started_at: null })
+  }, [buildingId])
   const enabled = Boolean(buildingId) && !buildingId.startsWith('imported:')
+  const active = Boolean(roster)
   usePolling(async (valid) => {
     try {
-      const next = await gateway.getEmergency(buildingId)
-      if (valid()) setStatus(next)
-    } catch { /* a missed poll is retried on the next tick */ }
-  }, STATUS_POLL_MS, enabled, buildingId)
-  return [status, setStatus]
+      if (active) {
+        const next = await gateway.listEmergencyPeople(buildingId)
+        if (valid()) setRoster(next)
+      } else {
+        const status = await gateway.getEmergency(buildingId)
+        if (!valid()) return
+        if (status.active) setRoster(await gateway.listEmergencyPeople(buildingId))
+        else setInactive(status)
+      }
+      if (valid()) setFailed(false)
+    } catch {
+      if (valid()) setFailed(true)
+    }
+  }, active ? ROSTER_POLL_MS : STATUS_POLL_MS, enabled, `${buildingId}|${active}`)
+  const status: EmergencyStatus | null = roster
+    ? { building_id: roster.building_id, active: true, reason: roster.reason, started_at: roster.started_at }
+    : inactive
+  return { status, roster, setRoster, failed }
 }
 
 export type AdminSession = { token: string; name: string }
@@ -55,27 +82,4 @@ export function useAdminToken(): [AdminSession | null, (session: AdminSession | 
     setSession(next)
   }, [])
   return [session, update]
-}
-
-/** Live list for the admin while the alarm is active. A rejected token locks the admin view again. */
-export function useEmergencyRoster(buildingId: string, token: string | null, active: boolean, onTokenRejected: () => void) {
-  const [roster, setRoster] = useState<EmergencyRoster | null>(null)
-  const [failed, setFailed] = useState(false)
-  const rejectedRef = useRef(onTokenRejected)
-  rejectedRef.current = onTokenRejected
-  useEffect(() => { if (!active) setRoster(null) }, [active, buildingId])
-  usePolling(async (valid) => {
-    if (!token) return
-    try {
-      const next = await gateway.listEmergencyPeople(buildingId, token)
-      if (!valid()) return
-      setRoster(next.active ? next : null)
-      setFailed(false)
-    } catch (error: unknown) {
-      if (!valid()) return
-      if (error instanceof ApiError && (error.code === '10002_forbidden' || error.code === '10003_admin_disabled')) rejectedRef.current()
-      else setFailed(true)
-    }
-  }, ROSTER_POLL_MS, Boolean(token) && active, `${buildingId}|${token}`)
-  return { roster, setRoster, failed }
 }

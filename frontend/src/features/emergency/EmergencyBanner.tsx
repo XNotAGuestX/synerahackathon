@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import type { FormEvent } from 'react'
 import { gateway } from '../../api/gateway'
 import type { EmergencyStatus } from '../../api/gateway'
+import { reasonText } from '../../domain/emergency'
 import { copy, fill } from '../../i18n/en'
 
 const text = copy.emergency
@@ -29,7 +30,7 @@ export function EmergencyBanner({ status, sessionId }: { status: EmergencyStatus
 
   return (
     <section className="emergency-banner" role="alert" aria-live="assertive">
-      <p><strong>{text.bannerTitle}: {status.reason}</strong> {text.bannerBody}</p>
+      <p><strong>{text.bannerTitle}{reasonText(status.reason) ? `: ${reasonText(status.reason)}` : ''}</strong> {text.bannerBody}</p>
       {realSession && (name
         ? <p className="emergency-banner-name">{fill(text.nameShared, { name })}</p>
         : <form className="emergency-name-form" onSubmit={save}>

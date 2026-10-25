@@ -83,16 +83,11 @@ def generate(data: Path, output: Path) -> list[dict]:
         service.admin_pin = "0000"
         token = service.create_admin_token("0000", "Ada Admin")
         examples["admin-token"] = ("AdminToken", {**token, "token": "example-admin-token"})
-        challenge = service.create_challenge("proc-factory-dev-003", token["token"])
-        examples["emergency-challenge"] = ("EmergencyChallenge", {**challenge, "code": "123456"})
-        service.start_emergency("proc-factory-dev-003", token["token"], challenge["id"], challenge["code"], "Fire alarm in hall B")
-        service.emergencies["proc-factory-dev-003"].fast_forward(90)  # most simulated people are out by now
+        service.start_emergency("proc-factory-dev-003", token["token"], "Fire alarm in hall B")
+        service.emergencies["proc-factory-dev-003"].fast_forward(20)  # some simulated people are out by now
         service.put_profile(state.id, "Demo phone")
-        stayer = next(person for person in service.emergency_roster("proc-factory-dev-003", token["token"])["people"]
-                      if person["kind"] == "simulated" and person["status"] == "inside")
-        service.mark_outside("proc-factory-dev-003", stayer["id"], token["token"], "At the assembly point, phone left inside")
         examples["emergency-status"] = ("EmergencyStatus", service.emergency_status("proc-factory-dev-003"))
-        examples["emergency-roster"] = ("EmergencyRoster", service.emergency_roster("proc-factory-dev-003", token["token"]))
+        examples["emergency-roster"] = ("EmergencyRoster", service.emergency_roster("proc-factory-dev-003"))
         service.end_emergency("proc-factory-dev-003", token["token"])
         for code, name in (("20001_validation_failed", "error_validation"), ("30002_session_not_found", "error_not_found"), ("40001_model_unavailable", "error_model")):
             response = error_response(ApiError(code), str(UUID(int=999)))

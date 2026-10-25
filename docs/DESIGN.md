@@ -63,9 +63,9 @@ Eine brechende Änderung braucht eine neue ADR und `/api/v2`. Der Server sendet 
 - FR-14 Geführter Weg: Der Server nennt den nächsten Wegpunkt und die nächste Anweisung, sobald die Position höchstens 3 m vom aktuellen Ziel entfernt ist. Die Ankunft wird gemeldet.
 - FR-15 Falsche Richtung: Pro Wegpunkt höchstens eine Warnung. Danach Stille und keine automatische Neuroute. Die Warnung wird erst nach dem nächsten erreichten Wegpunkt wieder scharf.
 - FR-16 Erzähler: Ein KI-Aufruf pro Route wählt Sätze aus einem festen Phrasenkatalog und füllt Landmarken. Distanzen, Seiten und Namen kommen aus Code. Fällt das Modell aus, gelten die Standardphrasen.
-- FR-17 Notfallmodus: Ein Admin aktiviert den Notfall für ein Gebäude mit PIN und einem angezeigten Einmalcode. Solange er aktiv ist, listet der Server jedes Telefon (simulierte Personen und Sitzungen mit Position) als drinnen oder draußen. Admins markieren Personen von Hand als draußen und nehmen das zurück. Beenden löscht alle Positionen.
+- FR-17 Notfallmodus: Ein Admin aktiviert den Notfall für ein Gebäude mit Name und Admin-PIN. Solange er aktiv ist, listet der Server jedes Telefon (simulierte Personen und Sitzungen mit Position) als drinnen oder draußen. Liste und Karte mit den Personen drinnen sieht jedes Telefon. Admins markieren Personen von Hand als draußen und nehmen das zurück. Beenden löscht alle Positionen.
 
-FR-1 → `list_buildings`, `get_building`. FR-2 → sessions. FR-3 → `get_floor_plan`. FR-4 → `search_places`. FR-5 → routes. FR-6 → `create_message`. FR-7 → actions. FR-8 → `list_messages` und Session. FR-9 → `Error`. FR-10 → `scripts/generate_api_fixtures.py`. FR-11 → `list_object_types`, actions mit den Editor-Kinds, `FloorPlan.stacking`; Regeln in `docs/superpowers/specs/2026-10-25-object-editor-design.md`. FR-12 → `create_transcription`, `create_transcription_token`, `get_speech_clip`, `create_message` mit `input_mode: voice`. FR-13 → `put_position`. FR-14, FR-15 → `get_guidance`, `put_guidance`, `delete_guidance`. FR-16 → Phrasenkatalog in `final_agent/narration.py`. FR-17 → `create_admin_token`, `get_emergency`, `create_emergency_challenge`, `put_emergency`, `delete_emergency`, `list_emergency_people`, `put_exit_confirmation`, `delete_exit_confirmation`, `put_profile`; Logik in `final_agent/emergency.py`, ADR-0004.
+FR-1 → `list_buildings`, `get_building`. FR-2 → sessions. FR-3 → `get_floor_plan`. FR-4 → `search_places`. FR-5 → routes. FR-6 → `create_message`. FR-7 → actions. FR-8 → `list_messages` und Session. FR-9 → `Error`. FR-10 → `scripts/generate_api_fixtures.py`. FR-11 → `list_object_types`, actions mit den Editor-Kinds, `FloorPlan.stacking`; Regeln in `docs/superpowers/specs/2026-10-25-object-editor-design.md`. FR-12 → `create_transcription`, `create_transcription_token`, `get_speech_clip`, `create_message` mit `input_mode: voice`. FR-13 → `put_position`. FR-14, FR-15 → `get_guidance`, `put_guidance`, `delete_guidance`. FR-16 → Phrasenkatalog in `final_agent/narration.py`. FR-17 → `create_admin_token`, `get_emergency`, `put_emergency`, `delete_emergency`, `list_emergency_people`, `put_exit_confirmation`, `delete_exit_confirmation`, `put_profile`; Logik in `final_agent/emergency.py`, ADR-0004.
 
 ### NFR
 
@@ -211,11 +211,10 @@ Normative Details stehen in OpenAPI. Hier steht die Semantik.
 | 503 | `40004_speech_unavailable` | Sprachanbieter nicht nutzbar. `details.reason` ist `not_configured`, `auth`, `rate_limited`, `timeout` oder `provider_error`. |
 | 404 | `30017_speech_clip_not_found` | Unbekannte `clip_id` |
 | 409 | `30019_emergency_not_active` | Markieren ohne aktiven Notfall |
-| 409 | `30020_emergency_already_active` | Challenge oder Start, während der Notfall schon läuft |
-| 409 | `30021_challenge_invalid` | Code falsch (`mismatch`), abgelaufen (`expired`) oder Challenge unbekannt (`not_found`). Jede Challenge erlaubt einen Versuch. |
+| 409 | `30020_emergency_already_active` | Start, während der Notfall schon läuft |
 | 404 | `30022_person_not_found` | Unbekannte `person_id` im Notfall |
 
-Reserviert und nicht umzuwidmen: `30006` und `30011`. Eine Transkription mit falschem Audiotyp ist `20001_validation_failed` mit Feld `Content-Type`. Eine Suche ohne Treffer ist 200 und eine leere Liste. Eine Nachricht mit unklarem Ort ist 201, `intent` ist `clarify` oder `unknown`.
+Reserviert und nicht umzuwidmen: `30006`, `30011` und `30021` (kurz `challenge_invalid`, ADR-0004). Eine Transkription mit falschem Audiotyp ist `20001_validation_failed` mit Feld `Content-Type`. Eine Suche ohne Treffer ist 200 und eine leere Liste. Eine Nachricht mit unklarem Ort ist 201, `intent` ist `clarify` oder `unknown`.
 
 ### Sprache und Position
 
@@ -284,13 +283,14 @@ Regeln und Datenmodell stehen in `docs/superpowers/specs/2026-10-25-object-edito
 Entscheidung in ADR-0004. Hier steht der HTTP-Teil.
 
 - Admin: `POST /admin-tokens` tauscht die PIN gegen ein Token (30 min, verlängert sich bei jeder Nutzung). Der Server hält nur den SHA-256-Hash. Nach 5 falschen PINs in 60 s: 429 `00002_rate_limited`.
-- Aktivieren: `POST .../emergency-challenges` liefert einen sechsstelligen Code für 60 s. Die Oberfläche zeigt ihn, der Admin tippt ihn ab, `PUT .../emergency` startet. Ein falscher Code verbraucht die Challenge.
-- Öffentlich ist nur `GET .../emergency` (aktiv, Grund, Start). Liste, Markieren und Beenden brauchen `X-Admin-Token`.
+- Aktivieren: Die Oberfläche fragt Name und PIN in einem Formular ab und ruft `POST /admin-tokens` und `PUT .../emergency` nacheinander auf. `reason` ist optional, Standard „Emergency“.
+- Öffentlich: `GET .../emergency` und während des Alarms `GET .../emergency/people`. Jedes Telefon zeigt die Personen drinnen auf dem Plan. Markieren, Rückgängig und Beenden brauchen `X-Admin-Token`.
+- Demo: Beim Start stehen drei simulierte Personen schon draußen, markiert vom „Assembly point warden“. Die übrigen gehen in Demo-Tempo (Start nach 2–12 s, 3 m/s), ein Viertel bleibt drin.
 - Drinnen: Der Punkt liegt in irgendeinem Raum, auch in einem `outdoor`-Raum (Balkon). Draußen: in keinem Raum und auf einer Etage mit Eingang (ohne Eingänge: unterste Etage). Sonst drinnen.
 - Veraltet: Eine Position älter als 15 s ist `stale`. Drinnen bleibt drinnen, bis ein Admin markiert. Draußen bleibt draußen.
 - Sitzungen zählen, wenn sie bis 10 min vor dem Start oder danach eine Position gesendet haben. Sie erscheinen als `D..`, nie mit Sitzungs-ID. Der Name kommt aus `PUT .../profile`.
-- Alles liegt im Speicher. Beenden oder Neustart löscht Positionen, Markierungen, Challenges.
-- Der Client fragt den Status etwa alle 3 s und die Liste als Admin alle 2 s ab.
+- Alles liegt im Speicher. Beenden oder Neustart löscht Positionen und Markierungen.
+- Der Client fragt ohne Alarm den Status alle 3 s ab, während des Alarms die Liste alle 2 s.
 
 ### Auth, Limit, CSRF
 
