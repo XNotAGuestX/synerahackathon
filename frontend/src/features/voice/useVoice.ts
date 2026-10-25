@@ -141,13 +141,15 @@ export function useVoice({ active, sessionId, send }: Options) {
       let text = ''
       try {
         // The stream already heard the whole utterance; uploading the WAV is only the fallback.
-        const upload = async () => (await gateway.transcribe(sessionRef.current, wav)).text.trim()
-        text = streamed ? await streamed.catch(upload) : await upload()
+        // An empty live result is retried as an upload: the live model drops quiet speech the batch model still hears.
+        if (streamed) text = await streamed.catch((failure: unknown) => { console.warn('Live transcription failed; uploading the recording.', failure); return '' })
+        if (!text) text = (await gateway.transcribe(sessionRef.current, wav)).text.trim()
       } catch (failure) {
         setError(failure instanceof ApiError && failure.code === '40004_speech_unavailable' ? copy.voiceUnavailable : failure instanceof Error ? failure.message : copy.voiceUnavailable)
         continue
       }
-      if (!text) continue
+      if (!text) { setError(copy.voiceNotHeard); continue }
+      setError(null)
       processingRef.current = 'thinking'
       refresh()
       const reply = await sendRef.current(text)

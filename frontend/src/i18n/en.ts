@@ -144,6 +144,7 @@ export const copy = {
   voiceUnmute: 'Unmute',
   voiceMuted: 'Muted',
   voiceUnavailable: 'Voice service is unavailable. You can still type.',
+  voiceNotHeard: "Didn't catch that. Please say it again.",
   voicePlaybackBlocked: 'The browser blocked spoken replies. Click anywhere on the page to allow sound.',
   stopGuidance: 'Stop guidance',
   walkMetresPerSecond: 'metres per second',
