@@ -164,6 +164,15 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(empty.status_code, 200)
         self.assertEqual(empty.json()["items"], [])
 
+    def test_measured_asset_height_survives_floor_plan_projection(self):
+        source = self.data / "dev/test/building.json"
+        building = json.loads(source.read_text())
+        building["assets"][0]["height_m"] = 0.42
+        source.write_text(json.dumps(building))
+        session = self.session()
+        plan = self.validate(self.client.get(self.path(session) + "/floors/F0/plan?include=assets"), "FloorPlan")
+        self.assertEqual(plan["assets"][0]["height_m"], 0.42)
+
     def test_route_unreachable_then_door_confirmation_and_reload(self):
         session = self.session()
         path = self.path(session)

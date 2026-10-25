@@ -1418,6 +1418,10 @@ components:
           description: Bekannte Werte furniture, fixture, machine, equipment.
         type:
           type: string
+        height_m:
+          type: number
+          exclusiveMinimum: 0
+          description: Optional measured overall object height in metres; overrides the shared visual estimate.
         space_id:
           $ref: "#/components/schemas/DatasetId"
         floor_id:
