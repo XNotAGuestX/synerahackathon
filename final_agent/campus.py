@@ -165,6 +165,7 @@ class Campus:
         try: self._save()
         except Exception: del self.walkways[walkway_id]; self.revision = old_revision; raise
         self._invalidate()
+        self._recompute()
         return link
 
     def _building(self, building_id):
@@ -279,6 +280,11 @@ class Campus:
                 distance, nodes = nx.single_source_dijkstra(graph, (ba, sa), (bb, sb), weight="weight")
             except (nx.NetworkXNoPath, nx.NodeNotFound) as error:
                 raise MapError(f"No permitted campus route from {sa} in {ba} to {sb} in {bb}.") from error
+            if len(nodes) == 1:
+                # Keep an already-reached stop visible, including repeated tour stops.
+                route_legs.append({"kind": "indoor", "building_id": ba, "from_node": sa, "to_node": sb,
+                                   "length_m": 0.0, "edge_ids": [], "node_path": [sa], "edge_lengths_m": [],
+                                   "space_path": [sa], "element_path": [], "geometry_complete": True})
             selected = []
             for a, b in zip(nodes, nodes[1:]):
                 candidates = graph.get_edge_data(a, b)

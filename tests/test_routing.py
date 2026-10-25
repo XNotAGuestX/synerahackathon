@@ -43,6 +43,12 @@ def entrance_map(**entrance_options) -> BuildingMap:
 
 
 class RouteResultTests(unittest.TestCase):
+    def test_step_free_never_uses_stairs_even_if_mislabelled(self):
+        building = make_map(connectors=[connector("stairs", "stairs", True)])
+        self.assertEqual(building.route("left", "upstairs").element_path, ["stairs"])
+        with self.assertRaises(MapError):
+            building.route("left", "upstairs", step_free=True)
+
     def test_parallel_stairs_and_lift_record_the_chosen_connector(self):
         building = make_map(connectors=[connector("V1", "stairs", False), connector("V2", "lift", True)])
         self.assertEqual(building.route("left", "upstairs").element_path, ["V1"])

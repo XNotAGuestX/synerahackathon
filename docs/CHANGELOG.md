@@ -4,6 +4,7 @@ Versionen des Andockvertrags.
 
 ## Unreleased
 
+- Notfallmodus (FR-17, ADR-0004): neun additive Operationen unter `Emergency`, Header `X-Admin-Token`, Codes `10003_admin_disabled` und `30019`–`30022`. Beispiele `admin-token`, `emergency-challenge`, `emergency-status`, `emergency-roster`.
 - Beispielgrundriss für Etage 1: `docs/api/examples/floor-plan-f1.json`. Der v1-Vertrag bleibt unverändert.
 
 ## 1.0.0 — 2026-10-24

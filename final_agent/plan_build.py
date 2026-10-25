@@ -259,6 +259,10 @@ def validate_building(raw: dict, *, strict: bool = True) -> list[dict]:
     opening_ids = _unique_records(openings, "opening", issues, global_ids)
     connector_ids = _unique_records(connectors, "connector", issues, global_ids)
     asset_ids = _unique_records(assets, "asset", issues, global_ids)
+    # Invalid IDs were reported above; do not index untrusted lists/dicts as keys.
+    if any(not isinstance(row, dict) or not isinstance(row.get("id"), str) or not row["id"].strip()
+           for records in (floors, spaces, openings, connectors, assets) for row in records):
+        return issues
     levels = set()
     for f in floors:
         if not isinstance(f,dict): continue
@@ -364,7 +368,7 @@ def validate_building(raw: dict, *, strict: bool = True) -> list[dict]:
         if (not isinstance(fid,str) or fid not in floor_ids or not isinstance(sid,str) or sid not in space_ids): issue("Asset must reference a known floor and room.",aid,fid)
         elif space_map[sid].get("floor_id")!=fid: issue("Asset floor must match its containing room.",aid,fid)
         if not _valid_pair(a.get("position")): issue("Asset position must be finite XY metres.",aid,fid)
-        elif sid in polygons:
+        elif isinstance(sid, str) and sid in polygons:
             try:
                 from shapely.geometry import Point
                 if not polygons[sid].covers(Point(a["position"])):

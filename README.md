@@ -1,5 +1,14 @@
 # Talk to Your Building: Agent-First Indoor Navigation
 
+**Voice reliability — 25 October 2026:** voice now sends WAV recordings through the
+backend, with automatic silence detection and **Finish speaking**, visible progress,
+serialized typed/spoken requests, interruption and session cleanup. Written answers
+retain their detail; `speech_text` supplies a brief spoken summary and automatic
+waypoint guidance remains available. Focused checks pass: 40 API, five speech and
+nine navigator tests, frontend voice checks/build, and four fake-microphone Chrome
+scenarios. Sampled live STT/agent/TTS, clarification, step-free guidance and stop checks pass; physical microphone/iPhone Safari remain unverified.
+[Current voice handoff and verification limits](VOICE_AUDIO_HANDOFF.md).
+
 **Object heights and lightweight 3D assets — 25 October 2026:**
 `final_agent/object_catalog.json` is shared by Python and the frontend and supplies
 reasoned height estimates and local GLBs for all 96 current asset types. The floor
@@ -60,7 +69,7 @@ loader, scale individual objects and connect new-object creation.
 
 The original `uv run python -m final_agent BUILDING` chat command also starts a workspace, so buildings/plans can be added during that conversation. It prints the exact resume directory; source datasets stay unchanged.
 
-**Emergency-roll-call mock — merged 25 October 2026:** interactive chats include simulated people, a 120-second confirmation window, manual safe confirmation and coloured floor maps. State is isolated per building/session and is not persisted; no real alerts, phone tracking or badge integration is connected. Benchmark agents do not expose these tools. See [usage](usage.md) and the imported [handoff](EMERGENCY_ROLL_CALL_HANDOFF.md). No tests were rerun for this merge, as requested; this is not a verified completion claim for the optional extension.
+**Emergency mode — 25 October 2026:** replaces the roll-call mock. An admin (PIN from `EMERGENCY_ADMIN_PIN` plus a one-time code shown on screen) activates the alarm for a building; a live list then shows every phone inside or outside (simulated people who evacuate over time, plus every app session with a position), with manual “mark outside” and coloured markers on the plan. In memory only; ending deletes all positions. See [ADR-0004](docs/adr/ADR-0004-emergency-mode.md), [usage](usage.md) and the [handoff](EMERGENCY_ROLL_CALL_HANDOFF.md).
 
 **Kit 1.1.0 data refresh:** [CHANGELOG.md](CHANGELOG.md) preserves the upstream release notes. All 3,474 files in `data/` match the supplied release. The update changes **1,314 expected answers in 334 files**: 1,217 warm-up answers and 97 scored answers (errands and what-if doors). Question IDs, wording and inputs, building geometry, equipment, images, manifest and all 145 public test questions are unchanged. The existing `data_old/` backup is preserved. Previous 1.0.0 evaluation evidence and handoff examples are historical; use `data/` for current checks. The router reports `distance_model="kit-1.1.0"`.
 
@@ -501,6 +510,16 @@ npm run dev
 ```
 
 Claude-backed chat requires configured Anthropic credentials; use `uv run --env-file .env python -m final_agent.api` to load a local `.env`. It uses main's standard Anthropic SDK client. Main's map, report, emergency, campus and plan-workspace features remain available. The frontend retains discovery, text/transcript input, confirmed closures, route playback, floor stacking, map controls, plan import and the walk pad with its speed slider.
+
+Confirmed room-object edits now persist across HTTP sessions and backend restarts,
+including removals of original furniture/equipment. Other foreground sessions
+refresh within a few seconds. Objects behave normally in search, counts, maps and
+navigation targets. One confirmation saves an edit; room-report voting is separate.
+Explicit editor commands do not also create room reports; only separately stated
+conditions/facts follow the two-chat rule (concrete hazards are active immediately).
+Shared inventories live in `agent_output/api/shared_objects/` (or under `--output`);
+keep that directory across restarts. Structural edits and closures remain local to
+the session. See [shared object storage and conflicts](docs/api/README.md#shared-room-objects).
 
 All live browser chat and benchmark answers use main's agent implementation. The browser connects to the main API through `VITE_API_BASE_URL` (default `/api/v1`, proxied by Vite to port 8000). API failures remain visible. `scripts/serve_api.py` is a compatibility launcher for that same API. Static debug previews and both fixture sets remain; regenerate them with `uv run python scripts/generate_api_fixtures.py` and validate with `uv run python scripts/validate_api_fixtures.py`.
 

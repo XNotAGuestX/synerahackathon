@@ -58,7 +58,9 @@ keep the codebase small and easy for teammates to understand.
   inherited disconnected-geometry fallback explicit. Forklift restrictions and
   destination-only production bays remain additional Synera automatic-check rules;
   never silently mix scoring models or use the old 1.0.0 labels in data_old/.
-- Isolate buildings, sessions and benchmark questions. What-if analysis must not
+- Isolate buildings, conversations and benchmark questions. In the HTTP app,
+  confirmed room-object edits share persistent state per dataset/building;
+  structural edits and closures remain session-local. What-if analysis must not
   persist edits or leak state. Relevant edits must invalidate routes and spatial
   indexes; save failures must not leave an unexplained partial change.
 - Generate answers from building data and the actual question. Use train/dev labels

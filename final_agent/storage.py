@@ -1,11 +1,14 @@
 """Local JSON/SQLite persistence and Cartesian spatial indexes for indoor building data."""
 
 from contextlib import contextmanager
+import copy
+import hashlib
 import json
 import math
 import os
 import sqlite3
 import tempfile
+import threading
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -248,6 +251,55 @@ class JsonBuildingStore:
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
+
+
+class ObjectStateStore:
+    """One atomically saved object inventory per dataset/building, for the single-worker API.
+
+    The caller holds lock while reading a revision and committing an edit. Objects and
+    their stacking metadata share a file, so a failed write cannot split their state.
+    Source data is only a baseline; old per-session exports are never imported.
+    """
+
+    def __init__(self, output: Path, dataset: Path, building_id: str, source: dict) -> None:
+        self.path = self.path_for(output, dataset, building_id)
+        self.lock = threading.RLock()
+        self.building_id = building_id
+        self.source_fingerprint = hashlib.sha256(
+            json.dumps(source, sort_keys=True, allow_nan=False).encode()
+        ).hexdigest()
+        self.state = {
+            "schema_version": 1, "building_id": building_id, "source_fingerprint": self.source_fingerprint,
+            "revision": 0, "assets": copy.deepcopy(source["building"]["assets"]),
+            "stacking": copy.deepcopy(source["stacking"]), "height_overrides": dict(source["height_overrides"]),
+        }
+        if self.path.exists():
+            saved = JsonBuildingStore.load(self.path)
+            self.validate(saved)
+            self.state = saved
+
+    @staticmethod
+    def path_for(output: Path, dataset: Path, building_id: str) -> Path:
+        identity = json.dumps([str(dataset.resolve()), building_id])
+        key = hashlib.sha256(identity.encode()).hexdigest()
+        return Path(output) / "shared_objects" / f"{key}.json"
+
+    def validate(self, saved: dict) -> None:
+        if (not isinstance(saved, dict) or saved.get("schema_version") != 1
+                or saved.get("building_id") != self.building_id
+                or saved.get("source_fingerprint") != self.source_fingerprint
+                or type(saved.get("revision")) is not int or saved["revision"] < 0
+                or not isinstance(saved.get("assets"), list)
+                or not isinstance(saved.get("stacking"), dict)
+                or not isinstance(saved.get("height_overrides"), dict)):
+            raise ValueError(f"Shared objects in {self.path} are invalid or do not match the source building.")
+
+    def save(self, objects: dict) -> int:
+        """Commit only after fsync/atomic replacement succeeds; retain the old state on failure."""
+        saved = {**self.state, **copy.deepcopy(objects), "revision": self.state["revision"] + 1}
+        JsonBuildingStore.save(self.path, saved)
+        self.state = saved
+        return saved["revision"]
 
 
 class BuildingSpatialIndex:

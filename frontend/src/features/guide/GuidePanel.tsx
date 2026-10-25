@@ -12,6 +12,11 @@ export type VoicePanelState = {
   muted: boolean
   setMuted: (muted: boolean) => void
   error: string | null
+  ready: boolean
+  transcript: string
+  queued: number
+  enable: () => void
+  finishSpeaking: () => void
 }
 
 const voiceLabels: Record<VoiceState, string> = {
@@ -19,6 +24,7 @@ const voiceLabels: Record<VoiceState, string> = {
   listening: copy.voiceListening,
   hearing: copy.voiceHearing,
   transcribing: copy.voiceTranscribing,
+  queued: copy.voiceQueued,
   thinking: copy.voiceThinking,
   speaking: copy.voiceSpeaking,
 }
@@ -66,6 +72,7 @@ type GuidePanelProps = {
   presentation: Presentation
   /** A message is on its way to the guide. */
   loading: boolean
+  queuedMessages: number
   directionIndex: number
   onQuery: (value: string) => void
   onSubmit: (event: FormEvent) => void
@@ -91,6 +98,7 @@ export function GuidePanel({
   query,
   presentation,
   loading,
+  queuedMessages,
   directionIndex,
   onQuery,
   onSubmit,
@@ -195,11 +203,16 @@ export function GuidePanel({
         <div className="voice-bar">
           <span className={`voice-pill ${voice.muted ? 'muted' : voice.state}`} role="status">{voice.muted ? copy.voiceMuted : voiceLabels[voice.state]}</span>
           <span className="voice-meter" aria-hidden="true"><span style={{ transform: `scaleX(${voice.muted ? 0 : voice.level})` }} /></span>
-          <button type="button" aria-pressed={voice.muted} onClick={() => voice.setMuted(!voice.muted)}>{voice.muted ? copy.voiceUnmute : copy.voiceMute}</button>
+          <button type="button" aria-pressed={voice.muted} onClick={() => voice.muted ? voice.enable() : voice.setMuted(true)}>{voice.muted ? copy.voiceUnmute : copy.voiceMute}</button>
+          {voice.state === 'hearing' && <button type="button" onClick={voice.finishSpeaking}>{copy.voiceFinish}</button>}
+          {(!voice.ready || voice.error) && <button type="button" onClick={voice.enable}>{copy.voiceRetry}</button>}
+          {voice.queued > 0 && <span role="status">{voice.queued} {copy.voiceQueued.toLowerCase()}</span>}
           {guidanceActive && <button type="button" onClick={onStopGuidance}>{copy.stopGuidance}</button>}
         </div>
       )}
       {inputMode === 'voice' && voice.error && <p className="guide-text" role="alert">{voice.error}</p>}
+      {inputMode === 'voice' && voice.transcript && <p className="guide-text voice-transcript" role="status">{copy.voiceYouSaid} {voice.transcript}</p>}
+      {queuedMessages > 1 && <p className="guide-text" role="status">{queuedMessages - 1} {copy.voiceQueued.toLowerCase()}</p>}
       <form onSubmit={onSubmit} className="composer" aria-busy={loading}>
         {transcript && (
           <button type="button" className="listen-button" aria-pressed={listening} onClick={listen}>
@@ -221,10 +234,10 @@ export function GuidePanel({
       </form>
       {speechNote && <p className="guide-text" role="status">{speechNote}</p>}
       <div className="guide-content" aria-live="polite">
-        {loading && (
+        {(loading || (inputMode === 'voice' && ['transcribing', 'queued', 'thinking'].includes(voice.state))) && (
           <p className="guide-thinking" role="status">
             <span className="thinking-dots" aria-hidden="true"><span /><span /><span /></span>
-            {copy.working}
+            {inputMode === 'voice' && voice.state === 'transcribing' ? copy.voiceTranscribing : copy.working}
           </p>
         )}
         {presentation.alert && (

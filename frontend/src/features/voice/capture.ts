@@ -8,6 +8,19 @@ const WORKLET = `class Tap extends AudioWorkletProcessor {
 }
 registerProcessor('tap', Tap)`
 
+const modules = new WeakMap<AudioContext, Promise<void>>()
+
+function loadWorklet(context: AudioContext): Promise<void> {
+  let loaded = modules.get(context)
+  if (!loaded) {
+    const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }))
+    loaded = context.audioWorklet.addModule(url).finally(() => URL.revokeObjectURL(url))
+    modules.set(context, loaded)
+    loaded.catch(() => modules.delete(context))
+  }
+  return loaded
+}
+
 export class MicrophoneError extends Error {}
 
 export function microphoneMessage(error: unknown): string {
@@ -19,19 +32,21 @@ export function microphoneMessage(error: unknown): string {
 }
 
 // Mono 16 kHz frames of 20 ms via an AudioWorklet. Resamples by block averaging.
-export function createCapture(onFrame: (frame: Float32Array) => void) {
+export function createCapture(context: AudioContext, onFrame: (frame: Float32Array) => void) {
   let stream: MediaStream | null = null
-  let context: AudioContext | null = null
   let node: AudioWorkletNode | null = null
+  let source: MediaStreamAudioSourceNode | null = null
+  let mute: GainNode | null = null
+  let stopped = false
   return {
     async start() {
       if (!window.isSecureContext) throw new MicrophoneError(copy.speechSecureContext)
       if (!navigator.mediaDevices?.getUserMedia || typeof AudioWorkletNode === 'undefined') throw new MicrophoneError(copy.speechMicrophoneUnavailable)
-      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
-      // Native rate: Firefox refuses to connect a 48 kHz microphone to a 16 kHz context; we downsample below.
-      context = new AudioContext()
-      const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }))
-      try { await context.audioWorklet.addModule(url) } finally { URL.revokeObjectURL(url) }
+      const acquired = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+      if (stopped) { acquired.getTracks().forEach((track) => track.stop()); return }
+      stream = acquired
+      await loadWorklet(context)
+      if (stopped) return
       const ratio = context.sampleRate / SAMPLE_RATE
       let pending = new Float32Array(FRAME_SAMPLES)
       let filled = 0
@@ -51,19 +66,22 @@ export function createCapture(onFrame: (frame: Float32Array) => void) {
           }
         }
       }
-      context.createMediaStreamSource(stream).connect(node)
+      source = context.createMediaStreamSource(stream)
+      source.connect(node)
       // Keep the graph pulled without audible output.
-      const mute = context.createGain()
+      mute = context.createGain()
       mute.gain.value = 0
       node.connect(mute).connect(context.destination)
-      await context.resume()
     },
     stop() {
+      stopped = true
       if (node) node.port.onmessage = null
+      node?.port.close()
       node?.disconnect()
+      source?.disconnect()
+      mute?.disconnect()
       stream?.getTracks().forEach((track) => track.stop())
-      void context?.close().catch(() => undefined)
-      node = null; stream = null; context = null
+      node = null; stream = null; source = null; mute = null
     },
   }
 }

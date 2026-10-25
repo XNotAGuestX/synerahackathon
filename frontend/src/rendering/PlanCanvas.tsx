@@ -54,7 +54,11 @@ type PlanCanvasProps = {
   editor?: EditorOverlay | null
   /** Ghosts for a guide proposal that waits for confirmation. */
   preview?: PreviewObjects | null
+  /** Emergency mode: phones on this floor, coloured by inside/outside. Only the admin view passes them. */
+  people?: PlanPerson[]
 }
+
+export type PlanPerson = { id: string; label: string; status: 'inside' | 'outside' | 'outside_manual'; stale: boolean; position: Point }
 
 function polygonArea(polygon: Point[]): number {
   let sum = 0
@@ -167,6 +171,7 @@ function InteractivePlan({
   guidanceTarget = null,
   editor = null,
   preview = null,
+  people = [],
 }: PlanCanvasProps & { plan: FloorPlan }) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [zoom, setZoom] = useState(1)
@@ -213,7 +218,8 @@ function InteractivePlan({
 
   const [minX, minY] = plan.bounds.min
   const [maxX, maxY] = plan.bounds.max
-  const pad = 1.2
+  // Room for the entrance aprons: the walker and emergency markers can stand 2.5 m outside.
+  const pad = 3.2
   const baseX = minX - pad
   const baseY = -(maxY + pad)
   const baseW = maxX - minX + pad * 2
@@ -617,6 +623,13 @@ function InteractivePlan({
           {stepPoint && <circle className="step-marker" cx={stepPoint[0]} cy={stepPoint[1]} r={1.05} />}
           {guidanceTarget && <circle className="guidance-ring" cx={guidanceTarget[0]} cy={guidanceTarget[1]} r={3} />}
           {mockPoint && <circle className="mock-marker" cx={mockPoint[0]} cy={mockPoint[1]} r={1.3} />}
+          {people.length > 0 && <g className="emergency-people">
+            {people.map((person) => (
+              <circle key={person.id} className={`emergency-person ${person.status}${person.stale ? ' stale' : ''}`} cx={person.position[0]} cy={person.position[1]} r={0.75}>
+                <title>{person.label}</title>
+              </circle>
+            ))}
+          </g>}
         </g>
       </svg>
       <WalkPad svgRef={svgRef} plan={plan} route={route} closedIds={closedIds} stepFree={stepFree} keysPaused={Boolean(editor)} walkerHere={walkerHere} onMove={onWalkerMove} onChangeFloor={onChangeFloor} />

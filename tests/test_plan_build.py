@@ -21,6 +21,16 @@ def building():
 
 
 class PlanBuildTests(unittest.TestCase):
+    def test_validator_reports_unhashable_ids_and_asset_references(self):
+        for key in ("floors", "spaces", "openings", "vertical_connectors", "assets"):
+            with self.subTest(collection=key):
+                data = building()
+                data[key].append({"id": []})
+                self.assertTrue(any(i["severity"] == "error" for i in validate_building(data)))
+        data = building()
+        data["assets"] = [{"id": "a", "type": "desk", "floor_id": "f0", "space_id": [], "position": [1, 1]}]
+        self.assertTrue(any("known floor and room" in i["reason"] for i in validate_building(data)))
+
     def test_pixel_calibration_converts_scale_and_image_y_axis(self):
         cal = Calibration.from_known_distance((10, 10), (110, 10), 5, origin_m=(2, 3))
         self.assertEqual(cal.transform([110, 110]), [7.0, -2.0])

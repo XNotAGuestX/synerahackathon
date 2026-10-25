@@ -6,6 +6,7 @@
     "building_id": "proc-factory-dev-003",
     "building_name": "Fertigung Ost 27",
     "revision": 2,
+    "object_revision": 0,
     "preferences": {
       "step_free": false
     },
@@ -134,5 +135,6 @@
   ],
   "pending_action": null,
   "usage": null,
-  "speech_clip_id": null
+  "speech_clip_id": null,
+  "speech_text": null
 }

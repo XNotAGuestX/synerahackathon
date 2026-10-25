@@ -5,13 +5,15 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from types import SimpleNamespace
 
 from PIL import Image
+from anthropic.lib.tools import ToolError
 
 from final_agent.storage import JsonBuildingStore
 from final_agent.workspace import Workspace, make_workspace_tools
+from final_agent.plan_build import PlanError
 
 
 def model(building_id):
@@ -25,6 +27,80 @@ def model(building_id):
 
 
 class WorkspaceTests(unittest.TestCase):
+    def test_invalid_draft_ids_return_validation_issues_instead_of_crashing_preview(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Workspace(Path(tmp))
+            data = model("new")
+            data["spaces"][0]["id"] = []
+            workspace._new_draft(data, 0)
+            preview = workspace.preview()
+            self.assertTrue(any(i["severity"] == "error" for i in preview["validation_issues"]))
+            self.assertIn("error", preview["images"][0])
+            with self.assertRaises(PlanError):
+                workspace.apply(acknowledge_warnings=True)
+
+    def test_invalid_or_unsaved_location_update_leaves_confirmed_state_unchanged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "a.json"
+            data = model("a")
+            data["spaces"].append({**data["spaces"][0], "id": "s", "name": "102"})
+            JsonBuildingStore.save(source, data)
+            workspace = Workspace(root / "session")
+            workspace.register(str(source))
+            tool = next(t for t in make_workspace_tools(workspace) if t.name == "confirm_location")
+            tool.call({"building_id": "a", "element_id": "r", "step_free": False, "min_width_m": 0})
+            before = (copy.deepcopy(workspace.current_location), copy.deepcopy(workspace.preferences))
+            with self.assertRaises(ToolError):
+                tool.call({"building_id": "a", "element_id": "s", "step_free": True, "min_width_m": -1})
+            self.assertEqual((workspace.current_location, workspace.preferences), before)
+            with patch.object(workspace, "save_session", side_effect=OSError("disk full")):
+                with self.assertRaises(ToolError):
+                    tool.call({"building_id": "a", "element_id": "s", "step_free": True, "min_width_m": 1})
+            self.assertEqual((workspace.current_location, workspace.preferences), before)
+            restored = Workspace(workspace.directory)
+            self.assertEqual((restored.current_location, restored.preferences), before)
+
+    def test_pending_multifloor_calibration_preserves_every_floor_across_resume(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "plan.png"
+            Image.new("RGB", (80, 80), "white").save(source)
+            calibration = {"point_a_px": [0, 40], "point_b_px": [40, 40], "distance_m": 4}
+            floors = [{"id": f"f{i}", "name": f"Floor {i}", "level": i,
+                       "elevation_m": i * 3, "source_path": str(source), "alignment_confirmed": True}
+                      for i in range(3)]
+            floors[0]["calibration"] = calibration
+
+            def extract(client, model_name, path, *, floor_id, **kwargs):
+                return {"spaces": [{"id": floor_id + "-r", "floor_id": floor_id, "name": "Room",
+                                     "type": "room", "room_type": "office",
+                                     "polygon_px": [[0, 40], [40, 40], [40, 0], [0, 0]]}],
+                        "openings": [], "assets": [], "vertical_connectors": [], "uncertainties": [],
+                        "_provenance": {"source_path": str(path)}}
+
+            workspace = Workspace(root / "session", client=Mock(), model="test-model")
+            with patch("final_agent.workspace.extract_plan", side_effect=extract) as vision:
+                pending = workspace.create_plan("new", "New", floors, "CC0-1.0", "Test")
+                self.assertEqual(vision.call_count, 3)
+            self.assertEqual(pending["status"], "needs_calibration")
+            self.assertEqual(pending["pending_floor_ids"], ["f1", "f2"])
+            with self.assertRaises(PlanError):
+                workspace.begin_edit()
+            source.unlink()
+            resumed = Workspace(workspace.directory)
+            with self.assertRaisesRegex(PlanError, "floor_id"):
+                resumed.calibrate_pending(calibration)
+            self.assertEqual(resumed.calibrate_pending(calibration, floor_id="f1")["pending_floor_ids"], ["f2"])
+            resumed = Workspace(workspace.directory)
+            result = resumed.calibrate_pending(calibration)
+            self.assertEqual(result["status"], "pending_review")
+            self.assertEqual(len(resumed.draft.data["floors"]), 3)
+            self.assertEqual({s["floor_id"] for s in resumed.draft.data["spaces"]}, {"f0", "f1", "f2"})
+            self.assertEqual(set(resumed.draft.data["import_metadata"]["calibrations"]), {"f0", "f1", "f2"})
+            self.assertTrue(all(Path(source["source_path"]).is_file()
+                                for source in resumed.draft.data["import_metadata"]["sources"].values()))
+
     def test_reports_keep_chat_identity_and_survive_rendering_edits_and_resume(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

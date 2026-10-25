@@ -72,6 +72,22 @@
     "schema": "Error"
   },
   {
+    "file": "admin-token.json",
+    "schema": "AdminToken"
+  },
+  {
+    "file": "emergency-challenge.json",
+    "schema": "EmergencyChallenge"
+  },
+  {
+    "file": "emergency-status.json",
+    "schema": "EmergencyStatus"
+  },
+  {
+    "file": "emergency-roster.json",
+    "schema": "EmergencyRoster"
+  },
+  {
     "file": "error_validation.json",
     "schema": "Error"
   },

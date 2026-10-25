@@ -18,7 +18,7 @@ from uuid import UUID
 
 import uvicorn
 import yaml
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
@@ -114,6 +114,34 @@ class PositionFix(Input):
 
 class GuidanceStart(Input):
     route_id: Reference
+
+
+# Emergency mode (FR-17)
+class AdminTokenCreate(Input):
+    pin: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    name: Annotated[str, StringConstraints(min_length=1, max_length=80, strip_whitespace=True)]
+
+
+class EmergencyChallengeCreate(Input):
+    pass
+
+
+class EmergencyStart(Input):
+    challenge_id: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    code: Annotated[str, StringConstraints(pattern=r"^[0-9]{6}$")]
+    reason: Annotated[str, StringConstraints(min_length=1, max_length=200, strip_whitespace=True)]
+
+
+class ExitConfirmation(Input):
+    note: Annotated[str, StringConstraints(max_length=200)] = ""
+
+
+class Profile(Input):
+    display_name: Annotated[str, StringConstraints(min_length=1, max_length=60, strip_whitespace=True)]
+
+
+AdminToken = Annotated[str | None, Header(alias="X-Admin-Token", max_length=128)]
+PersonId = Annotated[str, StringConstraints(min_length=1, max_length=16)]
 
 
 # Object editor proposals (final_agent.object_edits). A missing or null field means the default when
@@ -428,12 +456,14 @@ def create_app(
     data_directory: Path = Path("data"), output_directory: Path = Path("agent_output/api"), *,
     notes_database: Path | None = None, api_token: str | None = None, cors_origins: list[str] | None = None,
     client_factory=None, clock=None, new_id=None, rate_limit: int = 0, model_timeout: float = 60,
-    speech_factory=ElevenLabsSpeech.from_env,
+    speech_factory=ElevenLabsSpeech.from_env, admin_pin: str | None = None,
 ) -> FastAPI:
     options = {name: value for name, value in (("clock", clock), ("new_id", new_id)) if value is not None}
     service = SessionService(data_directory, output_directory, notes_database=notes_database,
                              client_factory=client_factory, model_timeout=model_timeout,
-                             speech=speech_factory(), **options)
+                             speech=speech_factory(),
+                             admin_pin=os.environ.get("EMERGENCY_ADMIN_PIN", "") if admin_pin is None else admin_pin,
+                             **options)
     contract = load_contract()
     app = FastAPI(title=contract["info"]["title"], version="1.0.0")
     app.openapi_schema = contract
@@ -443,7 +473,7 @@ def create_app(
     if cors_origins is None:
         cors_origins = [origin.strip() for origin in os.environ.get("CORS_ORIGINS", ",".join(DEFAULT_ORIGINS)).split(",") if origin.strip()]
     app.add_middleware(CORSMiddleware, allow_origins=cors_origins, allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-                       allow_headers=["Content-Type", "Authorization", "X-Request-Id", "Idempotency-Key", "If-Match"], expose_headers=EXPOSE_HEADERS)
+                       allow_headers=["Content-Type", "Authorization", "X-Request-Id", "Idempotency-Key", "If-Match", "X-Admin-Token"], expose_headers=EXPOSE_HEADERS)
     app.add_middleware(TraceMiddleware)
 
     @app.exception_handler(ApiError)
@@ -614,6 +644,49 @@ def create_app(
     @app.delete(API_ROOT + "/sessions/{session_id}/guidance", operation_id="delete_guidance")
     def delete_guidance(session_id: UUID):
         service.delete_guidance(str(session_id))
+        return Response(status_code=204)
+
+    @app.put(API_ROOT + "/sessions/{session_id}/profile", operation_id="put_profile")
+    def put_profile(session_id: UUID, body: Profile):
+        return service.put_profile(str(session_id), body.display_name)
+
+    def checked_building(building_id: str) -> str:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", building_id):
+            raise ApiError("20001_validation_failed", [{"field": "building_id", "code": "invalid"}])
+        return building_id
+
+    @app.post(API_ROOT + "/admin-tokens", operation_id="create_admin_token", status_code=201)
+    def create_admin_token(body: AdminTokenCreate):
+        return service.create_admin_token(body.pin, body.name)
+
+    @app.get(API_ROOT + "/buildings/{building_id}/emergency", operation_id="get_emergency")
+    def get_emergency(building_id: str):
+        return service.emergency_status(checked_building(building_id))
+
+    @app.post(API_ROOT + "/buildings/{building_id}/emergency-challenges", operation_id="create_emergency_challenge", status_code=201)
+    def create_emergency_challenge(building_id: str, body: EmergencyChallengeCreate, x_admin_token: AdminToken = None):
+        return service.create_challenge(checked_building(building_id), x_admin_token)
+
+    @app.put(API_ROOT + "/buildings/{building_id}/emergency", operation_id="put_emergency")
+    def put_emergency(building_id: str, body: EmergencyStart, x_admin_token: AdminToken = None):
+        return service.start_emergency(checked_building(building_id), x_admin_token, body.challenge_id, body.code, body.reason)
+
+    @app.delete(API_ROOT + "/buildings/{building_id}/emergency", operation_id="delete_emergency")
+    def delete_emergency(building_id: str, x_admin_token: AdminToken = None):
+        service.end_emergency(checked_building(building_id), x_admin_token)
+        return Response(status_code=204)
+
+    @app.get(API_ROOT + "/buildings/{building_id}/emergency/people", operation_id="list_emergency_people")
+    def list_emergency_people(building_id: str, x_admin_token: AdminToken = None):
+        return service.emergency_roster(checked_building(building_id), x_admin_token)
+
+    @app.put(API_ROOT + "/buildings/{building_id}/emergency/people/{person_id}/exit-confirmation", operation_id="put_exit_confirmation")
+    def put_exit_confirmation(building_id: str, person_id: PersonId, body: ExitConfirmation, x_admin_token: AdminToken = None):
+        return service.mark_outside(checked_building(building_id), person_id, x_admin_token, body.note)
+
+    @app.delete(API_ROOT + "/buildings/{building_id}/emergency/people/{person_id}/exit-confirmation", operation_id="delete_exit_confirmation")
+    def delete_exit_confirmation(building_id: str, person_id: PersonId, x_admin_token: AdminToken = None):
+        service.clear_mark(checked_building(building_id), person_id, x_admin_token)
         return Response(status_code=204)
 
     return app

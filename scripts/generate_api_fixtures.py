@@ -40,7 +40,7 @@ def generate(data: Path, output: Path) -> list[dict]:
                                 "resolved": {"start_space_id": route["start_space_id"], "destination_space_id": route["destination_space_id"],
                                              "space_ids": route["space_path"], "asset_ids": [], "count": None}, "missing": []}}
         accepted = {"schema_version": 1, "session": service.view(state), "user_message": user, "guide_message": guide,
-                    "routes": [route], "pending_action": None, "usage": None, "speech_clip_id": None}
+                    "routes": [route], "pending_action": None, "usage": None, "speech_clip_id": None, "speech_text": None}
         examples = {
             "health": ("Health", {"schema_version": 1, "status": "ok", "api_version": "1"}),
             "buildings": ("BuildingPage", service.buildings("dev", None, 20)),
@@ -79,6 +79,21 @@ def generate(data: Path, output: Path) -> list[dict]:
             raise RuntimeError("The invalid placement example was accepted.")
         except ApiError as error:
             examples["error_invalid_placement"] = ("Error", json.loads(error_response(error, str(UUID(int=999))).body))
+        # Emergency mode: token and code are random, so the examples carry fixed placeholders.
+        service.admin_pin = "0000"
+        token = service.create_admin_token("0000", "Ada Admin")
+        examples["admin-token"] = ("AdminToken", {**token, "token": "example-admin-token"})
+        challenge = service.create_challenge("proc-factory-dev-003", token["token"])
+        examples["emergency-challenge"] = ("EmergencyChallenge", {**challenge, "code": "123456"})
+        service.start_emergency("proc-factory-dev-003", token["token"], challenge["id"], challenge["code"], "Fire alarm in hall B")
+        service.emergencies["proc-factory-dev-003"].fast_forward(90)  # most simulated people are out by now
+        service.put_profile(state.id, "Demo phone")
+        stayer = next(person for person in service.emergency_roster("proc-factory-dev-003", token["token"])["people"]
+                      if person["kind"] == "simulated" and person["status"] == "inside")
+        service.mark_outside("proc-factory-dev-003", stayer["id"], token["token"], "At the assembly point, phone left inside")
+        examples["emergency-status"] = ("EmergencyStatus", service.emergency_status("proc-factory-dev-003"))
+        examples["emergency-roster"] = ("EmergencyRoster", service.emergency_roster("proc-factory-dev-003", token["token"]))
+        service.end_emergency("proc-factory-dev-003", token["token"])
         for code, name in (("20001_validation_failed", "error_validation"), ("30002_session_not_found", "error_not_found"), ("40001_model_unavailable", "error_model")):
             response = error_response(ApiError(code), str(UUID(int=999)))
             examples[name] = ("Error", json.loads(response.body))

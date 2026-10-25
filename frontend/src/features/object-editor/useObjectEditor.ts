@@ -56,6 +56,7 @@ type DiscardIntent = 'close' | 'back' | 'revert'
 
 type Options = {
   sessionId: string
+  objectRevision: number
   plans: Map<string, FloorPlan>
   floors: FloorSummary[]
   floorId: string
@@ -118,7 +119,7 @@ function connectorKindOf(id: string): ConnectorKind {
   return id === 'escalator' || id === 'lift' ? id : 'stairs'
 }
 
-export function useObjectEditor({ sessionId, plans, floors, floorId, selection, onSelect, refreshFloors, buttonRef }: Options) {
+export function useObjectEditor({ sessionId, objectRevision, plans, floors, floorId, selection, onSelect, refreshFloors, buttonRef }: Options) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<EditorStep>('pick')
   const [changingType, setChangingType] = useState(false)
@@ -133,6 +134,7 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
   const [discardIntent, setDiscardIntent] = useState<DiscardIntent>('close')
   const [announcement, setAnnouncement] = useState({ id: 0, text: '' })
   const [focusRequest, setFocusRequest] = useState<{ id: number; target: FocusTarget }>({ id: 0, target: 'heading' })
+  const draftObjectRevision = useRef(objectRevision)
   const plansRef = useRef(plans)
   plansRef.current = plans
 
@@ -170,6 +172,7 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
   /** Load the details of an existing object or opening into the form. */
   const loadDetails = (target: Selection | null, source: Map<string, FloorPlan>): string | null => {
     if (!target) return null
+    draftObjectRevision.current = objectRevision
     if (target.kind === 'asset') {
       const asset = findAsset(source, target.id)
       if (!asset) return null
@@ -194,6 +197,7 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
   }
 
   const startPicking = () => {
+    draftObjectRevision.current = objectRevision
     setDraft(null)
     setOriginal(null)
     setStep('pick')
@@ -302,6 +306,7 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
     setOriginal(null)
     setChangingType(false)
     if (entry.type.action === 'add_object') {
+      draftObjectRevision.current = objectRevision
       setDraft(newObjectDraft(entry, floorId, null))
       setStep('place')
     } else if (entry.type.action === 'add_opening') {
@@ -399,12 +404,21 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
     let created: ActionResult | null = null
     let confirmed = false
     try {
-      created = await gateway.createAction(sessionId, proposal)
+      const latest = await gateway.getSession(sessionId)
+      const expected = proposal.kind === 'undo_edit' ? objectRevision : draftObjectRevision.current
+      if ((latest.object_revision ?? 0) !== expected) {
+        await refreshFloors([...plansRef.current.keys()])
+        draftObjectRevision.current = latest.object_revision ?? 0
+        setError(copy.sharedObjectsChanged)
+        return
+      }
+      created = await gateway.createAction(sessionId, proposal, latest.revision)
       const action = await gateway.confirmAction(sessionId, created.id)
       confirmed = true
       const edited = editedFloors(action)
       const floorIds = edited?.floorIds.length ? edited.floorIds : [floorId]
-      const fresh = await refreshFloors(floorIds).catch(() => new Map<string, FloorPlan>())
+      const fresh = await refreshFloors(floorIds)
+      draftObjectRevision.current = (await gateway.getSession(sessionId)).object_revision ?? 0
       const merged = new Map(plansRef.current)
       fresh.forEach((plan, id) => merged.set(id, plan))
       after(action, merged)
@@ -413,7 +427,7 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
       setError(describeEditError(ui, text.errors))
       // Only the confirmation failed: do not leave a pending action that blocks the guide.
       if (created && !confirmed) void gateway.cancelAction(sessionId, created.id).catch(() => undefined)
-      if (ui.code === '30013_element_not_found') void refreshFloors([floorId]).catch(() => undefined)
+      if (ui.code === '30013_element_not_found' || ui.code === '30012_revision_conflict') void refreshFloors([floorId]).catch(() => undefined)
     } finally {
       setSaving(false)
     }
@@ -510,6 +524,10 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
     }
   }
 
+  useEffect(() => {
+    if (!saving && draft && draftObjectRevision.current !== objectRevision) setError(copy.sharedObjectsChanged)
+  }, [objectRevision])
+
   // A new session (other building, expired session) starts the editor over.
   useEffect(() => {
     setDraft(null)
@@ -518,6 +536,7 @@ export function useObjectEditor({ sessionId, plans, floors, floorId, selection, 
     setChangingType(false)
     setConfirming(null)
     setError(null)
+    draftObjectRevision.current = objectRevision
   }, [sessionId])
 
   // Picking another object on the map shows its details, unless the draft has unsaved changes.

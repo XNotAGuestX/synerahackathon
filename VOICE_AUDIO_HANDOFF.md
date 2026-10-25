@@ -1,143 +1,142 @@
-# Voice mode handoff — no output in the user's browser
+# Voice mode handoff — 25 October 2026
 
-**Prepared: 25 October 2026. Status: open. Voice works end to end in headless Chrome with a
-fake microphone, but in the user's real browser a spoken request produces no output and no
-visible progress.** Everything below is on local `main` (merge `9eacd04`, which includes
-the empty-transcript fallback). Nothing here is pushed to `origin/main`.
+Implemented on `max_branch` from refreshed `origin/main` (`3086b64`). The previous
+branch head is preserved as `backup/max-branch-before-voice-20261025`. Local `main`
+and remote `main` were not changed. Branch-only changes were excluded.
 
-## Symptom
+## Current behavior
 
-The user switches to Voice, speaks, and nothing happens: no reply, no spinner, no
-"Working…". Backend log of the user's session after the restart (`3a616b9e…`):
+- Voice tap activates a reusable native-rate AudioContext before asynchronous work.
+  An AudioWorklet supplies 16 kHz mono audio. Silence detection ends a recording;
+  **Finish speaking** ends it manually, exactly once. The existing 15 s limit remains.
+- Each WAV goes through our own `POST /sessions/{id}/transcriptions`. The browser
+  no longer opens an ElevenLabs socket or fetches realtime tokens. The existing
+  token endpoint remains for API compatibility.
+- Recording, transcription, queued requests, thinking and playback are visible.
+  The recognized transcript appears immediately after transcription. Typed and
+  spoken messages share one FIFO dispatcher instead of dropping input while busy.
+- Session changes abort transcription/playback and discard stale UI results and
+  queued recordings. Leaving voice closes its audio context and microphone tracks.
+  An already-dispatched model request finishes before another request to that same
+  session is sent: aborting browser fetch cannot undo server-side tool work.
+- Transcription errors leave the next utterance usable. Empty transcripts show
+  “Didn't catch that.” Audio failures retain the clip for **Resume voice** to retry.
+- The written answer stays in `guide_message.text`. Voice responses also return
+  `speech_text` and `speech_clip_id`. Only the short summary is synthesized: roughly
+  30 words/two sentences by default, with essential warnings and clarification kept.
+  Longer spoken detail is permitted when requested. Text turns return null speech fields.
+- For active routes, the application builds the spoken destination, rounded distance
+  and step-free introduction from the computed route. The structured internal
+  `speech_warning` keeps essential warnings in front of it, so the model cannot ask
+  to start guidance after it has already begun. Stop-only requests acknowledge the
+  committed stop without replaying the previous route.
+- Completed-turn thinking blocks are removed before a new user turn; current tool
+  loops keep theirs intact. This fixes live 400 signature errors when position or
+  input mode changes the system prefix. [Provider explanation](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting).
+- Valid voice route requests still start automatic walking guidance. The summary
+  introduces the destination/distance; the guidance feed speaks waypoint directions.
+  Pending replies precede queued directions; newer speech interrupts stale audio.
+- Backgrounding the page pauses voice. Tap **Resume voice** after returning.
+  This is a foreground browser feature, not lock-screen/background navigation.
 
-```
-POST /transcription-tokens 201   # prefetch when the microphone starts
-POST /transcription-tokens 201   # second fetch = VAD detected speech start (takeToken prefetches the next one)
-PUT  /position …                 # walker position sync, unrelated
-(no POST /transcriptions, no POST /messages)
-```
+## Object edits and reports — follow-up
 
-So speech start was detected and a live transcription socket was opened, but the utterance
-never reached the agent, and the WAV upload fallback never ran either.
+Explicit add/remove/update requests use the object editor and require only the
+requesting user's Confirm button (or editor Save). A ghost on the map is a preview,
+not a saved object. Pure edit acknowledgements now come from the actual pending
+action in both written and spoken output, and the corrected wording is retained
+in conversation history. Existing unrelated pending reports cannot add a second
+user requirement to that acknowledgement. Independently requested answers and
+essential warnings are preserved.
 
-## What changed today (all on local `main` unless noted)
+The prompts/tool descriptions prohibit saving a duplicate report merely recording
+an object addition/removal or a missing map object. A separately stated condition
+can still be reported alongside an edit. General facts/conditions need two distinct
+chats; concrete hazards become active immediately. The API's public shapes are
+unchanged.
 
-| Commit | Change |
-|---|---|
-| `9a6cbaf` | Voice turns run on Haiku at **high** effort (`VOICE_MODEL`, `VOICE_EFFORT` in `final_agent/agent.py`). A voice route request from the live position starts guidance even if the model skips `start_guidance`; the spoken clip is a one-line lead-in ("Heading to X, about N metres."). `draw_route` is no longer duplicated. |
-| `5fc1d91` | Active guidance keeps its route on the map after a later reply without one. |
-| `4caf342` | `POST /sessions/{id}/transcription-tokens`: ElevenLabs single-use token plus realtime URL (`scribe_v2_realtime`, `pcm_16000`, `language_code=en`, `commit_strategy=manual`). OpenAPI, DESIGN, tests updated. |
-| `c43aa10` | Frontend streams microphone audio while the user talks (`frontend/src/features/voice/realtime.ts`, `useVoice.ts`): socket opens on VAD start, pre-roll and 20 ms PCM frames are sent, commit on VAD end. Socket error or 4 s timeout falls back to `POST /transcriptions`. `API_PROXY` env var in `vite.config.ts`. |
-| `a31b659` | Map always draws the full route line plus step dots (the step player had cut it to a stub at step 0). |
-| `be780b8` | **Fallback for empty live results:** an empty or failed live transcript is retried as a WAV upload, and an empty final transcript shows "Didn't catch that. Please say it again." instead of silently dropping the utterance (`useVoice.ts`, `i18n/en.ts`). Typecheck and `npm run test:voice` pass; merged into `main`, not yet tested in the user's browser. |
+The requested local cleanup removed `Coffee table H-C2` through the normal shared
+edit mechanism and archived its obsolete missing-map report. A fresh session
+confirmed absence and all 505 other objects were unchanged. Historical exports
+were left intact.
 
-## What was verified
+Focused checks (25 October 2026): 48 API tests and 12 room-report tests pass.
+Regression cases inject incorrect second-user wording with an existing pending
+report and cover add/update/remove, preview-only state, one confirmation,
+new-session persistence, mixed general/safety reports, retained independent answers
+and corrected conversation history. Real Chrome chat add/remove passed with one
+Confirm each; a second session saw the saved changes. Live STT/voice samples passed
+add/locate/remove without duplicate report/vote calls, general report activation
+only after two chats, and an immediate wet-floor safety report alongside an edit
+preview. All verification edits/reports used temporary data, apart from the
+explicitly requested H-C2 cleanup. These are sampled flows, not a speech benchmark.
 
-- Backend: `uv run python -m unittest discover -s tests` → 332 tests OK (3 skipped).
-- Real API, voice turn with live position (`osm-way13507441`, "Take me to Passage"): guidance
-  becomes `active`, first instruction emitted, reply 15–16 words. Turn latency 6–12 s at high effort.
-- Realtime STT protocol with Node and the committed key: transcript 160–220 ms after commit.
-  Batch upload of the same 1.7 s clip: 450–510 ms.
-- **Headless Chrome with a fake microphone, full UI on 5173 and 5174:** pill goes
-  Listening → Hearing you → Thinking → Speaking; the guide panel shows the spinner and
-  "Working…"; the committed transcript arrives about 0.2 s after speech ends; `/messages`
-  returns 201 after about 10 s; the reply clip plays. Quiet speech (8 % amplitude) is still
-  transcribed (Chrome's auto gain).
-- Not reproduced: the user's "no output" case. The only failure seen in tests was one
-  `POST /messages` 503 when the looping fake mic produced overlapping turns.
+## Run
 
-## Hypotheses, most likely first
-
-1. **Empty live transcript dropped silently.** Before the branch fix, `insufficient_audio_activity`
-   or an empty `committed_transcript` resolved to `''`, and `drain()` did `if (!text) continue`
-   with no message and no upload. That matches the log exactly (no `/transcriptions`, no `/messages`).
-   Fixed on the branch; needs the user's confirmation.
-2. **The turn was dropped because the app was busy.** `sendText` returns `null` without any UI
-   when `loading` is true (`App.tsx`, `if (!text.trim() || loading) return null`). A typed
-   message, an earlier voice turn or a slow 10 s agent turn still in flight would swallow
-   the new utterance. That would still show a `/messages` call for the first turn, so it fits
-   only if an earlier request was pending from before the restart.
-3. **VAD never ends.** With steady background noise above `max(floor*3, 0.015)` the utterance
-   only ends at `maxMs = 15000`. For 15 s the user sees just the "Hearing you" pill and may
-   call that "no output". Afterwards it should transcribe, so this explains the wait, not the
-   missing request, unless the user switched modes or reloaded within 15 s.
-4. **Stale page.** A tab loaded before the frontend/backend restart can run old code against a
-   new backend. The token calls prove new frontend code ran at least once in session `3a616b9e`.
-5. **Browser or network specifics** (Safari/Firefox, extensions or a network blocking
-   `wss://api.elevenlabs.io`). A blocked socket should fail and fall back to the upload, so
-   alone it does not explain the missing upload.
-
-## Ask the user for
-
-- The voice pill text while waiting (Listening / Hearing you / Transcribing / Thinking).
-- Browser and version.
-- DevTools console: the branch logs `Live transcription failed; uploading the recording.`
-- DevTools Network → WS: frames from `api.elevenlabs.io` (`session_started`,
-  `partial_transcript`, `committed_transcript` or an error `message_type`).
-
-## Possible fixes
-
-1. **First idea: do not stream from the browser directly to ElevenLabs; forward through our server.**
-   Today `realtime.ts` opens `wss://api.elevenlabs.io/...` from the browser with a single-use token.
-   That path depends on the user's browser and network reaching ElevenLabs over WebSocket
-   (extensions, firewalls, proxies, Safari), and its failures are invisible to our backend log.
-   Instead, let the browser send audio only to our own origin and let the backend talk to ElevenLabs:
-   - **Simplest:** drop live streaming and always upload the WAV after the utterance
-     (`POST /transcriptions`, already implemented and proven in the user's earlier sessions).
-     Costs about 0.3 s per utterance (0.45–0.5 s vs 0.2 s for the 1.7 s test phrase).
-   - **Streaming via the server:** add a WebSocket endpoint such as
-     `/api/v1/sessions/{id}/transcriptions/stream` in `final_agent/api.py`. The browser sends the
-     same 20 ms PCM frames there (same origin, goes through the Vite `/api` proxy, needs `ws: true`
-     in the proxy config); the backend opens the ElevenLabs realtime socket with the API key
-     (`xi-api-key` header, no token endpoint needed), relays `input_audio_chunk`/commit, and returns
-     the committed text. Needs a WebSocket client in Python (`websockets`, not installed yet).
-     Every step is then visible in our log, and errors map to `40004_speech_unavailable`.
-   - **Chunked HTTP alternative:** upload audio while the user talks in 0.5–1 s chunks to an HTTP
-     endpoint that feeds the server-side ElevenLabs socket; the final request commits and returns the text.
-   Either way, keep the WAV upload as the fallback and remove `POST /transcription-tokens` if unused.
-2. **Branch fallback** (empty live result → upload; "Didn't catch that" note). Done, merged in `9eacd04`; keep it whichever transport is used.
-3. **Kill switch for streaming**: e.g. `localStorage['wayfinder-stt'] = 'batch'` or `?stt=batch`
-   to skip `openTranscriptStream` and use only `POST /transcriptions`. Lets the user A/B in one reload.
-4. **Show progress from the first moment:** put the transcript (and `partial_transcript` while
-   speaking) into the composer or as the user bubble, and show the guide panel's "Working…"
-   state while `voice.state` is `transcribing` or `thinking`, not only while `loading`.
-5. **Never drop an utterance silently:** queue voice turns in `sendText` while `loading`,
-   or surface "Still working on your last request" instead of returning `null`.
-6. **VAD end:** shorter `maxMs` (8–10 s), or adapt the noise floor during speech so a noisy room
-   still ends the utterance. Optional: use the realtime socket's own VAD
-   (`commit_strategy=vad`) and commit on its `committed_transcript`.
-7. **Latency:** voice turns take 6–12 s at Haiku high effort. Options are `medium` effort, or
-   speaking the server lead-in as soon as `find_route` succeeds instead of after the model's final reply.
-8. **Investigate the 503** on overlapping voice turns (likely `30012_revision_conflict` or a
-   model error mapped to `40001`); overlapping turns should be serialised client-side.
-9. Cosmetic: chat text can end with "Answer: 22" (benchmark answer format leaking into
-   HTTP replies). Not spoken, but visible in the guide panel.
-
-## How to test without a microphone
-
-Headless Chrome can feed a WAV file as the microphone. Two gotchas cost time: Chrome only read
-the file from `/tmp` with `--no-sandbox`, and the file loops, so every repeat is a new turn.
-
-```js
-// npm i puppeteer-core (outside the repo); uses the installed Chrome
-const browser = await puppeteer.launch({
-  executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true,
-  args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
-         '--use-file-for-fake-audio-capture=/tmp/mic.wav', '--no-sandbox',
-         '--autoplay-policy=no-user-gesture-required'],
-})
-// open http://127.0.0.1:5173/, click the last `.input-mode button` (Voice), poll `.voice-pill`,
-// log CDP Network.webSocketFrameSent/Received and responses to /messages and /transcriptions.
+```bash
+uv run python -m final_agent.api
+# In another terminal:
+cd frontend
+npm ci
+npm run dev
 ```
 
-Make the WAV with 1 s silence, the phrase, then 3 s silence (16-bit mono, 48 kHz works). An
-ElevenLabs TTS call with `output_format=pcm_16000` gives a clean phrase.
+Use the existing Anthropic and ElevenLabs configuration. On desktop, open
+`http://localhost:5173`, load a connected building and tap **Voice**. Speech is
+English. For automatic guidance, the live-position marker must be in a known room;
+otherwise the guide should clarify the start. Selected map objects are not location.
+If credentials are in `.env`, use `uv run --env-file .env python -m final_agent.api`.
 
-Backend repro without a browser: create a session (`Idempotency-Key` header required on POST),
-`PUT /position` inside a room, then `POST /messages` with `input_mode: "voice"` and check
-`guide_message.text`, `speech_clip_id` and `GET /guidance?after=0`.
+For iPhone, use trusted HTTPS; a plain LAN HTTP address cannot capture the mic.
+Optional Vite `VOICE_TLS_CERT`/`VOICE_TLS_KEY` configuration and a local certificate
+recipe are in [API setup](docs/api/README.md#voice-mode).
 
-## Running servers (at handoff)
+## Verification performed
 
-- 5173 frontend and 8000 backend: main checkout. The frontend hot-reloads `main`; the 8000 backend was last restarted on `a31b659` (backend code unchanged since).
-- 5174 frontend (`API_PROXY=http://127.0.0.1:8011`) and 8011 backend: this worktree. Stop them when done.
+Focused checks only; no broad benchmark or full-suite run for this change:
+
+- API/session tests: **40 passed**, including separate written/spoken answers,
+  preserved warnings, spoken clarification, automatic guidance and live-start checks.
+- Speech adapter: **5 passed**. Navigator: **9 passed**.
+- Existing scripted multi-turn conversation regression: **1 passed**.
+- API fixture validation: **44 examples passed**.
+- `cd frontend && npm run test:voice`: VAD, WAV and speech-queue checks passed.
+- `cd frontend && npm run build`: production build passed (existing large-chunk warning).
+- Installed headless Chrome, normal autoplay policy, synthetic microphone WAV,
+  390 px viewport and fixture service responses: **4 scenarios passed**:
+  interruption/manual finish; typed-plus-voice FIFO (maximum one message in flight);
+  failed transcription followed by successful speech; building switch during
+  transcription (no old message, clip or transcript leaked into the new session).
+- With user authorization, live ElevenLabs TTS → STT → Anthropic voice reply →
+  ElevenLabs TTS passed on a temporary factory session: “What building am I in?”
+  was transcribed correctly, returned distinct written/spoken answers and playable
+  audio in **9.9 s**. Further live samples verified start clarification, automatic
+  step-free guidance and stopping. These found and prompted the thinking-history
+  and stale spoken introduction/stop fixes above. No production report database
+  was used or changed.
+- Final live route sample with a synthetic wet-floor report in a temporary database:
+  **21 spoken words vs. 76 written words**, preserved hazard warning, active step-free
+  guidance, rounded 17 m introduction with no redundant confirmation question, and
+  synthesized audio in **12.3 s**. A live stop returned only “Guidance stopped.”
+
+Reproduce the browser check with Vite on 5175:
+
+```bash
+cd frontend
+npm run dev -- --host 127.0.0.1 --port 5175
+# From the repo root, another terminal:
+uv run --no-project --with playwright python frontend/e2e/voice-smoke.py
+```
+
+`PLAYWRIGHT_CHROMIUM` can select a different installed Chrome executable. This
+harness uses real browser capture/VAD/playback, but synthetic recognition, model
+wording and speech responses; it does not measure live provider accuracy.
+
+## Remaining verification limits
+
+A physical microphone/speaker echo test and an actual iPhone Safari check were not
+available. Safari support has gesture-based audio initialization and HTTPS setup,
+but is not claimed as device-verified. Live samples do not establish general speech
+recognition accuracy or latency. The historical real-user “no output” case still
+needs one short real-device check. Existing navigation capabilities/limitations
+remain as documented in ADR-0003.
