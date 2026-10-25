@@ -26,6 +26,7 @@ tags:
   - name: Routes
   - name: Messages
   - name: Actions
+  - name: Guidance
 paths:
   /api/v1/health:
     get:
@@ -749,6 +750,158 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions/{session_id}/position:
+    put:
+      operationId: put_position
+      tags: [Guidance]
+      summary: Aktuelle Position melden
+      description: |
+        Ersetzt die zuletzt bekannte Position. Ändert nie `revision`. Eine Messung, die nicht jünger ist als die
+        gespeicherte, ergibt `applied: false` und lässt die Position unverändert. `measured_at` darf höchstens 2 s in der Zukunft liegen.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PositionFix"
+      responses:
+        "200":
+          description: Gespeicherte Position und Stand der Führung
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PositionAccepted"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions/{session_id}/guidance:
+    get:
+      operationId: get_guidance
+      tags: [Guidance]
+      summary: Führung und neue Ansagen lesen
+      description: |
+        Long-Poll: Gibt es keine Ereignisse mit `seq > after`, wartet der Server bis zu `wait_s` Sekunden.
+        Ändert nie `revision`.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/SessionId"
+        - name: after
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Letzte bekannte `seq`.
+        - name: wait_s
+          in: query
+          required: false
+          schema:
+            type: number
+            minimum: 0
+            maximum: 25
+            default: 0
+      responses:
+        "200":
+          description: Führung, Ereignisse und Cursor
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuidanceFeed"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+    put:
+      operationId: put_guidance
+      tags: [Guidance]
+      summary: Führung für eine Route starten
+      description: |
+        Ersetzt eine laufende Führung. Eine unerreichbare Route ist 20001 mit `route_id` und Code `unreachable`.
+        Die Antwort enthält schon die erste Ansage. Ändert nie `revision`.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuidanceStart"
+      responses:
+        "200":
+          description: Gestartete Führung mit den bisherigen Ereignissen
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuidanceFeed"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: delete_guidance
+      tags: [Guidance]
+      summary: Führung beenden
+      description: Idempotent. Ohne laufende Führung ist die Antwort trotzdem 204.
+      parameters:
+        - $ref: "#/components/parameters/X-Request-Id"
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "204":
+          description: Keine Führung mehr
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+            X-API-Version:
+              $ref: "#/components/headers/X-API-Version"
+            X-Schema-Version:
+              $ref: "#/components/headers/X-Schema-Version"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
         default:
           $ref: "#/components/responses/Error"
 
@@ -2146,3 +2299,182 @@ components:
             - type: string
               format: date-time
             - type: "null"
+
+    PositionFix:
+      type: object
+      additionalProperties: false
+      required: [floor_id, x_m, y_m, measured_at, source]
+      properties:
+        floor_id:
+          $ref: "#/components/schemas/DatasetId"
+        x_m:
+          type: number
+        y_m:
+          type: number
+        accuracy_m:
+          type: [number, "null"]
+          minimum: 0
+        measured_at:
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum: [simulated, wifi, manual]
+
+    LivePosition:
+      type: object
+      additionalProperties: false
+      required: [floor_id, x_m, y_m, accuracy_m, space_id, measured_at, received_at, source, tracking]
+      properties:
+        floor_id:
+          $ref: "#/components/schemas/DatasetId"
+        x_m:
+          type: number
+        y_m:
+          type: number
+        accuracy_m:
+          type: [number, "null"]
+        space_id:
+          type: [string, "null"]
+          description: Raum, der den Punkt enthält. null außerhalb jedes Raums.
+        measured_at:
+          type: string
+          format: date-time
+        received_at:
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum: [simulated, wifi, manual]
+        tracking:
+          type: string
+          enum: [live, stale]
+          description: stale, wenn die Messung älter als 15 s ist.
+
+    PositionAccepted:
+      type: object
+      additionalProperties: false
+      required: [schema_version, position, applied, guidance]
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        position:
+          $ref: "#/components/schemas/LivePosition"
+        applied:
+          type: boolean
+        guidance:
+          type: object
+          additionalProperties: false
+          required: [status, target_index, remaining_m, cursor]
+          properties:
+            status:
+              $ref: "#/components/schemas/GuidanceStatus"
+            target_index:
+              type: [integer, "null"]
+            remaining_m:
+              type: [number, "null"]
+            cursor:
+              type: integer
+              minimum: 0
+              description: Jüngste `seq` der Ereignisse.
+
+    GuidanceStart:
+      type: object
+      additionalProperties: false
+      required: [route_id]
+      properties:
+        route_id:
+          type: string
+          minLength: 1
+          maxLength: 200
+
+    GuidanceStatus:
+      type: string
+      enum: [idle, active, arrived, stopped]
+
+    GuidanceWaypoint:
+      type: object
+      additionalProperties: false
+      required: [index, kind, floor_id, at, text]
+      properties:
+        index:
+          type: integer
+          minimum: 0
+        kind:
+          type: string
+          enum: [turn, door, connector_entry, connector_exit, stop, arrival]
+        floor_id:
+          $ref: "#/components/schemas/DatasetId"
+        at:
+          $ref: "#/components/schemas/Point"
+        text:
+          type: string
+          description: Ansage, die gilt, sobald dieser Punkt das Ziel wird.
+
+    Guidance:
+      type: object
+      additionalProperties: false
+      required: [status, route_id, destination_space_id, destination_name, target_index, waypoints, remaining_m, tracking]
+      properties:
+        status:
+          $ref: "#/components/schemas/GuidanceStatus"
+        route_id:
+          type: [string, "null"]
+        destination_space_id:
+          type: [string, "null"]
+        destination_name:
+          type: [string, "null"]
+        target_index:
+          type: [integer, "null"]
+        waypoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/GuidanceWaypoint"
+        remaining_m:
+          type: [number, "null"]
+        tracking:
+          type: string
+          enum: [none, live, stale]
+
+    GuidanceEvent:
+      type: object
+      additionalProperties: false
+      required: [seq, kind, text, route_id, waypoint_index, speech_clip_id, created_at]
+      properties:
+        seq:
+          type: integer
+          minimum: 1
+        kind:
+          type: string
+          enum: [instruction, wrong_way, arrived, stopped]
+        text:
+          type: string
+        route_id:
+          type: [string, "null"]
+        waypoint_index:
+          type: [integer, "null"]
+        speech_clip_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    GuidanceFeed:
+      type: object
+      additionalProperties: false
+      required: [schema_version, guidance, events, cursor]
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        guidance:
+          $ref: "#/components/schemas/Guidance"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/GuidanceEvent"
+        cursor:
+          type: integer
+          minimum: 0
+          description: Jüngste `seq`. Der nächste Aufruf nutzt sie als `after`.

@@ -5,6 +5,7 @@ import csv
 import json
 import tempfile
 import threading
+import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
@@ -136,7 +137,7 @@ class ApiTests(unittest.TestCase):
     def test_health_buildings_detail_plans_and_search_match_contract(self):
         defined = {operation["operationId"] for methods in self.contract["paths"].values() for operation in methods.values()}
         implemented = {getattr(route, "operation_id", None) for route in self.app.routes}
-        self.assertEqual(len(defined), 18)
+        self.assertEqual(len(defined), 22)
         self.assertTrue(defined <= implemented)
         health = self.client.get(self.base + "/health", headers={"X-Request-Id": "from-frontend"})
         self.validate(health, "Health")
@@ -456,6 +457,108 @@ class ApiTests(unittest.TestCase):
         self.assertIsNone(self.client.get(path).json()["pending_action_id"])
         # Reports commit per tool call; only session state and map edits are discarded.
         self.assertEqual(len(RoomNoteStore(self.root / "notes.sqlite3").active("test", ["left"])), 1)
+
+    def fix(self, session, x, y, *, floor="F0", tick=1, status=200, **values):
+        self.now += timedelta(seconds=tick)
+        body = {"floor_id": floor, "x_m": x, "y_m": y, "measured_at": self.now.isoformat().replace("+00:00", "Z"), "source": "simulated", **values}
+        response = self.client.put(self.path(session) + "/position", json=body)
+        self.assertEqual(response.status_code, status, response.text)
+        return self.validate(response, "PositionAccepted") if status == 200 else response.json()
+
+    def guided_route(self, session):
+        path = self.path(session)
+        action = self.proposal(session)
+        door = self.post(path + "/actions/" + action["id"] + "/confirmations", status=200).json()["result"]["opening"]["id"]
+        route = self.post(path + "/routes", {"start": "left", "destination": "right"}, schema="Route").json()
+        feed = self.client.put(path + "/guidance", json={"route_id": route["id"]})
+        self.assertEqual(feed.status_code, 200, feed.text)
+        return door, self.validate(feed, "GuidanceFeed")
+
+    def test_position_resolves_room_never_bumps_revision_and_rejects_bad_fixes(self):
+        session = self.session()
+        before = self.client.get(self.path(session)).headers["ETag"]
+        result = self.fix(session, -2, 0, accuracy_m=1.5)
+        self.assertEqual((result["applied"], result["position"]["space_id"], result["position"]["tracking"]), (True, "left", "live"))
+        self.assertEqual(self.client.get(self.path(session)).headers["ETag"], before)
+        self.assertEqual(self.fix(session, -2, 0, floor="nope", status=400)["code"], "20001_validation_failed")
+        self.assertEqual(self.fix(session, None, 0, status=400)["code"], "20001_validation_failed")
+        raw = '{"floor_id":"F0","x_m":NaN,"y_m":0,"measured_at":"%s","source":"wifi"}' % self.now.isoformat().replace("+00:00", "Z")
+        nan = self.client.put(self.path(session) + "/position", content=raw, headers={"Content-Type": "application/json"})
+        self.assertEqual((nan.status_code, nan.json()["code"]), (400, "20001_validation_failed"))
+        stale = self.fix(session, 1, 0, tick=-5)
+        self.assertEqual((stale["applied"], stale["position"]["x_m"]), (False, -2))
+
+    def test_guidance_follows_fixes_and_validates_queries(self):
+        session = self.session()
+        path = self.path(session)
+        door, feed = self.guided_route(session)
+        self.assertEqual(feed["guidance"]["status"], "active")
+        self.assertEqual([e["kind"] for e in feed["events"]], ["instruction"])
+        for waypoint in feed["guidance"]["waypoints"]:
+            self.fix(session, *waypoint["at"])
+        after = self.validate(self.client.get(path + "/guidance?after=0"), "GuidanceFeed")
+        self.assertEqual(after["guidance"]["status"], "arrived")
+        self.assertEqual([e["kind"] for e in after["events"]][-1], "arrived")
+        self.assertEqual(after["cursor"], after["events"][-1]["seq"])
+        self.assertEqual(self.client.get(path + "/guidance?bogus=1").json()["code"], "20001_validation_failed")
+        self.assertEqual(self.client.put(path + "/guidance", json={"route_id": str(uuid4())}).status_code, 404)
+        self.assertEqual(self.client.delete(path + "/guidance").status_code, 204)
+        self.assertEqual(self.client.get(path + "/guidance").json()["guidance"]["status"], "idle")
+
+    def test_unreachable_route_cannot_be_guided(self):
+        session = self.session()
+        route = self.post(self.path(session) + "/routes", {"start": "left", "destination": "right"}).json()
+        response = self.client.put(self.path(session) + "/guidance", json={"route_id": route["id"]})
+        self.assertEqual((response.status_code, response.json()["details"]), (400, [{"field": "route_id", "code": "unreachable"}]))
+
+    def test_long_poll_returns_promptly_when_session_is_deleted(self):
+        session = self.session()
+        started = time.monotonic()
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(lambda: self.client.get(self.path(session) + "/guidance?after=0&wait_s=2"))
+            time.sleep(0.2)
+            self.client.delete(self.path(session))
+            response = future.result(timeout=5)
+        self.assertEqual(response.status_code, 200)
+        self.assertLess(time.monotonic() - started, 1.0)
+
+    def test_position_during_message_turn_does_not_conflict(self):
+        entered, release = threading.Event(), threading.Event()
+
+        class BlockingRunner(ScriptedRunner):
+            def __iter__(self):
+                for index, message in enumerate(super().__iter__()):
+                    if index == 1:
+                        entered.set()
+                        if not release.wait(5):
+                            raise TimeoutError("Test release was not signalled")
+                    yield message
+
+        class BlockingClient(ScriptedClient):
+            def tool_runner(self, **kwargs):
+                return BlockingRunner(self.turns.pop(0), kwargs["tools"], self.results)
+
+        self.app.state.service.client_factory = lambda: BlockingClient([[reply(call("add_room_note", space="left", text="Wet floor.", category="safety")), reply(answer("Noted."))]])
+        session = self.session()
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(lambda: self.client.post(self.path(session) + "/messages", json={"text": "Remember the floor."}, headers={"Idempotency-Key": "turn"}))
+            self.assertTrue(entered.wait(5))
+            try:
+                self.fix(session, -2, 0)
+            finally:
+                release.set()
+            response = future.result(timeout=5)
+        self.assertEqual(response.status_code, 201, response.text)
+
+    def test_closing_a_door_on_the_guided_route_stops_guidance(self):
+        session = self.session()
+        path = self.path(session)
+        door, _ = self.guided_route(session)
+        action = self.post(path + "/actions", {"kind": "set_closed", "element_ref": door, "closed": True}, schema="Action").json()
+        self.post(path + "/actions/" + action["id"] + "/confirmations", status=200)
+        feed = self.validate(self.client.get(path + "/guidance?after=0"), "GuidanceFeed")
+        self.assertEqual((feed["guidance"]["status"], feed["events"][-1]["kind"]), ("stopped", "stopped"))
+        self.assertEqual(self.fix(session, 0, 0)["guidance"]["status"], "stopped")
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ import os
 import re
 import threading
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated, Literal
 from uuid import UUID
@@ -21,7 +21,7 @@ import yaml
 from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 from starlette.exceptions import HTTPException
 from starlette.middleware.cors import CORSMiddleware
 
@@ -79,6 +79,30 @@ class AddDoorProposal(Input):
     first_space: Reference
     second_space: Reference
     step_free: bool = True
+
+
+FiniteFloat = Annotated[float, Field(allow_inf_nan=False)]
+
+
+class PositionFix(Input):
+    floor_id: Annotated[str, StringConstraints(min_length=1, max_length=160)]
+    x_m: FiniteFloat
+    y_m: FiniteFloat
+    accuracy_m: Annotated[float, Field(ge=0, allow_inf_nan=False)] | None = None
+    measured_at: str
+    source: Literal["simulated", "wifi", "manual"]
+
+    @field_validator("measured_at")
+    @classmethod
+    def rfc3339(cls, value: str) -> str:
+        if not re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)", value):
+            raise ValueError("measured_at must be RFC 3339")
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return value
+
+
+class GuidanceStart(Input):
+    route_id: Reference
 
 
 ActionCreate = Annotated[SetClosedProposal | AddDoorProposal, Field(discriminator="kind")]
@@ -467,6 +491,30 @@ def create_app(
         with state.lock:
             result = service.finish_action(state, str(action_id), False, revision(request))
             return respond(result, etag=state.revision)
+
+    @app.put(API_ROOT + "/sessions/{session_id}/position", operation_id="put_position")
+    def put_position(session_id: UUID, body: PositionFix):
+        values = body.model_dump()
+        values["measured_at"] = datetime.fromisoformat(values["measured_at"].replace("Z", "+00:00"))
+        if values["measured_at"].tzinfo is None:
+            values["measured_at"] = values["measured_at"].replace(tzinfo=timezone.utc)
+        values["measured_at"] = values["measured_at"].astimezone(timezone.utc)
+        if values["measured_at"] > service.clock() + timedelta(seconds=2):
+            raise ApiError("20001_validation_failed", [{"field": "measured_at", "code": "invalid"}])
+        return service.put_position(str(session_id), values)
+
+    @app.get(API_ROOT + "/sessions/{session_id}/guidance", operation_id="get_guidance")
+    def get_guidance(session_id: UUID, after: int = Query(0, ge=0), wait_s: float = Query(0, ge=0, le=25)):
+        return service.get_guidance(str(session_id), after, wait_s)
+
+    @app.put(API_ROOT + "/sessions/{session_id}/guidance", operation_id="put_guidance")
+    def put_guidance(session_id: UUID, body: GuidanceStart):
+        return service.put_guidance(str(session_id), str(body.route_id))
+
+    @app.delete(API_ROOT + "/sessions/{session_id}/guidance", operation_id="delete_guidance")
+    def delete_guidance(session_id: UUID):
+        service.delete_guidance(str(session_id))
+        return Response(status_code=204)
 
     return app
 

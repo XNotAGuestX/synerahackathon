@@ -11,7 +11,7 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Callable, Literal
+from typing import Any, Callable, Literal
 from uuid import uuid4
 
 import anthropic
@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict
 
 from .agent import BuildingAgent, MissingCredentialsError
 from .building_map import BuildingMap, MapError, RouteResult
+from .live import LiveState
 from .storage import RoomNoteStore
 from .tools import ArgumentCheckedTool, as_json, make_tools, route_json
 from .viewer import landmark_targets, node_location, route_polylines
@@ -91,6 +92,8 @@ class SessionState:
     transcript: list[dict] = field(default_factory=list)
     history: list[dict] = field(default_factory=list)
     lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
+    route_results: dict[str, Any] = field(default_factory=dict)  # route id -> RouteResult; never on the wire
+    live: LiveState = field(default_factory=lambda: LiveState(utc_now, identifier), repr=False)
 
 
 class AskChoice(BaseModel):
@@ -215,7 +218,8 @@ class SessionService:
 
     def create(self, building_id: str, preferences: dict) -> dict:
         now = timestamp(self.clock())
-        session = SessionState(self.new_id(), BuildingMap(copy.deepcopy(self.building_data(building_id))), now, now, preferences)
+        session = SessionState(self.new_id(), BuildingMap(copy.deepcopy(self.building_data(building_id))), now, now, preferences,
+                               live=LiveState(self.clock, self.new_id))
         with self._lock:
             self.sessions[session.id] = session
         return self.view(session)
@@ -229,7 +233,9 @@ class SessionService:
 
     def delete(self, session_id: str) -> None:
         with self._lock:
-            self.sessions.pop(session_id, None)
+            session = self.sessions.pop(session_id, None)
+        if session is not None:
+            session.live.close()
 
     def bump(self, session: SessionState) -> None:
         session.revision += 1
@@ -383,6 +389,8 @@ class SessionService:
                     raise
                 result = self.route_record(session, None, stops, step_free, str(error))
             session.routes[result["id"]] = result
+            if result["reachable"]:
+                session.route_results[result["id"]] = route
             session.last_route_id = result["id"]
             self.bump(session)
             return copy.deepcopy(result)
@@ -486,10 +494,34 @@ class SessionService:
                 session.map.last_route = None
                 session.map.active_request = None
                 session.last_route_id = None
+                if proposal["kind"] == "set_closed" and proposal["closed"] and session.live.blocked_by(session.map.closed):
+                    session.live.stop("blocked", "Your route is blocked. Ask me for a new one.")
             action.update(status=target, resolved_at=timestamp(self.clock()))
             session.pending_action_id = None
             self.bump(session)
             return copy.deepcopy(action)
+
+    def put_position(self, session_id: str, body: dict) -> dict:
+        session = self.get(session_id)  # no view()/expire(): a fix must never bump the revision
+        return {"schema_version": 1, **session.live.apply_fix(session.map, body)}
+
+    def get_guidance(self, session_id: str, after: int, wait_s: float) -> dict:
+        live = self.get(session_id).live
+        events, cursor = live.events_after(after, wait_s)
+        return {"schema_version": 1, "guidance": live.guidance_view(), "events": events, "cursor": cursor}
+
+    def put_guidance(self, session_id: str, route_id: str) -> dict:
+        session = self.get(session_id)
+        with session.lock:
+            record = self.route(session, route_id)
+            result = session.route_results.get(route_id)
+            if not record["reachable"] or result is None:
+                raise ApiError("20001_validation_failed", [{"field": "route_id", "code": "unreachable"}])
+            session.live.start(session.map, route_id, record, result, spoken=False)
+        return self.get_guidance(session_id, 0, 0)
+
+    def delete_guidance(self, session_id: str) -> None:
+        self.get(session_id).live.stop("cancelled")
 
     def message_page(self, session: SessionState, cursor: str | None, limit: int) -> dict:
         with session.lock:
@@ -506,6 +538,7 @@ class SessionService:
             session.revision, session.last_route_id, session.pending_action_id,
             copy.deepcopy(session.routes), copy.deepcopy(session.actions),
             copy.deepcopy(session.transcript), copy.deepcopy(session.history),
+            route_results=dict(session.route_results), live=session.live,  # live is shared, never copied
         )
 
     def message(self, session: SessionState, body: dict, revision: int | None) -> dict:
@@ -592,7 +625,7 @@ class SessionService:
                 # Validate JSON before committing session state. Room reports are already saved
                 # per tool call; a retry cannot add votes because each chat counts once.
                 json.dumps(response, allow_nan=False)
-                for name in ("map", "revision", "updated_at", "last_route_id", "pending_action_id", "routes", "actions", "transcript", "history"):
+                for name in ("map", "revision", "updated_at", "last_route_id", "pending_action_id", "routes", "actions", "transcript", "history", "route_results"):
                     setattr(session, name, getattr(work, name))
                 return response
         except anthropic.RateLimitError as error:
@@ -740,6 +773,7 @@ class TurnTools:
                 if key not in self._route_objects:
                     record = self.service.route_record(self.work, route, route.stops, route.step_free)
                     self.work.routes[record["id"]] = record
+                    self.work.route_results[record["id"]] = route
                     self.work.last_route_id = record["id"]
                     self._route_objects[key] = record["id"]
                 route_id = self._route_objects[key]
