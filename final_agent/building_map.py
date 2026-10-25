@@ -576,27 +576,31 @@ class BuildingMap:
     def require_forklift_access(record: dict) -> None:
         access = record.get("forklift_access")
         if access is not True:
+            detail = "is denied" if access is False else "cannot be verified; set forklift_access in the building data"
             raise MapError(
-                f"{record['id']}: forklift access {'is denied' if access is False else 'cannot be verified; set forklift_access in the building data'}.",
+                f"{record['id']}: forklift access {detail}.",
                 reason="unreachable" if access is False else "access_unverified", field="forklift_access",
             )
 
     def graph(
         self, step_free: bool = False, min_width_m: float = 0.0, extra_closed: Iterable[str] = (), *,
         travel_mode: TravelMode = "walking", start_space_id: str | None = None, allow_unknown_access: bool = False,
-    ) -> nx.MultiGraph:
+    ) -> nx.MultiGraph | nx.MultiDiGraph:
         """Kit 1.1.0 routing graph without closed elements, steps (if step_free) or openings narrower than min_width_m.
 
         Connectors have no width: only the doors that give access to them are filtered by width.
         extra_closed adds query-only closures on top of self.closed, which stays untouched.
+        Forklift graphs are directed so bays can be reached as terminal stops without allowing transit.
         """
         step_free, min_width_m = self.route_constraints(step_free, min_width_m, travel_mode)
         closed = self.closed | set(extra_closed)
         # MultiGraph: a stair and a lift may join the same two spaces; both edges must be kept.
         forklift = travel_mode == "forklift"
         graph = nx.MultiDiGraph() if forklift else nx.MultiGraph()
+
         def permitted(record: dict) -> bool:
             return not forklift or record.get("forklift_access", allow_unknown_access) is True
+
         open_doors = {
             DOOR_PREFIX + opening["id"] for opening in self.openings.values()
             if opening["id"] not in closed
@@ -605,9 +609,8 @@ class BuildingMap:
             and permitted(opening)
         }
         open_spaces = [space_id for space_id, space in self.spaces.items() if space_id not in closed and permitted(space)]
-        # Keep endpoints as isolated nodes so an explicitly denied/unknown start is a normal no-path case.
+        # Keep denied spaces as isolated nodes so reachability represents them as unreachable.
         graph.add_nodes_from(space_id for space_id in self.spaces if space_id not in closed)
-        graph.add_nodes_from(open_spaces)
         for space_id in open_spaces:
             terminal = forklift and self.destination_only(space_id)
             for first, second, length in self.space_walks(space_id, strict_geometry=forklift):

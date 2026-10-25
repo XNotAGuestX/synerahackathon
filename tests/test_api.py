@@ -255,14 +255,22 @@ class ApiTests(unittest.TestCase):
         route = self.post(path + "/routes", {"start": "left", "destination": "right", "travel_mode": "forklift"}, schema="Route").json()
         self.assertEqual(route["space_path"], ["left", "aisle", "right"])
         self.assertEqual((route["travel_mode"], route["min_width_m"], route["step_free"]), ("forklift", 3, True))
-        self.model.turns = [[reply(call("find_route", start="left", destination="right")),
+        self.post(path + "/routes", {"start": "left", "destination": "right", "travel_mode": "walking"})
+        self.model.turns = [[reply(call("find_route", start="left", destination="right", travel_mode="forklift")),
+                             reply(call("find_route", start="left", destination="right")),
                              reply(answer("Follow the forklift aisle.", "route"))]]
         # The frontend sends a step-free preference on every turn; that must not reset forklift mode.
         message = self.post(path + "/messages", {"text": "Show the route again.", "input_mode": "text",
             "client_context": {"preferences": {"step_free": False}}}, schema="MessageAccepted").json()
         self.assertEqual(message["routes"][0]["travel_mode"], "forklift")
         self.assertEqual(message["routes"][0]["space_path"], ["left", "aisle", "right"])
+        self.assertEqual(message["routes"][-1]["space_path"], ["left", "aisle", "right"])
         self.assertEqual(message["guide_message"]["understood"]["constraints"]["travel_mode"], "forklift")
+        self.model.turns.append([reply(call("find_route", start="right", destination="left")),
+                                 reply(answer("Return through the forklift aisle.", "route"))])
+        followup = self.post(path + "/messages", {"text": "Now go back.", "client_context": {"preferences": {"step_free": False}}},
+                             schema="MessageAccepted").json()
+        self.assertEqual(followup["routes"][0]["travel_mode"], "forklift")
         state = self.app.state.service.get(session["id"])
         del state.map.spaces["aisle"]["forklift_access"]
         error = self.post(path + "/routes", {"start": "left", "destination": "right", "travel_mode": "forklift"},

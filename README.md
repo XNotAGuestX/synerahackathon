@@ -214,6 +214,8 @@ Designate approved forklift aisles/delivery spaces and their passages with optio
 
 In forklift mode, spaces with `room_type` `production_zone`, `assembly_zone` or `additive_zone`, plus any space marked `destination_only: true`, may be starts, destinations or explicit pickup/delivery stops. They cannot be transit shortcuts: their door-to-door edges are removed and their room anchors are terminal except when departing from that leg's start. Each explicit stop begins a new leg. Forklift paths also exclude the inherited disconnected-geometry distance fallback. For an optimised tour whose supplied order is impossible but another order works, `given_order_length_m` and `saving_m` are null.
 
+Verification: 13 focused logistics checks and 37 HTTP checks pass, including computed map polylines, missing-access errors, follow-ups and workspace resume. Walking compatibility remains 369/369 on the dev oracle (expected-answer tools, not live conversational accuracy or a scored benchmark). The frontend production build and all 44 API examples validate. The full suite ran 345 tests: 341 passed, 3 skipped and one existing waypoint-discovery test errored because it treats `data/dev/.DS_Store` as a building directory. Cross-building forklift routing is unsupported. Live model interpretation and browser interaction were not exercised.
+
 ### Submission and judging process (earlier brief)
 
 There are no pitch rooms. All teams submit online by code freeze through the organizers' platform:

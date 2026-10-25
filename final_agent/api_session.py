@@ -871,17 +871,21 @@ class SessionService:
 
 class ObservedTool(BetaBuiltinFunctionTool):
     """Preserve SDK tool definitions while recording results for application-owned effects."""
-    def __init__(self, tool, observer, step_free: bool, on_error, travel_mode: str = "walking"):
+    def __init__(self, tool, observer, step_free: bool, on_error, mode_state: dict | None = None):
         self.tool, self.observer, self.step_free = tool, observer, step_free
         self.on_error = on_error
-        self.travel_mode = travel_mode
+        self.mode_state = mode_state if mode_state is not None else {"travel_mode": "walking"}
 
     def to_dict(self):
         return self.tool.to_dict()
 
     def call(self, arguments: object) -> str:
         if isinstance(arguments, dict) and self.name in {"find_route", "find_best_tour", "plan_errand", "reachable_rooms"}:
-            arguments = {"step_free": self.step_free, "travel_mode": self.travel_mode, **arguments}
+            arguments = {"step_free": self.step_free, **arguments}
+            if arguments.get("travel_mode") is None:
+                arguments["travel_mode"] = self.mode_state["travel_mode"]
+            if arguments["travel_mode"] in ("walking", "forklift"):
+                self.mode_state["travel_mode"] = arguments["travel_mode"]
         try:
             result = self.tool.call(arguments)
         except ToolError:
@@ -1113,7 +1117,8 @@ class TurnTools:
             undo_last_edit, show_location, show_route,
         )}
         originals = make_tools(work.map, service.output_directory / work.id, notes_store=store, session_id=work.id)
-        self.tools = [ObservedTool(overrides.get(tool.name, tool), self.observe, step_free, self.failed, travel_mode) for tool in originals]
+        mode_state = {"travel_mode": travel_mode}
+        self.tools = [ObservedTool(overrides.get(tool.name, tool), self.observe, step_free, self.failed, mode_state) for tool in originals]
         self.tools += [ArgumentCheckedTool(function) for function in (start_guidance, stop_guidance)]
 
     def guidance_problem(self) -> str | None:

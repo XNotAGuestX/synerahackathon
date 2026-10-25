@@ -170,3 +170,20 @@ class RouteRulesTests(unittest.TestCase):
         invalid["spaces"][0]["forklift_access"] = "yes"
         with self.assertRaises(MapError):
             BuildingMap(invalid)
+
+    def test_workspace_preserves_forklift_mode_on_failed_route_and_resume(self):
+        from final_agent.workspace import Workspace, make_workspace_tools
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            factory_map().save(root / "factory.json")
+            workspace = Workspace(root / "session")
+            workspace.register(str(root / "factory.json"))
+            tools = {tool.name: tool for tool in make_workspace_tools(workspace)}
+            tools["find_route"].call({"start": "left", "destination": "right", "travel_mode": "forklift"})
+            building = workspace.building()["map"]
+            building.set_closed("aisle", True)
+            with self.assertRaises(ToolError):
+                tools["find_route"].call({"start": "left", "destination": "right"})
+            self.assertEqual(building.active_request["travel_mode"], "forklift")
+            restored = Workspace(workspace.directory).building()["map"]
+            self.assertEqual(restored.active_request["travel_mode"], "forklift")

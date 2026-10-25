@@ -721,6 +721,7 @@ def make_tools(
         route show_route draws; after a closure it is recomputed in the same stop order. An unreachable or
         closed stop makes the whole tour impossible (an error names it); stops are never dropped.
         Lengths use the kit distance model (distance_model).
+        If only the supplied visiting order is impossible, given_order_length_m and saving_m are null.
 
         Args:
             start: Space id, asset id, or exact room number/name where the tour starts.
