@@ -96,6 +96,12 @@ def spent(usage: Counter[str], model: str) -> str:
     return f"${cost_dollars(usage, model):.3f} so far"
 
 
+def submission_template(directory: Path) -> Path | None:
+    """The public test template, when this run is the 145-question submission."""
+    path = directory / "submission_template.csv"
+    return path if path.is_file() else None
+
+
 def write_submission_csv(path: Path, replies: list[tuple[str, str]]) -> None:
     """question_id,answer with the full replies: the file the judge app grades."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -103,7 +109,6 @@ def write_submission_csv(path: Path, replies: list[tuple[str, str]]) -> None:
         writer = csv.writer(handle)
         writer.writerow(SUBMISSION_COLUMNS)
         writer.writerows(replies)
-    print(f"submission CSV with {len(replies)} answers saved to {path}")
 
 
 def run(
@@ -114,7 +119,7 @@ def run(
     submission_csv: Path | None = None,
     kinds: list[str] | None = None,
     model: str | None = None,
-) -> None:
+) -> int:
     answer = load_agent(agent_reference)
     # Without a model the agent uses its own default (MODEL for the project agent).
     agent = partial(answer, model=model) if model else answer
@@ -157,11 +162,22 @@ def run(
             print(f"[benchmark] {question['id']:34s} {kind or 'unknown':20s} {outcome}{progress}")
     if results:
         report(results)
+    exit_code = 0
     if submission_csv is not None:
-        write_submission_csv(submission_csv, replies)
+        from benchmark.validate_submission import write_validated_submission
+        template = submission_template(directory)
+        problems = write_validated_submission(submission_csv, replies, template)
+        if problems:
+            exit_code = 1
+            print("submission CSV was not kept:")
+            for problem in problems:
+                print(f"  {problem}")
+        else:
+            print(f"submission CSV with {len(replies)} answers saved to {submission_csv}")
     if usage:
         print(f"tokens: {dict(usage)}  cost: ${cost_dollars(usage, model or MODEL):.2f}")
     print(f"replies saved to {results_path}")
+    return exit_code
 
 
 def report(results: Counter[tuple[str, bool]]) -> None:
@@ -196,7 +212,7 @@ def main() -> None:
     arguments = parser.parse_args()
     if arguments.debug:
         enable_debug_log(arguments.agent)
-    run(
+    raise SystemExit(run(
         arguments.directory,
         arguments.per_kind,
         arguments.agent,
@@ -204,7 +220,7 @@ def main() -> None:
         arguments.submission_csv,
         arguments.kinds,
         MODELS[arguments.model] if arguments.model else None,
-    )
+    ))
 
 
 if __name__ == "__main__":
